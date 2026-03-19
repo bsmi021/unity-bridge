@@ -260,25 +260,22 @@ async def _handle_batch(
 # ---------------------------------------------------------------------------
 
 
-def _auto_install_bridge() -> None:
+async def _auto_install_bridge() -> None:
     """Auto-install or update the C# bridge files on startup."""
-    try:
-        from install_bridge import install_unity_bridge
-        result = install_unity_bridge()
-        if result.get("success"):
-            info = result.get("bridge_installation", {})
-            action = info.get("action", "unknown")
-            version = info.get("version", "unknown")
-            if action == "install":
-                logger.info("Bridge installed (v%s)", version)
-            elif action == "update":
-                logger.info("Bridge updated to v%s", version)
-            else:
-                logger.debug("Bridge up to date (v%s)", version)
+    from unity_bridge.commands.lifecycle import install
+
+    result = await install()
+    if result.success:
+        action = result.data.get("action", "unknown") if result.data else "unknown"
+        ver = result.data.get("version", "unknown") if result.data else "unknown"
+        if action == "install":
+            logger.info("Bridge installed (v%s)", ver)
+        elif action == "update":
+            logger.info("Bridge updated to v%s", ver)
         else:
-            logger.warning("Bridge install warning: %s", result.get("error", "unknown"))
-    except ImportError:
-        logger.debug("install_bridge not available, skipping auto-install")
+            logger.debug("Bridge up to date (v%s)", ver)
+    else:
+        logger.warning("Bridge install warning: %s", result.error or "unknown")
 
 
 async def run_mcp_server(config: BridgeConfig | None = None) -> None:
@@ -300,7 +297,7 @@ async def run_mcp_server(config: BridgeConfig | None = None) -> None:
     project_root = config.project_root or detect_unity_project()
     config_file = config.config_file or (project_root / "unity_bridge_config.json")
 
-    _auto_install_bridge()
+    await _auto_install_bridge()
 
     server = Server("unity-bridge")
 
