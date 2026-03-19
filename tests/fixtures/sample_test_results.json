@@ -1,0 +1,40 @@
+{
+  "testPlatform": "EditMode",
+  "totalTests": 5,
+  "passed": 3,
+  "failed": 1,
+  "skipped": 1,
+  "durationMs": 234,
+  "results": [
+    {
+      "testName": "CombatControllerTests.TestDamageCalculation",
+      "status": "Passed",
+      "durationMs": 12,
+      "message": null
+    },
+    {
+      "testName": "CombatControllerTests.TestHealthReduction",
+      "status": "Passed",
+      "durationMs": 8,
+      "message": null
+    },
+    {
+      "testName": "CombatControllerTests.TestDeathOnZeroHealth",
+      "status": "Failed",
+      "durationMs": 15,
+      "message": "Expected: isDead = true\nActual:   isDead = false"
+    },
+    {
+      "testName": "CombatControllerTests.TestHealOverMax",
+      "status": "Passed",
+      "durationMs": 10,
+      "message": null
+    },
+    {
+      "testName": "CombatControllerTests.TestArmorReduction",
+      "status": "Skipped",
+      "durationMs": 0,
+      "message": "Test ignored: not implemented yet"
+    }
+  ]
+}

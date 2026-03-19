@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "unity-bridge"
+version = "3.0.0"
+description = "CLI and library for Unity Editor automation via file-based bridge"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Claude Code", email = "noreply@anthropic.com" },
+]
+keywords = ["unity", "gamedev", "cli", "bridge", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Build Tools",
+]
+dependencies = [
+    "typer[all]>=0.12.0",
+    "aiofiles>=23.0",
+]
+
+[project.optional-dependencies]
+mcp = [
+    "mcp[cli]>=1.0.0",
+]
+watch = [
+    "watchfiles>=0.21",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+]
+all = [
+    "unity-bridge[mcp,watch,dev]",
+]
+
+[project.scripts]
+unity-bridge = "unity_bridge.app:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/unity_bridge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100

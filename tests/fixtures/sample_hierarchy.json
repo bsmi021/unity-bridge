@@ -1,0 +1,74 @@
+{
+  "children": [
+    {
+      "name": "Main Camera",
+      "activeSelf": true,
+      "components": ["Transform", "Camera", "AudioListener"],
+      "children": []
+    },
+    {
+      "name": "Directional Light",
+      "activeSelf": true,
+      "components": ["Transform", "Light"],
+      "children": []
+    },
+    {
+      "name": "Player",
+      "activeSelf": true,
+      "components": ["Transform", "PlayerController", "Rigidbody"],
+      "children": [
+        {
+          "name": "Weapon",
+          "activeSelf": true,
+          "components": ["Transform", "WeaponSystem"],
+          "children": [
+            {
+              "name": "Muzzle",
+              "activeSelf": true,
+              "components": ["Transform"],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "Shield",
+          "activeSelf": false,
+          "components": ["Transform", "ShieldController"],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Environment",
+      "activeSelf": true,
+      "components": ["Transform"],
+      "children": [
+        {
+          "name": "Ground",
+          "activeSelf": true,
+          "components": ["Transform", "MeshRenderer", "MeshCollider"],
+          "children": []
+        },
+        {
+          "name": "Trees",
+          "activeSelf": true,
+          "components": ["Transform"],
+          "children": [
+            {
+              "name": "Oak_01",
+              "activeSelf": true,
+              "components": ["Transform", "MeshRenderer"],
+              "children": []
+            },
+            {
+              "name": "Pine_01",
+              "activeSelf": true,
+              "components": ["Transform", "MeshRenderer"],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

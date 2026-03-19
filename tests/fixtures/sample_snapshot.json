@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "timestamp": "2026-03-17T12:00:00Z",
+  "project_root": "C:/Projects/MyUnityGame",
+  "hierarchy": {
+    "children": [
+      {
+        "name": "Main Camera",
+        "activeSelf": true,
+        "components": ["Transform", "Camera", "AudioListener"],
+        "children": []
+      },
+      {
+        "name": "Player",
+        "activeSelf": true,
+        "components": ["Transform", "PlayerController", "Rigidbody"],
+        "children": [
+          {
+            "name": "Weapon",
+            "activeSelf": true,
+            "components": ["Transform", "WeaponSystem"],
+            "children": []
+          }
+        ]
+      },
+      {
+        "name": "Environment",
+        "activeSelf": true,
+        "components": ["Transform"],
+        "children": [
+          {
+            "name": "Ground",
+            "activeSelf": true,
+            "components": ["Transform", "MeshRenderer"],
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}
