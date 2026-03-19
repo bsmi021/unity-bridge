@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `install` command: replaced missing `install_bridge` module with native install logic in `lifecycle.py`
+- `version` command: bridge version no longer shows "unknown"
+- MCP server auto-install now uses shared `lifecycle.install()` instead of missing legacy module
+
 ### Added
 - `app.py` Typer entry point with global flags (`--project`, `--pretty`, `--human`, `--verbose`, `--quiet`, `--timeout`, `--no-color`)
 - `mcp/server.py` migrated from monolithic `unity_bridge_mcp_server.py`, uses shared core async functions
