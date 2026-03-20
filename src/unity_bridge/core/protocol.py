@@ -33,8 +33,30 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "run-tests": 300,
     "compile": 120,
     "asset-operation": 60,
+    "asset-extended-operation": 60,
+    "package-operation": 60,
+    "player-settings-operation": 15,
+    "build-profile-operation": 30,
     # Very long operations
     "build-operation": 600,
+    # Phase 2: Undo (quick, read-only or instant)
+    "undo-operation": 5,
+    # Phase 2: Compilation pipeline (read-heavy, optimization set is fast)
+    "compilation-pipeline": 15,
+    # Phase 2: Prefab overrides (mutating)
+    "prefab-override": 30,
+    # Phase 2: Test listing (may wait for test framework)
+    "list-tests": 30,
+    # Phase 2: GameObject utilities (mixed read/write)
+    "gameobject-utility": 15,
+    # Phase 3: Shader inspection (read-only, fast)
+    "shader-inspection": 15,
+    # Phase 3: Lightmap operations (varies widely; bake sync overrides to 3600)
+    "lightmap-operation": 30,
+    # Phase 3: Scene setup (medium — restore loads scenes)
+    "scene-setup-operation": 30,
+    # Phase 3: Import settings (medium — reimport can take time)
+    "import-settings-operation": 60,
 }
 
 # Commands that are safe for parallel execution in batch mode.
@@ -46,6 +68,8 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "read-console",
     "validate-prefab",
     "health-check",
+    "list-tests",
+    "shader-inspection",
 }
 
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.

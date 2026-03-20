@@ -76,18 +76,41 @@ unity-bridge/
 │   │   ├── protocol.py        # Timeout defaults, parallel-safe commands
 │   │   ├── project.py         # Unity project auto-detection
 │   │   └── output.py          # OutputFormatter (json/pretty/human)
-│   ├── commands/              # 18 command groups (one per domain)
+│   ├── commands/              # 27 command modules (one per domain)
+│   │   ├── hierarchy.py       # hierarchy + component groups
+│   │   ├── workflow.py        # workflow + snapshot groups
+│   │   ├── settings.py        # Phase 1: PlayerSettings
+│   │   ├── asset_extended.py  # Phase 1: extended asset ops
+│   │   ├── build_profile.py   # Phase 1: Unity 6 Build Profiles
+│   │   ├── package.py         # Phase 1: UPM package manager
+│   │   ├── compile_extended.py # Phase 2: compilation pipeline
+│   │   ├── undo.py            # Phase 2: undo/redo management
+│   │   ├── lightmap.py        # Phase 3: lightmap baking
+│   │   ├── shader.py          # Phase 3: shader inspection
+│   │   ├── scene_setup.py     # Phase 3: multi-scene setups
+│   │   ├── import_settings.py # Phase 3: asset import templates
+│   │   └── ...                # animator, asset, batch, build, console, etc.
 │   └── mcp/                   # MCP server layer
 │       ├── server.py          # MCP server using shared core functions
-│       ├── tools.py           # Tool definitions and command dispatch map
-│       └── schemas.py         # JSON Schema definitions for 26 MCP tools
-├── ClaudeCodeBridge/          # C# scripts installed into Unity Editor
+│       ├── tools.py           # Tool definitions + dispatch map (39 MCP tools)
+│       ├── schemas.py         # Schemas for 24 core MCP tools
+│       ├── schemas_ext.py     # Schemas for Phase 1+2 tools (11 tools)
+│       └── schemas_phase3.py  # Schemas for Phase 3 tools (4 tools)
+├── ClaudeCodeBridge/          # C# scripts installed into Unity Editor (60+ files)
+│   ├── ClaudeUnityBridge.cs   # Main bridge loop (EditorApplication.update)
+│   ├── BridgeCommandRegistry.cs # Command handler registration
+│   ├── BridgeModels.cs        # Core request/response models
+│   ├── BridgeModelsPhase2.cs  # Phase 2 models (undo, compile, prefab overrides)
+│   ├── BridgeModelsPhase3.cs  # Phase 3 models (lightmap, shader, scene setup, import)
+│   ├── *CommandHandler.cs     # One handler per command type
+│   ├── *Models.cs             # Per-domain model classes
+│   └── *Helpers.cs            # Split helpers for large handlers (500 LOC limit)
 ├── tests/                     # pytest suite
 │   ├── unit/                  # Mock-based, no Unity required
 │   ├── integration/           # Requires Unity running
 │   ├── fixtures/              # JSON test data
 │   └── conftest.py            # Shared fixtures (mock_bridge, fake_project, etc.)
-└── docs/                      # Tech specs
+└── docs/                      # Tech specs (phase 1-3 + adversarial review)
 ```
 
 ## Architecture
@@ -95,6 +118,10 @@ unity-bridge/
 ### Communication Protocol
 
 Python writes JSON command files to `<project>/.claude/unity/commands/`. The Unity C# bridge (`ClaudeUnityBridge.cs`, running via `EditorApplication.update`) picks them up, processes them, and writes responses to `<project>/.claude/unity/responses/`. Each command has a unique UUID.
+
+Additional bridge directories created by Phase 3 handlers:
+- `<project>/.claude/unity/scene-setups/` — saved multi-scene layouts (scene-setup-operation)
+- `<project>/.claude/unity/import-templates/` — saved import setting templates (import-settings-operation)
 
 ### Project Auto-Detection
 
@@ -116,13 +143,25 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 - `BridgeConfig` (`core/config.py`) — unified config with precedence resolution
 - `AppState` (`app.py`) — shared state passed to commands via `ctx.obj`, lazy-inits bridge
 
-### Command Groups
+### Command Groups (29 CLI groups)
 
-animator, asset, batch, build, console, diagnostics, editor, hierarchy, component, lifecycle, material, playmode, prefab, scene, script, serve, test, workflow, snapshot
+**Core:** animator, asset, batch, build, component, console, diagnostics, editor, hierarchy, lifecycle, material, playmode, prefab, scene, script, serve, snapshot, test, workflow
+**Phase 1:** asset-ext, package, profile, settings
+**Phase 2:** compile, undo (+ prefab overrides/gameobject-utility subcommands)
+**Phase 3:** import-settings, lightmap, scene-ext, shader
 
 ## C# Bridge Installation
 
 The `lifecycle` command copies `ClaudeCodeBridge/*.cs` into the Unity project at `Assets/Scripts/Editor/ClaudeCodeBridge/`. The MCP server auto-installs on first run. Files include `.meta` files for Unity asset tracking.
+
+### C# File Organization
+
+Large C# handlers are split to stay under 500 LOC:
+- `*CommandHandler.cs` — main handler with `Execute()` dispatch
+- `*Models.cs` — request/response data classes (e.g., `LightmapOperationModels.cs`)
+- `*Helpers.cs` — extracted helper methods (e.g., `ImportSettingsHelpers.cs`, `AssetExtendedHelpers.cs`)
+- `BridgeModels.cs` / `BridgeModelsPhase2.cs` / `BridgeModelsPhase3.cs` — shared models by phase
+- Animator handler split into 5 partial class files by operation category (layer, state, transition, parameter)
 
 ## Code Conventions
 
@@ -164,6 +203,16 @@ def do_thing_cli(ctx: typer.Context, ...) -> None:
 - Parameters use camelCase (matching C# conventions): `testPlatform`, `waitForCompletion`
 - Timeout defaults are in `core/protocol.py` — use `get_timeout()` with 3-level precedence
 - `PARALLEL_SAFE_COMMANDS` in `core/protocol.py` is the single source of truth for batch parallelism
+- Current parallel-safe (read-only) commands: `query-hierarchy`, `get-component-data`, `get-selection`, `read-console`, `validate-prefab`, `health-check`, `list-tests`, `shader-inspection`
+
+### MCP Schema Split
+
+Schemas are split across 3 files to stay under the 500 LOC limit:
+- `schemas.py` — 24 core tool schemas (original tools)
+- `schemas_ext.py` — 11 schemas: 9 Phase 1+2 tools + `batch` + `help`
+- `schemas_phase3.py` — 4 Phase 3 tool schemas (lightmap, shader, scene-extended, import-settings)
+
+Total: 39 MCP tools defined in `mcp/tools.py` TOOL_DEFINITIONS list, 35 mapped to bridge commands via TOOL_COMMAND_MAP (4 are client-side: `unity_bridge_config`, `unity_health_check`, `unity_batch`, `unity_help`).
 
 ## Testing
 

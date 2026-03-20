@@ -1,4 +1,4 @@
-"""Prefab commands: validate, instantiate, destroy."""
+"""Prefab commands: validate, instantiate, destroy, overrides, status, unpack."""
 
 from __future__ import annotations
 
@@ -105,9 +105,7 @@ def _parse_position(value: str) -> tuple[float, float, float]:
     try:
         return (float(parts[0]), float(parts[1]), float(parts[2]))
     except ValueError as exc:
-        raise typer.BadParameter(
-            f"Position components must be numbers, got '{value}'"
-        ) from exc
+        raise typer.BadParameter(f"Position components must be numbers, got '{value}'") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -161,4 +159,277 @@ def prefab_destroy_cli(
 
     state = ctx.obj
     result = asyncio.run(prefab_destroy(state.bridge, instance_path))
+    print_result(result, state.formatter)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Prefab override core async functions
+# ---------------------------------------------------------------------------
+
+VALID_OVERRIDE_ACTIONS = frozenset(
+    {
+        "list",
+        "apply",
+        "revert",
+        "status",
+        "find-instances",
+        "unpack",
+    }
+)
+
+
+async def prefab_overrides_list(
+    bridge: DirectBridge,
+    instance_path: str,
+    include_default_overrides: bool = False,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """List all overrides on a prefab instance.
+
+    Args:
+        bridge: Active bridge connection.
+        instance_path: Hierarchy path to the prefab instance.
+        include_default_overrides: Include default overrides (position/rotation).
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="prefab-override",
+        parameters={
+            "operation": "list",
+            "instancePath": instance_path,
+            "includeDefaultOverrides": include_default_overrides,
+        },
+        timeout=timeout,
+    )
+
+
+async def prefab_overrides_apply(
+    bridge: DirectBridge,
+    instance_path: str,
+    target: str | None = None,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Apply overrides from a prefab instance to the prefab asset.
+
+    Args:
+        bridge: Active bridge connection.
+        instance_path: Hierarchy path to the prefab instance.
+        target: Specific override to apply (omit for all).
+        timeout: Timeout in seconds.
+    """
+    params: dict[str, object] = {
+        "operation": "apply",
+        "instancePath": instance_path,
+    }
+    if target is not None:
+        params["target"] = target
+
+    return await bridge.send_command_with_retry(
+        command_type="prefab-override",
+        parameters=params,
+        timeout=timeout,
+    )
+
+
+async def prefab_overrides_revert(
+    bridge: DirectBridge,
+    instance_path: str,
+    target: str | None = None,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Revert overrides on a prefab instance back to the prefab asset state.
+
+    Args:
+        bridge: Active bridge connection.
+        instance_path: Hierarchy path to the prefab instance.
+        target: Specific override to revert (omit for all).
+        timeout: Timeout in seconds.
+    """
+    params: dict[str, object] = {
+        "operation": "revert",
+        "instancePath": instance_path,
+    }
+    if target is not None:
+        params["target"] = target
+
+    return await bridge.send_command_with_retry(
+        command_type="prefab-override",
+        parameters=params,
+        timeout=timeout,
+    )
+
+
+async def prefab_status(
+    bridge: DirectBridge,
+    path: str,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Get prefab type and instance status.
+
+    Args:
+        bridge: Active bridge connection.
+        path: Hierarchy path or asset path to query.
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="prefab-override",
+        parameters={
+            "operation": "status",
+            "instancePath": path,
+        },
+        timeout=timeout,
+    )
+
+
+async def prefab_find_instances(
+    bridge: DirectBridge,
+    asset_path: str,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Find all scene instances of a prefab asset (root-level only).
+
+    NOTE: Does not include nested prefab instances.
+
+    Args:
+        bridge: Active bridge connection.
+        asset_path: Prefab asset path (e.g. Assets/Prefabs/Enemy.prefab).
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="prefab-override",
+        parameters={
+            "operation": "find-instances",
+            "assetPath": asset_path,
+        },
+        timeout=timeout,
+    )
+
+
+async def prefab_unpack(
+    bridge: DirectBridge,
+    instance_path: str,
+    completely: bool = False,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Unpack a prefab instance.
+
+    Args:
+        bridge: Active bridge connection.
+        instance_path: Hierarchy path to the prefab instance.
+        completely: If True, fully unpack nested prefabs.
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="prefab-override",
+        parameters={
+            "operation": "unpack",
+            "instancePath": instance_path,
+            "completely": completely,
+        },
+        timeout=timeout,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Prefab override CLI wrappers
+# ---------------------------------------------------------------------------
+
+overrides_app = typer.Typer(name="overrides", help="Prefab override management.")
+prefab_app.add_typer(overrides_app, name="overrides")
+
+
+@overrides_app.command("list")
+def overrides_list_cli(
+    ctx: typer.Context,
+    instance_path: Annotated[str, typer.Argument(help="Hierarchy path to prefab instance.")],
+    include_default: Annotated[
+        bool,
+        typer.Option(
+            "--include-default-overrides",
+            help="Include default overrides (position/rotation).",
+        ),
+    ] = False,
+) -> None:
+    """List all overrides on a prefab instance."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(prefab_overrides_list(state.bridge, instance_path, include_default))
+    print_result(result, state.formatter)
+
+
+@overrides_app.command("apply")
+def overrides_apply_cli(
+    ctx: typer.Context,
+    instance_path: Annotated[str, typer.Argument(help="Hierarchy path to prefab instance.")],
+    target: Annotated[
+        str | None,
+        typer.Option("--target", "-t", help="Specific override to apply."),
+    ] = None,
+) -> None:
+    """Apply overrides to the prefab asset."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(prefab_overrides_apply(state.bridge, instance_path, target=target))
+    print_result(result, state.formatter)
+
+
+@overrides_app.command("revert")
+def overrides_revert_cli(
+    ctx: typer.Context,
+    instance_path: Annotated[str, typer.Argument(help="Hierarchy path to prefab instance.")],
+    target: Annotated[
+        str | None,
+        typer.Option("--target", "-t", help="Specific override to revert."),
+    ] = None,
+) -> None:
+    """Revert overrides back to prefab asset state."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(prefab_overrides_revert(state.bridge, instance_path, target=target))
+    print_result(result, state.formatter)
+
+
+@prefab_app.command("status")
+def prefab_status_cli(
+    ctx: typer.Context,
+    path: Annotated[str, typer.Argument(help="Hierarchy path or asset path.")],
+) -> None:
+    """Get prefab type and instance status."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(prefab_status(state.bridge, path))
+    print_result(result, state.formatter)
+
+
+@prefab_app.command("find-instances")
+def prefab_find_instances_cli(
+    ctx: typer.Context,
+    asset_path: Annotated[str, typer.Argument(help="Prefab asset path.")],
+) -> None:
+    """Find all scene instances of a prefab (root-level only)."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(prefab_find_instances(state.bridge, asset_path))
+    print_result(result, state.formatter)
+
+
+@prefab_app.command("unpack")
+def prefab_unpack_cli(
+    ctx: typer.Context,
+    instance_path: Annotated[str, typer.Argument(help="Hierarchy path to prefab instance.")],
+    completely: Annotated[
+        bool,
+        typer.Option("--completely", help="Fully unpack nested prefabs."),
+    ] = False,
+) -> None:
+    """Unpack a prefab instance."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(prefab_unpack(state.bridge, instance_path, completely=completely))
     print_result(result, state.formatter)

@@ -1,6 +1,6 @@
 """Hierarchy and component commands.
 
-Covers: hierarchy query, component get/set/add.
+Covers: hierarchy query, component get/set/add, gameobject utilities.
 """
 
 from __future__ import annotations
@@ -166,9 +166,7 @@ hierarchy_app = typer.Typer(name="hierarchy", help="Scene hierarchy commands.")
 @hierarchy_app.callback(invoke_without_command=True)
 def hierarchy_cli(
     ctx: typer.Context,
-    depth: Annotated[
-        int, typer.Option("--depth", "-d", help="Maximum traversal depth.")
-    ] = 5,
+    depth: Annotated[int, typer.Option("--depth", "-d", help="Maximum traversal depth.")] = 5,
     inactive: Annotated[
         bool, typer.Option("--inactive", help="Include inactive GameObjects.")
     ] = False,
@@ -183,9 +181,7 @@ def hierarchy_cli(
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(
-        query_hierarchy(state.bridge, depth, inactive, root)
-    )
+    result = asyncio.run(query_hierarchy(state.bridge, depth, inactive, root))
     print_result(result, state.formatter)
 
 
@@ -208,9 +204,7 @@ def component_get_cli(
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(
-        get_component(state.bridge, object_path, component_type, fields)
-    )
+    result = asyncio.run(get_component(state.bridge, object_path, component_type, fields))
     print_result(result, state.formatter)
 
 
@@ -231,9 +225,7 @@ def component_set_cli(
         raise typer.BadParameter("At least one --update FIELD:JSON is required.")
 
     state = ctx.obj
-    result = asyncio.run(
-        set_component(state.bridge, object_path, component_type, update)
-    )
+    result = asyncio.run(set_component(state.bridge, object_path, component_type, update))
     print_result(result, state.formatter)
 
 
@@ -247,7 +239,212 @@ def component_add_cli(
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(
-        add_component(state.bridge, object_path, component_type)
+    result = asyncio.run(add_component(state.bridge, object_path, component_type))
+    print_result(result, state.formatter)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: GameObject utility core async functions
+# ---------------------------------------------------------------------------
+
+
+async def missing_scripts(
+    bridge: DirectBridge,
+    fix: bool = False,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Find (and optionally remove) missing MonoBehaviour scripts.
+
+    Args:
+        bridge: Active bridge connection.
+        fix: If True, remove the missing scripts.
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="gameobject-utility",
+        parameters={"operation": "missing-scripts", "fix": fix},
+        timeout=timeout,
     )
+
+
+async def static_flags(
+    bridge: DirectBridge,
+    object_path: str,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Get static editor flags for a GameObject.
+
+    Args:
+        bridge: Active bridge connection.
+        object_path: Hierarchy path to the GameObject.
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="gameobject-utility",
+        parameters={
+            "operation": "static-flags",
+            "gameObjectPath": object_path,
+        },
+        timeout=timeout,
+    )
+
+
+async def set_static_flags(
+    bridge: DirectBridge,
+    object_path: str,
+    flags: list[str],
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Set static editor flags on a GameObject.
+
+    Args:
+        bridge: Active bridge connection.
+        object_path: Hierarchy path to the GameObject.
+        flags: List of flag names (e.g. BatchingStatic, NavigationStatic).
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="gameobject-utility",
+        parameters={
+            "operation": "set-static-flags",
+            "gameObjectPath": object_path,
+            "flags": flags,
+        },
+        timeout=timeout,
+    )
+
+
+async def set_layer(
+    bridge: DirectBridge,
+    object_path: str,
+    layer: int,
+    recursive: bool = False,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Set layer on a GameObject.
+
+    Args:
+        bridge: Active bridge connection.
+        object_path: Hierarchy path to the GameObject.
+        layer: Layer index to set.
+        recursive: Apply to all children (including inactive).
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="gameobject-utility",
+        parameters={
+            "operation": "set-layer",
+            "gameObjectPath": object_path,
+            "layer": layer,
+            "recursive": recursive,
+        },
+        timeout=timeout,
+    )
+
+
+async def set_tag(
+    bridge: DirectBridge,
+    object_path: str,
+    tag: str,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Set tag on a GameObject.
+
+    Args:
+        bridge: Active bridge connection.
+        object_path: Hierarchy path to the GameObject.
+        tag: Tag name to set.
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="gameobject-utility",
+        parameters={
+            "operation": "set-tag",
+            "gameObjectPath": object_path,
+            "tag": tag,
+        },
+        timeout=timeout,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: GameObject utility CLI wrappers
+# ---------------------------------------------------------------------------
+
+
+@hierarchy_app.command("missing-scripts")
+def missing_scripts_cli(
+    ctx: typer.Context,
+    fix: Annotated[
+        bool,
+        typer.Option("--fix", help="Remove missing scripts."),
+    ] = False,
+) -> None:
+    """Find (and optionally fix) missing MonoBehaviour scripts."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(missing_scripts(state.bridge, fix=fix))
+    print_result(result, state.formatter)
+
+
+@hierarchy_app.command("static-flags")
+def static_flags_cli(
+    ctx: typer.Context,
+    object_path: Annotated[str, typer.Argument(help="Hierarchy path to the GameObject.")],
+) -> None:
+    """Get static editor flags for a GameObject."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(static_flags(state.bridge, object_path))
+    print_result(result, state.formatter)
+
+
+@hierarchy_app.command("set-static-flags")
+def set_static_flags_cli(
+    ctx: typer.Context,
+    object_path: Annotated[str, typer.Argument(help="Hierarchy path to the GameObject.")],
+    flags: Annotated[
+        list[str],
+        typer.Argument(help="Static flag names to set."),
+    ],
+) -> None:
+    """Set static editor flags on a GameObject."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(set_static_flags(state.bridge, object_path, flags))
+    print_result(result, state.formatter)
+
+
+@hierarchy_app.command("set-layer")
+def set_layer_cli(
+    ctx: typer.Context,
+    object_path: Annotated[str, typer.Argument(help="Hierarchy path to the GameObject.")],
+    layer: Annotated[int, typer.Argument(help="Layer index to set.")],
+    recursive: Annotated[
+        bool,
+        typer.Option("--recursive", "-r", help="Apply to children (including inactive)."),
+    ] = False,
+) -> None:
+    """Set layer on a GameObject."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(set_layer(state.bridge, object_path, layer, recursive))
+    print_result(result, state.formatter)
+
+
+@hierarchy_app.command("set-tag")
+def set_tag_cli(
+    ctx: typer.Context,
+    object_path: Annotated[str, typer.Argument(help="Hierarchy path to the GameObject.")],
+    tag: Annotated[str, typer.Argument(help="Tag name to set.")],
+) -> None:
+    """Set tag on a GameObject."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(set_tag(state.bridge, object_path, tag))
     print_result(result, state.formatter)

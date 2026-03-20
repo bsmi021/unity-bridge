@@ -79,7 +79,8 @@ def main(
     project: Annotated[
         Path | None,
         typer.Option(
-            "--project", "-p",
+            "--project",
+            "-p",
             help="Path to Unity project root. Auto-detected if omitted.",
         ),
     ] = None,
@@ -149,6 +150,7 @@ def _resolve_format(*, pretty: bool, human: bool) -> str | None:
 # Command registration
 # ---------------------------------------------------------------------------
 
+
 def _register_commands() -> None:
     """Import and register all command sub-apps and top-level commands.
 
@@ -161,11 +163,11 @@ def _register_commands() -> None:
     from unity_bridge.commands.scene import scene_app
     from unity_bridge.commands.prefab import prefab_app
     from unity_bridge.commands.console import console_app
-    from unity_bridge.commands.playmode import playmode_app
 
     # Sub-command groups
     app.add_typer(test_app, name="test")
     app.add_typer(component_app, name="component")
+    app.add_typer(hierarchy_app, name="hierarchy")
     app.add_typer(scene_app, name="scene")
     app.add_typer(prefab_app, name="prefab")
     app.add_typer(console_app, name="console")
@@ -181,7 +183,6 @@ def _register_optional_commands() -> None:
     even when some command modules have not been implemented.
     """
     _try_register_group("unity_bridge.commands.snapshot", "snapshot_app", "snapshot")
-    _try_register_command("unity_bridge.commands.hierarchy", "hierarchy_cli", "hierarchy")
     _try_register_command("unity_bridge.commands.playmode", "playmode_cli", "playmode")
     _try_register_command("unity_bridge.commands.diagnostics", "status_cli", "status")
     _try_register_command("unity_bridge.commands.diagnostics", "doctor_cli", "doctor")
@@ -203,6 +204,18 @@ def _register_optional_commands() -> None:
     _try_register_command("unity_bridge.commands.material", "material_cli", "material")
     _try_register_command("unity_bridge.commands.build", "build_cli", "build")
     _try_register_command("unity_bridge.commands.animator", "animator_cli", "animator")
+    _try_register_group("unity_bridge.commands.settings", "settings_app", "settings")
+    _try_register_group("unity_bridge.commands.build_profile", "build_profile_app", "profile")
+    _try_register_group("unity_bridge.commands.asset_extended", "asset_ext_app", "asset-ext")
+    _try_register_group("unity_bridge.commands.package", "package_app", "package")
+    _try_register_group("unity_bridge.commands.compile_extended", "compile_ext_app", "compile")
+    _try_register_group("unity_bridge.commands.undo", "undo_app", "undo")
+    _try_register_group("unity_bridge.commands.lightmap", "lightmap_app", "lightmap")
+    _try_register_group("unity_bridge.commands.shader", "shader_app", "shader")
+    _try_register_group("unity_bridge.commands.scene_setup", "scene_setup_app", "scene-ext")
+    _try_register_group(
+        "unity_bridge.commands.import_settings", "import_settings_app", "import-settings"
+    )
 
 
 def _try_register_command(module_path: str, attr_name: str, command_name: str) -> None:
