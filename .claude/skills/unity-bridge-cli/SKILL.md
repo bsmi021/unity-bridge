@@ -21,303 +21,385 @@ description: >
 # Unity Bridge CLI
 
 `unity-bridge` is a command-line tool that communicates with Unity Editor through a
-file-based bridge protocol. It replaces the need to write raw JSON command files or
-use the MCP server directly. Every command returns JSON to stdout by default (pipe
-to `jq` for filtering), or use `--human` for formatted output.
+file-based bridge protocol. Every command returns JSON to stdout by default.
 
-## CRITICAL: Syntax Rules (Read Before Every Command)
+## Command Syntax
 
-**RULE 1: Global flags MUST go BEFORE the command name.** `--human`, `--pretty`,
-`--verbose`, `--quiet`, `--timeout`, `--project`, and `--no-color` are NOT
-per-command options. They ONLY work when placed between `unity-bridge` and the
-command. Putting them after the command WILL FAIL with "No such option".
+```
+unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND OPTIONS/ARGS]
+```
 
-**RULE 2: `--timeout` and `--human` are GLOBAL-ONLY flags.** Most commands do NOT
-accept `--timeout` or `--human` as their own options. The only commands with a
-local `--timeout` are: `test run`, `script`, `build`, and `lightmap bake`.
-For everything else, use the global `-t` flag before the command.
-
-**RULE 3: `hierarchy` queries directly.** There is no `hierarchy list` subcommand.
-Use `unity-bridge hierarchy --depth 3`, not `unity-bridge hierarchy list --depth 3`.
+Global flags (`--human`, `--pretty`, `--verbose`, `--quiet`, `--timeout`, `--project`,
+`--no-color`) are placed between `unity-bridge` and the command name.
 
 ```bash
-# CORRECT
 unity-bridge --human hierarchy --depth 3
-unity-bridge -t 60 menu "File/Save"
-unity-bridge --human console read --types error
-unity-bridge -H -v component get Player Transform
-unity-bridge hierarchy --depth 3                     # direct query, no "list"
-
-# WRONG -- these will ALL fail with "No such option"
-unity-bridge hierarchy --depth 3 --human             # WRONG: --human after command
-unity-bridge menu "File/Save" --timeout 60           # WRONG: --timeout after command
-unity-bridge console read --types error --human      # WRONG: --human after command
-unity-bridge hierarchy list --depth 3                # WRONG: "list" doesn't exist
+unity-bridge -H console read --types error
+unity-bridge -t 60 menu "Souls/Generate/All"
+unity-bridge --pretty component get Player Transform
+unity-bridge -v -t 120 test run --platform EditMode
+unity-bridge --project /path/to/project status
 ```
 
-## Quick Start
-
-```bash
-unity-bridge status                                  # Is Unity alive?
-unity-bridge --human test run --platform EditMode    # Run tests, human output
-unity-bridge tdd --filter MyTests                    # Clear -> compile -> test -> console
-unity-bridge hierarchy --depth 3                     # Inspect scene tree
-unity-bridge console watch                           # Tail logs in real-time
-```
-
-## Decision Tree: Choose the Right Command
-
-### "I need to verify code changes work"
-```bash
-unity-bridge tdd --platform EditMode --filter MyTests   # Full workflow
-unity-bridge test run --platform EditMode                # Just run tests
-unity-bridge test compile                                # Just check compilation
-unity-bridge test list --platform EditMode --categories  # See available tests
-```
-
-### "I need to inspect the scene"
-```bash
-unity-bridge hierarchy --depth 3                         # Full tree
-unity-bridge hierarchy --root "Player" --depth 2         # Subtree only
-unity-bridge hierarchy --inactive                        # Include inactive objects
-unity-bridge component get Player Transform              # Read component fields
-unity-bridge component get "UI/Canvas" Image --fields "color,sprite"
-unity-bridge selection --components                      # What is selected?
-unity-bridge hierarchy missing-scripts                   # Find broken refs
-```
-
-### "I need to modify scene state"
-```bash
-unity-bridge component set Player Health --update "currentHp:100"
-unity-bridge component set Player Transform -u "position.x:5.0" -u "position.y:0"
-unity-bridge component add Enemy "EnemyAI"
-unity-bridge prefab instantiate Assets/Prefabs/Enemy.prefab --position 5,0,3
-unity-bridge scene load Assets/Scenes/Main.unity --save-current
-unity-bridge hierarchy set-tag Player "Enemy"
-unity-bridge hierarchy set-layer Player 8 --recursive
-```
-
-### "I need to debug"
-```bash
-unity-bridge console read --types error,warning --max 20
-unity-bridge console read --pattern "NullReference" --no-stack-trace
-unity-bridge console watch --types error                 # Follow mode
-unity-bridge playmode play                               # Enter play mode
-unity-bridge playmode stop                               # Exit play mode
-unity-bridge profiler --memory --rendering               # Performance snapshot
-unity-bridge --human doctor                              # Full diagnostics
-```
-
-### "I need to manage the project"
-```bash
-unity-bridge status                                      # Health check
-unity-bridge doctor                                      # Full diagnostics
-unity-bridge install                                     # Install/update C# bridge
-unity-bridge install --check                             # Check without modifying
-unity-bridge clean --dry-run                             # See what would be removed
-unity-bridge clean                                       # Remove orphaned files
-unity-bridge build --target StandaloneWindows64
-unity-bridge refresh --force                             # Force reimport assets
-unity-bridge package list                                # List installed packages
-unity-bridge settings get                                # View editor settings
-```
-
-### "I need to automate or script"
-```bash
-unity-bridge script "EditorApplication.isPlaying"        # Evaluate C# expression
-unity-bridge script "Selection.activeGameObject.name"    # Return a value
-unity-bridge script --file setup.cs                      # Run script file
-unity-bridge batch commands.json                         # Run multiple commands
-unity-bridge batch commands.json --parallel              # Parallel read-only
-```
-
-### "I need to manage assets"
-```bash
-unity-bridge asset find --type Prefab --pattern "Enemy*"
-unity-bridge asset-ext create Assets/Scripts/New.cs --type MonoScript
-unity-bridge asset-ext deps Assets/Prefabs/Player.prefab --recursive
-unity-bridge asset-ext copy Assets/Old.mat Assets/New.mat
-unity-bridge import-settings get Assets/Textures/icon.png
-unity-bridge import-settings set Assets/Textures/icon.png -s "maxTextureSize:512"
-```
-
-### "I need lighting, shaders, or rendering"
-```bash
-unity-bridge lightmap bake                               # Bake lightmaps
-unity-bridge lightmap status                             # Check bake status
-unity-bridge shader list --errors-only                   # Find broken shaders
-unity-bridge shader info "Standard"                      # Shader details
-unity-bridge shader properties "Standard"                # List shader props
-```
-
-### "I need to manage quality/build profiles"
-```bash
-unity-bridge profile list                                # List quality profiles
-unity-bridge profile active                              # Current profile
-unity-bridge profile set "Assets/Settings/High.asset"    # Switch profile
-```
-
-### "I need undo/redo"
-```bash
-unity-bridge undo perform                                # Undo last action
-unity-bridge undo redo                                   # Redo
-unity-bridge undo history --limit 10                     # Recent history
-unity-bridge undo clear                                  # Clear undo stack
-```
-
-## Global Flags
-
-Every command accepts these flags. They MUST go BEFORE the command name.
-
-| Flag | Short | Purpose |
-|------|-------|---------|
-| `--project PATH` | `-p` | Override auto-detected Unity project root |
+| Global Flag | Short | Purpose |
+|-------------|-------|---------|
 | `--human` | `-H` | Human-readable output instead of JSON |
 | `--pretty` | | Indented JSON output |
 | `--verbose` | `-v` | Debug logging to stderr |
 | `--quiet` | `-q` | Suppress non-error output |
 | `--timeout SEC` | `-t` | Override default command timeout |
+| `--project PATH` | `-p` | Override auto-detected Unity project root |
 | `--no-color` | | Disable colored output |
 
-**Syntax: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND OPTIONS]`**
+## Core Workflow
 
-## Essential Commands Quick Reference
+Every interaction follows this pattern:
 
-### Top-Level Commands (no subgroup)
+1. **Check health**: `unity-bridge status`
+2. **Run command**: `unity-bridge [global flags] command [args]`
+3. **Parse result**: Check `success` field in JSON output
 
-| Command | Syntax |
-|---------|--------|
-| playmode | `playmode ACTION` (play/pause/stop) |
-| status | `status` |
-| doctor | `doctor` |
-| profiler | `profiler [--memory] [--rendering] [--cpu]` |
-| install | `install [--check] [--force]` |
-| init | `init` |
-| clean | `clean [--age N] [--all] [--dry-run]` |
-| version | `version` |
-| tdd | `tdd [--platform TEXT] [--filter TEXT] [--strict]` |
-| script | `script [EXPRESSION] [--file PATH] [--timeout N]` |
-| batch | `batch FILE [--stop-on-error] [--parallel]` |
-| serve | `serve` |
-| selection | `selection [--components] [--children]` |
-| refresh | `refresh [--force]` |
-| focus | `focus OBJECT_PATH [--no-frame]` |
-| menu | `menu MENU_PATH [--validate-only]` |
-| screenshot | `screenshot OUTPUT_PATH [--camera TEXT] [--width N] [--height N]` |
-| asset | `asset ACTION [--path TEXT] [--type TEXT] [--pattern TEXT]` (find/query/import/refresh) |
-| material | `material ACTION PATH [--properties JSON]` (modify/create/duplicate) |
-| build | `build [--target TEXT] [--validate-only] [--output TEXT] [--dev] [--timeout N]` |
-| animator | `animator ACTION OBJECT_PATH [--state-name] [--param-name] [--param-value] [--layer N]` |
-
-### Command Groups
-
-| Group | Subcommands |
-|-------|------------|
-| hierarchy | (direct query with --depth/--inactive/--root), missing-scripts, static-flags, set-static-flags, set-layer, set-tag |
-| component | get, set, add |
-| scene | load, save, create |
-| prefab | validate, instantiate, destroy, status, find-instances, unpack, overrides list/apply/revert |
-| console | read, watch, clear |
-| test | run, list, compile |
-| compile | assemblies, defines, which, optimization |
-| undo | perform, redo, history, clear, group-name, collapse |
-| settings | get, set, defines |
-| profile | list, active, set, info |
-| asset-ext | create, delete, copy, move, deps, guid, folder-create, folder-list, export, import-package |
-| package | list, search, add, remove, info, embed, resolve |
-| lightmap | bake, cancel, clear, status, settings |
-| shader | list, info, errors, properties, find-by-property, keywords |
-| scene-ext | setup save/restore/list, play-start, cross-refs, list-loaded, preview-create, preview-close |
-| import-settings | get, set, reimport, bulk-set, template-save, template-apply |
-
-## Common Multi-Step Workflows
-
-### TDD Cycle
-The `tdd` command chains: clear console -> compile -> run tests -> read console (on failure).
 ```bash
-unity-bridge tdd --platform EditMode --filter CombatTests
-# Returns steps array showing each phase result
-```
-
-### Investigate and Fix a Compile Error
-```bash
-unity-bridge test compile                           # Check compilation
-unity-bridge --human console read --types error     # See errors
-# ... fix the code ...
-unity-bridge test compile                           # Verify fix
-unity-bridge tdd --filter CombatTests               # Run full cycle
-```
-
-### Scene Inspection Workflow
-```bash
-unity-bridge --human hierarchy --depth 2            # Overview
-unity-bridge component get Player Transform         # Check position
+unity-bridge status
+unity-bridge hierarchy --depth 3
 unity-bridge component get Player Health --fields "currentHp,maxHp"
-unity-bridge --human selection --components         # What is selected?
+unity-bridge component set Player Health -u "currentHp:100"
+unity-bridge --human console read --types error
 ```
 
-### Prefab Workflow
+## Quick Reference: All Commands
+
+### Diagnostics & Lifecycle
+
+```bash
+unity-bridge status                                     # Quick health check
+unity-bridge doctor                                     # Full 9-check diagnostics
+unity-bridge version                                    # Show versions
+unity-bridge profiler --memory --rendering --cpu        # Performance snapshot
+unity-bridge install                                    # Install/update C# bridge
+unity-bridge install --check                            # Check status only
+unity-bridge install --force                            # Force reinstall
+unity-bridge init                                       # Create directory structure
+unity-bridge clean                                      # Remove orphaned files
+unity-bridge clean --dry-run                            # Preview deletions
+unity-bridge clean --age 10                             # Files older than 10 min
+unity-bridge serve                                      # Start MCP server mode
+```
+
+### Scene Hierarchy
+
+```bash
+unity-bridge hierarchy                                  # Default depth=5
+unity-bridge hierarchy --depth 3                        # Limit depth
+unity-bridge hierarchy --root "Player" --depth 2        # Subtree only
+unity-bridge hierarchy --inactive                       # Include inactive objects
+unity-bridge hierarchy --depth 4 --inactive --root "Environment"
+unity-bridge hierarchy missing-scripts                  # Find broken scripts
+unity-bridge hierarchy missing-scripts --fix            # Remove broken scripts
+unity-bridge hierarchy static-flags "Environment/Tree"  # Get static flags
+unity-bridge hierarchy set-static-flags "Environment/Tree" BatchingStatic NavigationStatic
+unity-bridge hierarchy set-layer Player 8               # Set layer
+unity-bridge hierarchy set-layer Player 8 --recursive   # Include children
+unity-bridge hierarchy set-tag Player "Enemy"           # Set tag
+```
+
+### Components
+
+```bash
+unity-bridge component get Player Transform
+unity-bridge component get Player Health --fields "currentHp,maxHp"
+unity-bridge component get "UI/Canvas" Image --fields "color,sprite"
+unity-bridge component set Player Health --update "currentHp:100"
+unity-bridge component set Player Transform -u "position.x:5.0" -u "position.y:0"
+unity-bridge component add Player "AudioSource"
+unity-bridge component add Enemy "EnemyAI"
+```
+
+### Scenes
+
+```bash
+unity-bridge scene load Assets/Scenes/Main.unity
+unity-bridge scene load Assets/Scenes/Test.unity --save-current
+unity-bridge scene save
+unity-bridge scene create Assets/Scenes/NewLevel.unity
+```
+
+### Extended Scene Management
+
+```bash
+unity-bridge scene-ext setup save my-layout             # Save multi-scene layout
+unity-bridge scene-ext setup restore my-layout          # Restore layout
+unity-bridge scene-ext setup list                       # List saved layouts
+unity-bridge scene-ext play-start --set Assets/Scenes/Boot.unity
+unity-bridge scene-ext play-start --clear               # Clear start scene
+unity-bridge scene-ext play-start                       # Get current start scene
+unity-bridge scene-ext cross-refs                       # Detect cross-scene refs
+unity-bridge scene-ext list-loaded                      # All loaded scenes
+unity-bridge scene-ext preview-create                   # Create preview scene
+unity-bridge scene-ext preview-close HANDLE             # Close preview scene
+```
+
+### Prefabs
+
 ```bash
 unity-bridge prefab validate Assets/Prefabs/Player.prefab
+unity-bridge prefab instantiate Assets/Prefabs/Enemy.prefab
 unity-bridge prefab instantiate Assets/Prefabs/Enemy.prefab --position 5,0,3
-unity-bridge prefab overrides list "Enemy(Clone)"
-unity-bridge prefab overrides apply "Enemy(Clone)"
 unity-bridge prefab destroy "Enemy(Clone)"
+unity-bridge prefab status "Enemy(Clone)"
+unity-bridge prefab find-instances Assets/Prefabs/Enemy.prefab
+unity-bridge prefab unpack "Enemy(Clone)"
+unity-bridge prefab unpack "Enemy(Clone)" --completely
+unity-bridge prefab overrides list "Enemy(Clone)"
+unity-bridge prefab overrides list "Enemy(Clone)" --include-default-overrides
+unity-bridge prefab overrides apply "Enemy(Clone)"
+unity-bridge prefab overrides apply "Enemy(Clone)" --target "Transform"
+unity-bridge prefab overrides revert "Enemy(Clone)"
 ```
 
-### Asset Investigation
+### Testing & Compilation
+
 ```bash
+unity-bridge test run --platform EditMode
+unity-bridge test run --platform PlayMode --filter "Combat*"
+unity-bridge test run --platform EditMode --timeout 60
+unity-bridge test list --platform EditMode              # Discover tests
+unity-bridge test list --categories                     # List categories
+unity-bridge test list --assemblies                     # List test assemblies
+unity-bridge test compile                               # Trigger compilation
+unity-bridge test compile --no-wait                     # Don't wait for result
+unity-bridge tdd --platform EditMode --filter CombatTests
+unity-bridge tdd --strict                               # Warnings = failures
+```
+
+### Compilation Pipeline
+
+```bash
+unity-bridge compile assemblies                         # List project assemblies
+unity-bridge compile defines Assembly-CSharp            # Get defines for assembly
+unity-bridge compile which Assets/Scripts/Player.cs     # Which assembly owns this?
+unity-bridge compile optimization                       # Get current mode
+unity-bridge compile optimization --set release         # Set to Release
+```
+
+### Console
+
+```bash
+unity-bridge console read                               # Read all logs
+unity-bridge console read --types error,warning         # Filter by type
+unity-bridge console read --types error --max 20        # Limit entries
+unity-bridge console read --pattern "NullReference"     # Regex filter
+unity-bridge console read --no-stack-trace              # Skip stack traces
+unity-bridge console watch                              # Follow mode (Ctrl+C to stop)
+unity-bridge console watch --types error --poll-interval 0.5
+unity-bridge console clear                              # Clear console
+```
+
+### Play Mode
+
+```bash
+unity-bridge playmode play
+unity-bridge playmode pause
+unity-bridge playmode stop
+```
+
+### Editor Utilities
+
+```bash
+unity-bridge selection                                  # Get current selection
+unity-bridge selection --components                     # Include components
+unity-bridge selection --children                       # Include children
+unity-bridge refresh                                    # Refresh asset database
+unity-bridge refresh --force                            # Force full refresh
+unity-bridge focus Player                               # Focus in scene view
+unity-bridge focus "Environment/Tree" --no-frame        # Select without framing
+unity-bridge menu "File/Save"                           # Execute menu item
+unity-bridge menu "GameObject/Create Empty"
+unity-bridge menu "Assets/Refresh" --validate-only      # Check existence only
+unity-bridge screenshot output.png                      # Capture screenshot
+unity-bridge screenshot shot.png --width 1920 --height 1080
+unity-bridge screenshot shot.png --camera "Main Camera"
+```
+
+### Assets
+
+```bash
+unity-bridge asset find --type Prefab --path Assets/Prefabs/
 unity-bridge asset find --type Material --pattern "Player*"
-unity-bridge asset-ext deps Assets/Prefabs/Player.prefab --recursive
-unity-bridge shader properties "Standard"
+unity-bridge asset query --path Assets/Materials/
+unity-bridge asset import --path Assets/Textures/new.png
+unity-bridge asset refresh
+```
+
+### Extended Asset Operations
+
+```bash
+unity-bridge asset-ext create Assets/Data/Config.asset --type ScriptableObject
+unity-bridge asset-ext delete Assets/Old/unused.mat
+unity-bridge asset-ext delete Assets/Old/unused.mat --trash
+unity-bridge asset-ext copy Assets/Materials/Base.mat Assets/Materials/Copy.mat
+unity-bridge asset-ext move Assets/Old/file.cs Assets/New/file.cs
+unity-bridge asset-ext deps Assets/Prefabs/Player.prefab
+unity-bridge asset-ext deps Assets/Prefabs/Player.prefab --no-recursive
+unity-bridge asset-ext guid Assets/Scenes/Main.unity    # Path to GUID
+unity-bridge asset-ext guid abc123def456                 # GUID to path
+unity-bridge asset-ext folder-create Assets/NewFolder
+unity-bridge asset-ext folder-list Assets/Scripts
+unity-bridge asset-ext export Assets/Prefabs/ --output export.unitypackage
+unity-bridge asset-ext import-package downloaded.unitypackage
+```
+
+### Import Settings
+
+```bash
 unity-bridge import-settings get Assets/Textures/icon.png
+unity-bridge import-settings set Assets/Textures/icon.png -s "maxTextureSize:512"
+unity-bridge import-settings set Assets/Textures/icon.png -s "maxTextureSize:512" -s "mipmapEnabled:false"
+unity-bridge import-settings reimport Assets/Textures/icon.png
+unity-bridge import-settings reimport Assets/Textures/icon.png --force
+unity-bridge import-settings bulk-set Assets/Textures/ -s "maxTextureSize:1024" --filter "*.png"
+unity-bridge import-settings template-save mobile-tex Assets/Textures/icon.png
+unity-bridge import-settings template-apply mobile-tex Assets/Textures/other.png
 ```
 
-### Batch Operations
-Run multiple commands from a JSON file:
+### Materials
+
 ```bash
-unity-bridge batch batch.json
-unity-bridge batch batch.json --parallel   # For read-only commands
+unity-bridge material modify Assets/Materials/Player.mat --properties '{"_Color":{"r":1,"g":0,"b":0,"a":1}}'
+unity-bridge material create Assets/Materials/New.mat
+unity-bridge material duplicate Assets/Materials/Base.mat
 ```
 
-Batch file format:
-```json
-{
-  "commands": [
-    {"type": "clear-console"},
-    {"type": "compile", "parameters": {"waitForCompletion": true}},
-    {"type": "run-tests", "parameters": {"testPlatform": "EditMode"}}
-  ]
-}
-```
+### Shaders
 
-### Package Management
 ```bash
-unity-bridge package list                            # Installed packages
-unity-bridge package search "input system"           # Find packages
-unity-bridge package add com.unity.inputsystem       # Install
-unity-bridge package info com.unity.inputsystem      # Details
-unity-bridge package remove com.unity.inputsystem    # Uninstall
+unity-bridge shader list                                # All shaders
+unity-bridge shader list --errors-only                  # Only broken shaders
+unity-bridge shader info "Universal Render Pipeline/Lit"
+unity-bridge shader errors "Universal Render Pipeline/Lit"
+unity-bridge shader properties "Standard"               # All properties
+unity-bridge shader find-by-property "_MainTex"         # Find by property
+unity-bridge shader keywords "Standard"                 # List keywords
+unity-bridge shader keywords "Standard" --global        # Global keywords only
+unity-bridge shader keywords "Standard" --local         # Local keywords only
+```
+
+### Builds
+
+```bash
+unity-bridge build --target StandaloneWindows64
+unity-bridge build --target Android --dev
+unity-bridge build --target WebGL --validate-only
+unity-bridge build --target StandaloneWindows64 --output builds/win64/ --timeout 900
+```
+
+### Build Profiles (Unity 6)
+
+```bash
+unity-bridge profile list                               # List all profiles
+unity-bridge profile active                             # Current active profile
+unity-bridge profile set Assets/Settings/BuildProfiles/High.asset
+unity-bridge profile info Assets/Settings/BuildProfiles/High.asset
+```
+
+### Animator
+
+```bash
+unity-bridge animator get-state Player
+unity-bridge animator get-params Player
+unity-bridge animator set-state Player --state-name "Idle"
+unity-bridge animator set-param Player --param-name "Speed" --param-value 5.0
+unity-bridge animator set-param Player --param-name "IsRunning" --param-value true --layer 0
+```
+
+### Player Settings
+
+```bash
+unity-bridge settings get                               # All settings
+unity-bridge settings get companyName                   # Specific key
+unity-bridge settings set companyName "My Studio"
+unity-bridge settings defines list                      # List defines
+unity-bridge settings defines list --platform Standalone
+unity-bridge settings defines add --symbol MY_FEATURE
+unity-bridge settings defines add --symbol MY_FEATURE --platform Android
+unity-bridge settings defines remove --symbol OLD_FEATURE
+```
+
+### Package Manager
+
+```bash
+unity-bridge package list                               # Installed packages
+unity-bridge package list --offline                     # Cached data only
+unity-bridge package list --include-indirect            # Include transitive deps
+unity-bridge package search com.unity.inputsystem       # Search by ID
+unity-bridge package search com.unity.inputsystem --all # Search all registry
+unity-bridge package add com.unity.inputsystem          # Install package
+unity-bridge package add com.unity.inputsystem@1.5.0    # Specific version
+unity-bridge package remove com.unity.inputsystem       # Uninstall
+unity-bridge package info com.unity.inputsystem         # Package details
+unity-bridge package embed com.unity.inputsystem        # Embed for editing
+unity-bridge package resolve                            # Force re-resolve
+```
+
+### Undo/Redo
+
+```bash
+unity-bridge undo perform                               # Undo last action
+unity-bridge undo redo                                  # Redo last undone action
+unity-bridge undo history                               # Recent undo history
+unity-bridge undo history --limit 10                    # Limit entries
+unity-bridge undo clear                                 # Clear all undo history
+unity-bridge undo group-name                            # Current undo group
+unity-bridge undo collapse 5                            # Collapse from group 5
+unity-bridge undo collapse 5 --name "Batch edit"        # With custom name
+```
+
+### Lightmapping
+
+```bash
+unity-bridge lightmap bake                              # Start async bake
+unity-bridge lightmap bake --no-run-async               # Wait for completion
+unity-bridge lightmap bake --timeout 3600               # Custom timeout
+unity-bridge lightmap cancel                            # Cancel active bake
+unity-bridge lightmap clear                             # Clear baked data
+unity-bridge lightmap status                            # Check progress
+unity-bridge lightmap settings                          # Current settings
+```
+
+### Script Execution
+
+```bash
+unity-bridge script "EditorApplication.isPlaying"
+unity-bridge script "Selection.activeGameObject.name"
+unity-bridge script "var go = new GameObject(\"Test\"); go.name"
+unity-bridge script --file Assets/Editor/setup.cs
+unity-bridge script --file setup.cs --timeout 60
+```
+
+## Command Chaining
+
+Commands can be chained with `&&` for multi-step workflows:
+
+```bash
+unity-bridge test compile && unity-bridge --human console read --types error
+unity-bridge scene load Assets/Scenes/Test.unity --save-current && unity-bridge hierarchy --depth 2
+unity-bridge console clear && unity-bridge test run --platform EditMode && unity-bridge --human console read --types error
 ```
 
 ## Output Format
 
-All commands return JSON by default. The structure is always:
+All commands return JSON by default:
 
 ```json
 {"success": true, "data": {...}, "command_id": "uuid", "execution_time_ms": 123}
 ```
 
-or on failure:
-
+On failure:
 ```json
 {"success": false, "error": "message", "exit_code": 1}
 ```
 
 Parse `success` to determine if the command worked. All keys are `snake_case`.
-
-Use `--human` (before the command) for formatted, readable output.
-Use `--pretty` (before the command) for indented JSON.
 
 ## Exit Codes
 
@@ -327,11 +409,11 @@ Use `--pretty` (before the command) for indented JSON.
 | 1 | Command failed | Read `error` field for details |
 | 2 | Bridge unavailable | Run `unity-bridge doctor`, check Unity is open |
 | 3 | Invalid input | Check your arguments |
-| 4 | Timeout | Increase `--timeout` or check if Unity is frozen |
-| 5 | Internal error | Check logs with `--verbose` |
+| 4 | Timeout | Use `-t SEC` with a higher value |
+| 5 | Internal error | Check logs with `-v` |
 | 130 | Interrupted | User pressed Ctrl+C |
 
-## Configuration and Environment
+## Configuration
 
 ### Environment Variables
 
@@ -343,48 +425,21 @@ Use `--pretty` (before the command) for indented JSON.
 | `UNITY_BRIDGE_CONFIG` | Path to config JSON file |
 | `NO_COLOR` | Disable colored output (any value) |
 
-### Configuration Precedence
+### Precedence
 
 CLI flags > environment variables > config file > defaults.
 
-Config file search order:
-1. `$UNITY_BRIDGE_CONFIG`
-2. `<project_root>/unity_bridge_config.json`
-3. `<project_root>/.claude/unity_bridge_config.json`
+## Deep-Dive Reference
 
-## Command Reference
+For complete argument lists, types, defaults, and short flags for every command:
+- See [references/command-reference.md](references/command-reference.md)
 
-For complete argument lists, types, defaults, and examples for every command, see:
-`references/command-reference.md`
+## Notes
 
-## Important Notes and Gotchas
-
-1. **Global flags go BEFORE the command name.** `unity-bridge --human hierarchy` not
-   `unity-bridge hierarchy --human`.
-
-2. **`hierarchy` queries directly with options** -- it is NOT `hierarchy list`.
-   `unity-bridge hierarchy --depth 3` is correct. There is no `hierarchy list` subcommand.
-
-3. **Positional args are bare values, not flags.** `unity-bridge component get Player Transform`
-   not `unity-bridge component get --path Player --type Transform`.
-
-4. **Unity Editor must be open** with the ClaudeUnityBridge active for commands to work.
-   If `unity-bridge status` shows unhealthy, run `unity-bridge doctor` for diagnostics.
-
-5. **The bridge uses file-based I/O.** Commands are written to `.claude/unity/commands/` and
-   responses appear in `.claude/unity/responses/`. The CLI handles all of this automatically.
-   Never write raw command files -- use the CLI.
-
-6. **Timeouts vary by command type** (5s for quick reads, 300s for tests, 600s for builds).
-   Override with `--timeout` (global flag, before the command) if needed.
-
-7. **Asset paths use forward slashes** relative to project root: `Assets/Scenes/Main.unity`.
-
-8. **The `-u` flag is shorthand for `--update`** on `component set`. Multiple updates can
-   be passed: `component set Obj Type -u "field1:val" -u "field2:val"`.
-
-9. **The `-s` flag is shorthand for `--setting`** on `import-settings set` and
-   `import-settings bulk-set`.
-
-10. **`compile` is a command GROUP** with subcommands (assemblies, defines, which, optimization),
-    not a standalone command. Use `test compile` to trigger and wait for script compilation.
+- Unity Editor must be open with ClaudeUnityBridge active.
+- If `unity-bridge status` shows unhealthy, run `unity-bridge doctor`.
+- Asset paths use forward slashes relative to project root: `Assets/Scenes/Main.unity`.
+- The `-u` flag is shorthand for `--update` on `component set`. Pass multiple: `-u "field1:val" -u "field2:val"`.
+- The `-s` flag is shorthand for `--setting` on `import-settings set` and `import-settings bulk-set`.
+- `compile` is a command group (assemblies/defines/which/optimization). Use `test compile` to trigger script compilation.
+- Timeouts vary by command (5s reads, 300s tests, 600s builds). Override globally with `-t SEC`.
