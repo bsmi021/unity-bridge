@@ -17,6 +17,7 @@ from unity_bridge.mcp import (
     schemas_phase3,
     schemas_phase4,
     schemas_phase5,
+    schemas_phase6b,
     schemas_pipeline,
 )
 
@@ -77,6 +78,12 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_script_execution_order": "script-execution-order",
     "unity_assembly_reload_lock": "assembly-reload-lock",
     "unity_find_references": "find-references",
+    # Phase 6b: Scene/Material/Component/Inspector Gaps
+    "unity_component_copy": "component-copy",
+    "unity_component_reset": "component-reset",
+    "unity_scene_view": "scene-view",
+    "unity_game_view": "game-view",
+    "unity_profiler_control": "profiler-control",
 }
 
 # ---------------------------------------------------------------------------
@@ -413,5 +420,40 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "Searches SerializedProperty ObjectReferences across all components."
         ),
         "inputSchema": schemas_pipeline.find_references(),
+    },
+    # Phase 6b: Scene/Material/Component/Inspector Gaps
+    {
+        "name": "unity_component_copy",
+        "description": (
+            "Copy/paste component values between GameObjects using "
+            "EditorJsonUtility serialization."
+        ),
+        "inputSchema": schemas_phase6b.component_copy(),
+    },
+    {
+        "name": "unity_component_reset",
+        "description": "Reset a component to its default values.",
+        "inputSchema": schemas_phase6b.component_reset(),
+    },
+    {
+        "name": "unity_scene_view",
+        "description": (
+            "Scene View camera: get/set pivot, rotation, size, "
+            "toggle 2D, change draw mode."
+        ),
+        "inputSchema": schemas_phase6b.scene_view(),
+    },
+    {
+        "name": "unity_game_view",
+        "description": "Game View: get state, set resolution, set zoom scale.",
+        "inputSchema": schemas_phase6b.game_view(),
+    },
+    {
+        "name": "unity_profiler_control",
+        "description": (
+            "Profiler controls: start/stop profiling, save data to file, "
+            "get detailed memory statistics."
+        ),
+        "inputSchema": schemas_phase6b.profiler_control(),
     },
 ]

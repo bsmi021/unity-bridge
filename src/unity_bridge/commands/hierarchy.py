@@ -199,12 +199,21 @@ def component_get_cli(
         str | None,
         typer.Option("--fields", "-F", help="Comma-separated field names to retrieve."),
     ] = None,
+    deep: Annotated[
+        bool,
+        typer.Option("--deep", help="Use EditorJsonUtility for full serialization."),
+    ] = False,
 ) -> None:
     """Get component data from a GameObject."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(get_component(state.bridge, object_path, component_type, fields))
+    if deep:
+        from unity_bridge.commands.deep_serialize import deep_get
+
+        result = asyncio.run(deep_get(state.bridge, object_path, component_type))
+    else:
+        result = asyncio.run(get_component(state.bridge, object_path, component_type, fields))
     print_result(result, state.formatter)
 
 
