@@ -55,13 +55,12 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new ImportSettingsCommandHandler());
             registerHandler(new SceneSetupCommandHandler());
 
-            // NOTE: The following handlers will be registered after Unity imports their .meta files
-            // After opening Unity Editor to import these files, uncomment these lines:
-            // registerHandler(new AnimatorOperationCommandHandler());
-            // registerHandler(new MaterialOperationCommandHandler());
-            // registerHandler(new BuildOperationCommandHandler());
-            // registerHandler(new SceneOperationCommandHandler());
-            // registerHandler(new PrefabOperationCommandHandler());
+            // Original handlers (split into partial classes during LOC refactor)
+            registerHandler(new AnimatorOperationCommandHandler());
+            registerHandler(new MaterialOperationCommandHandler());
+            registerHandler(new BuildOperationCommandHandler());
+            registerHandler(new SceneOperationCommandHandler());
+            registerHandler(new PrefabOperationCommandHandler());
         }
     }
 }
