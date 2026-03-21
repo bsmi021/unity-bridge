@@ -1,19 +1,16 @@
 # Unity Bridge CLI -- Complete Command Reference
 
-Every command example uses the EXACT syntax from `unity-bridge --help`.
+Every command and argument documented from the exact `unity-bridge --help` output.
 
-**CRITICAL SYNTAX RULE: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND OPTIONS]`**
+**Syntax: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND OPTIONS/ARGS]`**
 
-`--human`, `--pretty`, `--verbose`, `--quiet`, `--timeout`, `--project`, `--no-color`
-are GLOBAL flags. They MUST go BEFORE the command name. Placing them after the command
-causes "No such option" errors. Most commands do NOT have their own `--timeout` or
-`--human` — use the global flags instead.
+Global flags go BEFORE the command name:
 
 ```bash
-unity-bridge --human console read --types error     # CORRECT
-unity-bridge console read --types error --human     # WRONG: "No such option: --human"
-unity-bridge -t 60 menu "File/Save"                 # CORRECT
-unity-bridge menu "File/Save" --timeout 60          # WRONG: "No such option: --timeout"
+unity-bridge --human console read --types error
+unity-bridge -t 60 menu "File/Save"
+unity-bridge --pretty component get Player Transform
+unity-bridge -v -t 120 test run --platform EditMode
 ```
 
 ## Table of Contents
@@ -205,7 +202,8 @@ Read field values from a component. Arguments are positional (bare values, not f
 |----------|------|----------|-------------|
 | `OBJECT_PATH` | positional | yes | GameObject path (e.g., `Player`) |
 | `COMPONENT_TYPE` | positional | yes | Component type (e.g., `Transform`, `PlayerStats`) |
-| `--fields` | TEXT | no | Comma-separated field names to read |
+| `--fields` / `-F` | TEXT | no | Comma-separated field names to retrieve |
+| `--deep` | flag | no | Use EditorJsonUtility for full serialization |
 
 ```bash
 unity-bridge component get Player Transform
