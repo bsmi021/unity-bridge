@@ -364,6 +364,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         public bool saveCurrentScene = true; // Save before switching
         public string mode; // "single" (default), "additive", "additive-without-loading"
         public bool removeScene = true; // For "unload" operation
+        public string gameObjectPath; // For "move-object" operation
     }
 
     /// <summary>

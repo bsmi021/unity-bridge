@@ -27,6 +27,7 @@ def asset_extended() -> dict[str, Any]:
                     "folder-list",
                     "export",
                     "import-package",
+                    "reserialize",
                 ],
                 "description": "Extended asset operation to perform",
             },
@@ -90,6 +91,11 @@ def asset_extended() -> dict[str, Any]:
             "packagePath": {
                 "type": "string",
                 "description": "Path to .unitypackage file (for import-package)",
+            },
+            "reserializeMode": {
+                "type": "string",
+                "enum": ["assets", "metadata", "both"],
+                "description": "Reserialize mode (for reserialize operation)",
             },
             "timeout": {
                 "type": "integer",
