@@ -65,7 +65,7 @@ async def get_component(
         timeout: Timeout in seconds.
     """
     params: dict[str, object] = {
-        "objectPath": object_path,
+        "gameObjectPath": object_path,
         "componentType": component_type,
     }
     if fields is not None:
@@ -98,7 +98,7 @@ async def set_component(
     return await bridge.send_command_with_retry(
         command_type="set-component-data",
         parameters={
-            "objectPath": object_path,
+            "gameObjectPath": object_path,
             "componentType": component_type,
             "properties": properties,
         },
@@ -123,7 +123,7 @@ async def add_component(
     return await bridge.send_command_with_retry(
         command_type="add-component",
         parameters={
-            "objectPath": object_path,
+            "gameObjectPath": object_path,
             "componentType": component_type,
         },
         timeout=timeout,
