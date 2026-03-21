@@ -86,13 +86,16 @@ namespace BWS.Editor.ClaudeCodeBridge
                     case "set-active":
                         result = SetActiveScene(parameters);
                         break;
+                    case "move-object":
+                        result = MoveObjectToScene(parameters);
+                        break;
 
                     default:
                         return BridgeResponse.Error(
                             command.commandId,
                             command.commandType,
                             $"Unknown operation: {parameters.operation}. "
-                            + "Supported: load, save, create, list, unload, set-active"
+                            + "Supported: load, save, create, list, unload, set-active, move-object"
                         );
                 }
 
@@ -460,6 +463,82 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             return result;
+        }
+
+        private SceneOperationResult MoveObjectToScene(SceneOperationParams parameters)
+        {
+            var result = new SceneOperationResult { operation = "move-object" };
+            if (string.IsNullOrEmpty(parameters.gameObjectPath))
+            {
+                result.success = false;
+                result.message = "gameObjectPath is required for move-object";
+                return result;
+            }
+            if (string.IsNullOrEmpty(parameters.scenePath))
+            {
+                result.success = false;
+                result.message = "scenePath is required for move-object";
+                return result;
+            }
+            try
+            {
+                GameObject target = FindGameObjectAcrossScenes(parameters.gameObjectPath);
+                if (target == null)
+                {
+                    result.success = false;
+                    result.message = $"GameObject not found: {parameters.gameObjectPath}";
+                    return result;
+                }
+                if (target.transform.parent != null)
+                {
+                    result.success = false;
+                    result.message = "Only root GameObjects can be moved between scenes.";
+                    return result;
+                }
+                var targetScene = SceneManager.GetSceneByPath(parameters.scenePath);
+                if (!targetScene.IsValid() || !targetScene.isLoaded)
+                {
+                    result.success = false;
+                    result.message = $"Target scene not loaded: {parameters.scenePath}";
+                    return result;
+                }
+                Undo.RecordObject(target, "Move GameObject To Scene");
+                SceneManager.MoveGameObjectToScene(target, targetScene);
+                EditorUtility.SetDirty(target);
+                EditorSceneManager.MarkSceneDirty(targetScene);
+                result.success = true;
+                result.currentScenePath = targetScene.path;
+                result.message = $"Moved '{parameters.gameObjectPath}' to {parameters.scenePath}";
+                BridgeLogger.LogInfo(result.message);
+            }
+            catch (Exception ex)
+            {
+                result.success = false;
+                result.message = $"Failed to move object: {ex.Message}";
+            }
+            return result;
+        }
+
+        private GameObject FindGameObjectAcrossScenes(string path)
+        {
+            var parts = path.Split('/');
+            for (int s = 0; s < SceneManager.sceneCount; s++)
+            {
+                var scene = SceneManager.GetSceneAt(s);
+                if (!scene.isLoaded) continue;
+                var roots = scene.GetRootGameObjects();
+                var current = roots.FirstOrDefault(go => go.name == parts[0]);
+                if (current == null) continue;
+                bool found = true;
+                for (int i = 1; i < parts.Length; i++)
+                {
+                    var child = current.transform.Find(parts[i]);
+                    if (child == null) { found = false; break; }
+                    current = child.gameObject;
+                }
+                if (found) return current;
+            }
+            return null;
         }
     }
 }

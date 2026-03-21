@@ -62,6 +62,24 @@ async def scene_save(
     )
 
 
+async def scene_move_object(
+    bridge: DirectBridge,
+    object_path: str,
+    scene_path: str,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Move a root GameObject to a different loaded scene."""
+    return await bridge.send_command_with_retry(
+        command_type="scene-operation",
+        parameters={
+            "operation": "move-object",
+            "gameObjectPath": object_path,
+            "scenePath": scene_path,
+        },
+        timeout=timeout,
+    )
+
+
 async def scene_create(
     bridge: DirectBridge,
     path: str,
@@ -132,4 +150,22 @@ def scene_create_cli(
 
     state = ctx.obj
     result = asyncio.run(scene_create(state.bridge, path))
+    print_result(result, state.formatter)
+
+
+@scene_app.command("move-object")
+def scene_move_object_cli(
+    ctx: typer.Context,
+    object_path: Annotated[
+        str, typer.Argument(help="Hierarchy path of root GameObject to move.")
+    ],
+    scene_path: Annotated[
+        str, typer.Argument(help="Target scene path (must be loaded).")
+    ],
+) -> None:
+    """Move a root GameObject to a different loaded scene."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(scene_move_object(state.bridge, object_path, scene_path))
     print_result(result, state.formatter)
