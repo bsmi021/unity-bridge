@@ -118,7 +118,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 {
                     assetPath = path,
                     name = Path.GetFileNameWithoutExtension(path),
-                    platform = profile.buildTarget.ToString(),
+                    platform = EditorUserBuildSettings.activeBuildTarget.ToString(),
                     isActive = path == activeAssetPath,
                 };
                 result.profiles.Add(info);
@@ -196,7 +196,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 assetPath = parameters.profilePath,
                 name = Path.GetFileNameWithoutExtension(parameters.profilePath),
-                platform = profile.buildTarget.ToString(),
+                platform = EditorUserBuildSettings.activeBuildTarget.ToString(),
                 isActive = true,
             };
             result.success = true;
@@ -252,10 +252,10 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 assetPath = assetPath,
                 name = Path.GetFileNameWithoutExtension(assetPath),
-                platform = profile.buildTarget.ToString(),
+                platform = EditorUserBuildSettings.activeBuildTarget.ToString(),
                 isActive = active != null && AssetDatabase.GetAssetPath(active) == assetPath,
-                buildTarget = profile.buildTarget.ToString(),
-                subtarget = profile.subtarget.ToString(),
+                buildTarget = EditorUserBuildSettings.activeBuildTarget.ToString(),
+                subtarget = "",
             };
 
             // Scenes from the profile's scene list
@@ -269,7 +269,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             // Scripting defines
-            info.scriptingDefines = profile.scriptingDefines ?? "";
+            info.scriptingDefines = string.Join(";", profile.scriptingDefines ?? new string[0]);
 
             return info;
         }

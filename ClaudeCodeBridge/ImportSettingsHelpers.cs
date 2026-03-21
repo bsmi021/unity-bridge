@@ -180,7 +180,6 @@ namespace BWS.Editor.ClaudeCodeBridge
                 ["forceToMono"] = ai.forceToMono.ToString(),
                 ["loadInBackground"] = ai.loadInBackground.ToString(),
                 ["ambisonic"] = ai.ambisonic.ToString(),
-                ["preloadAudioData"] = ai.preloadAudioData.ToString(),
             };
         }
 
@@ -206,10 +205,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                             ai.ambisonic = bool.Parse(kv.Value);
                             applied.Add(kv.Key);
                             break;
-                        case "preloadAudioData":
-                            ai.preloadAudioData = bool.Parse(kv.Value);
-                            applied.Add(kv.Key);
-                            break;
+                        // preloadAudioData is obsolete in Unity 6
+                        // Use AudioImporter.SampleSettings per-platform instead
                     }
                 }
                 catch (Exception ex)

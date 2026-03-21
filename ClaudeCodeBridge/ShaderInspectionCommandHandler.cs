@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -351,17 +352,22 @@ namespace BWS.Editor.ClaudeCodeBridge
             bool includeGlobal = filterLower != "local";
             bool includeLocal = filterLower != "global";
 
+            // shader.keywordSpace.keywords returns LocalKeyword[] in Unity 6
             foreach (var kw in shader.keywordSpace.keywords)
             {
-                if (kw.type != ShaderKeywordType.UserDefined)
-                    continue;
-
-                bool isLocal = ShaderKeyword.IsKeywordLocal(kw);
-
-                if (isLocal && includeLocal)
+                // LocalKeyword doesn't have a .type filter — include all
+                if (includeLocal)
                     result.localKeywords.Add(kw.name);
-                else if (!isLocal && includeGlobal)
-                    result.globalKeywords.Add(kw.name);
+            }
+
+            // Global keywords via GlobalKeyword API
+            if (includeGlobal)
+            {
+                // Global keywords are accessible via Shader.globalKeywords
+                foreach (var gkw in Shader.globalKeywords)
+                {
+                    result.globalKeywords.Add(gkw.name);
+                }
             }
 
             result.globalCount = result.globalKeywords.Count;

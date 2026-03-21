@@ -74,7 +74,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 // RetrieveTestTree uses Action<ITestAdaptor> callback directly.
                 // NOT the ICallbacks interface used by Execute().
-                testRunnerApi.RetrieveTestTree(
+                testRunnerApi.RetrieveTestList(
                     testMode,
                     (ITestAdaptor testTree) =>
                     {
