@@ -79,11 +79,20 @@ namespace BWS.Editor.ClaudeCodeBridge
                         result = ListScenes(parameters);
                         break;
 
+                    case "unload":
+                        result = UnloadScene(parameters);
+                        break;
+
+                    case "set-active":
+                        result = SetActiveScene(parameters);
+                        break;
+
                     default:
                         return BridgeResponse.Error(
                             command.commandId,
                             command.commandType,
-                            $"Unknown operation: {parameters.operation}. Supported operations: load, save, create, list"
+                            $"Unknown operation: {parameters.operation}. "
+                            + "Supported: load, save, create, list, unload, set-active"
                         );
                 }
 
@@ -149,14 +158,18 @@ namespace BWS.Editor.ClaudeCodeBridge
                 }
             }
 
+            // Resolve open mode
+            var openMode = ResolveOpenMode(parameters.mode);
+
             // Load the scene
             try
             {
-                var scene = EditorSceneManager.OpenScene(parameters.scenePath, OpenSceneMode.Single);
+                var scene = EditorSceneManager.OpenScene(parameters.scenePath, openMode);
                 result.success = true;
                 result.currentScenePath = scene.path;
-                result.message = $"Successfully loaded scene: {scene.name}";
-                BridgeLogger.LogInfo($"Loaded scene: {scene.path}");
+                string modeName = openMode == OpenSceneMode.Single ? "single" : "additive";
+                result.message = $"Successfully loaded scene ({modeName}): {scene.name}";
+                BridgeLogger.LogInfo($"Loaded scene ({modeName}): {scene.path}");
             }
             catch (Exception ex)
             {
@@ -342,6 +355,108 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 result.success = false;
                 result.message = $"Failed to list scenes: {ex.Message}";
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Resolve OpenSceneMode from string parameter.
+        /// </summary>
+        private OpenSceneMode ResolveOpenMode(string mode)
+        {
+            switch (mode?.ToLower())
+            {
+                case "additive": return OpenSceneMode.Additive;
+                case "additive-without-loading": return OpenSceneMode.AdditiveWithoutLoading;
+                default: return OpenSceneMode.Single;
+            }
+        }
+
+        /// <summary>
+        /// Unload a scene from the Editor (for multi-scene editing).
+        /// </summary>
+        private SceneOperationResult UnloadScene(SceneOperationParams parameters)
+        {
+            var result = new SceneOperationResult { operation = "unload" };
+
+            if (string.IsNullOrEmpty(parameters.scenePath))
+            {
+                result.success = false;
+                result.message = "scenePath is required for unload operation";
+                return result;
+            }
+
+            try
+            {
+                var scene = SceneManager.GetSceneByPath(parameters.scenePath);
+                if (!scene.IsValid() || !scene.isLoaded)
+                {
+                    result.success = false;
+                    result.message = $"Scene not loaded: {parameters.scenePath}";
+                    return result;
+                }
+
+                if (SceneManager.sceneCount <= 1)
+                {
+                    result.success = false;
+                    result.message = "Cannot unload the only loaded scene";
+                    return result;
+                }
+
+                bool closed = EditorSceneManager.CloseScene(scene, parameters.removeScene);
+                result.success = closed;
+                result.message = closed
+                    ? $"Unloaded scene: {parameters.scenePath}"
+                    : $"Failed to unload scene: {parameters.scenePath}";
+                result.currentScenePath = SceneManager.GetActiveScene().path;
+                BridgeLogger.LogInfo(result.message);
+            }
+            catch (Exception ex)
+            {
+                result.success = false;
+                result.message = $"Failed to unload scene: {ex.Message}";
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Set the active scene (when multiple scenes are loaded).
+        /// </summary>
+        private SceneOperationResult SetActiveScene(SceneOperationParams parameters)
+        {
+            var result = new SceneOperationResult { operation = "set-active" };
+
+            if (string.IsNullOrEmpty(parameters.scenePath))
+            {
+                result.success = false;
+                result.message = "scenePath is required for set-active operation";
+                return result;
+            }
+
+            try
+            {
+                var scene = SceneManager.GetSceneByPath(parameters.scenePath);
+                if (!scene.IsValid() || !scene.isLoaded)
+                {
+                    result.success = false;
+                    result.message = $"Scene not loaded: {parameters.scenePath}";
+                    return result;
+                }
+
+                bool set = SceneManager.SetActiveScene(scene);
+                result.success = set;
+                result.currentScenePath = parameters.scenePath;
+                result.message = set
+                    ? $"Active scene set to: {parameters.scenePath}"
+                    : $"Failed to set active scene: {parameters.scenePath}";
+                BridgeLogger.LogInfo(result.message);
+            }
+            catch (Exception ex)
+            {
+                result.success = false;
+                result.message = $"Failed to set active scene: {ex.Message}";
             }
 
             return result;

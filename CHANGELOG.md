@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 5 Quick Wins: 6 new capabilities covering daily-use gaps from adversarial review
+- `create-primitive` operation on `gameobject-operation`: create cubes, spheres, lights, cameras, particle systems
+- `set-active` operation on `gameobject-operation`: activate/deactivate GameObjects with Undo
+- `remove-component` command: remove components from GameObjects (undo-aware, blocks Transform removal)
+- `component-toggle` command: enable/disable Behaviour, Renderer, and Collider components
+- Additive scene loading: `mode` parameter on `scene-operation load` (single, additive, additive-without-loading)
+- `unload` and `set-active` operations on `scene-operation` for multi-scene editing workflows
+- `console-log` command: log custom messages to Unity Console (log, warning, error)
+- `--additive` flag on `scene load` CLI command
+- `hierarchy create-primitive`, `hierarchy set-active` CLI commands
+- `component remove`, `component enable`, `component disable` CLI commands
+- `scene load-additive`, `scene unload`, `scene set-active` CLI commands
+- `console log` CLI command with `--type` flag
+- 5 new MCP tools: `unity_create_primitive`, `unity_remove_component`, `unity_component_toggle`, `unity_gameobject_set_active`, `unity_console_log`
+- `schemas_phase5.py` with MCP input schemas for Phase 5 tools
+- 3 new C# handlers: RemoveComponentCommandHandler, ComponentToggleCommandHandler, ConsoleLogCommandHandler
+- Phase 5 timeout defaults in `protocol.py` for new command types
+- Unit tests for all Phase 5 core functions
 - Phase 4 Critical Gaps: 9 new command types with C#, Python, and MCP support
 - `set-selection`: programmatically set or clear Unity Editor selection by GameObject paths
 - `editor-prefs`: read/write EditorPrefs and SessionState (string, int, float, bool)

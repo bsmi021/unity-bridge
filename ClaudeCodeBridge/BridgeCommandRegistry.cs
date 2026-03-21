@@ -66,6 +66,11 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new TagsLayersCommandHandler());
             registerHandler(new EditorConfigCommandHandler());
 
+            // Phase 5: Quick Wins
+            registerHandler(new RemoveComponentCommandHandler());
+            registerHandler(new ComponentToggleCommandHandler());
+            registerHandler(new ConsoleLogCommandHandler());
+
             // Original handlers (split into partial classes during LOC refactor)
             registerHandler(new AnimatorOperationCommandHandler());
             registerHandler(new MaterialOperationCommandHandler());

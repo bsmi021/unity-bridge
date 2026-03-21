@@ -75,6 +75,10 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "tags-layers": 15,
     # Phase 4: Editor config (quick read/write)
     "editor-config": 10,
+    # Phase 5: Quick wins
+    "remove-component": 15,
+    "component-toggle": 10,
+    "console-log": 5,
 }
 
 # Commands that are safe for parallel execution in batch mode.

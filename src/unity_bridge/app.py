@@ -217,6 +217,12 @@ def _register_optional_commands() -> None:
         "unity_bridge.commands.import_settings", "import_settings_app", "import-settings"
     )
 
+    # Phase 5: Quick Wins — register module to attach commands to existing apps
+    try:
+        import unity_bridge.commands.hierarchy_ext  # noqa: F401
+    except ImportError:
+        pass
+
     # Phase 4: Critical Gaps
     _try_register_group("unity_bridge.commands.select", "select_app", "select")
     _try_register_group("unity_bridge.commands.prefs", "prefs_app", "prefs")

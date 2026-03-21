@@ -203,6 +203,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string gameObjectPath;
         public string parentPath;
         public string newName;
+        public string primitiveType;
+        public bool active = true;
     }
 
     [Serializable]

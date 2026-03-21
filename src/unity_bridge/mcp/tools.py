@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from unity_bridge.mcp import schemas, schemas_ext, schemas_phase3, schemas_phase4
+from unity_bridge.mcp import schemas, schemas_ext, schemas_phase3, schemas_phase4, schemas_phase5
 
 # ---------------------------------------------------------------------------
 # Tool name -> bridge command type mapping
@@ -62,6 +62,10 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_quality_settings": "quality-settings",
     "unity_tags_layers": "tags-layers",
     "unity_editor_config": "editor-config",
+    # Phase 5: Quick Wins
+    "unity_remove_component": "remove-component",
+    "unity_component_toggle": "component-toggle",
+    "unity_console_log": "console-log",
 }
 
 # ---------------------------------------------------------------------------
@@ -342,5 +346,36 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "async shader compilation, line endings, root namespace."
         ),
         "inputSchema": schemas_phase4.editor_config(),
+    },
+    # Phase 5: Quick Wins
+    {
+        "name": "unity_create_primitive",
+        "description": (
+            "Create primitives (cube, sphere, etc.), lights, cameras, "
+            "or particle systems in the scene."
+        ),
+        "inputSchema": schemas_phase5.create_primitive(),
+    },
+    {
+        "name": "unity_remove_component",
+        "description": "Remove a component from a GameObject (cannot remove Transform).",
+        "inputSchema": schemas_phase5.remove_component(),
+    },
+    {
+        "name": "unity_component_toggle",
+        "description": (
+            "Enable or disable a component (Behaviour, Renderer, or Collider subclasses)."
+        ),
+        "inputSchema": schemas_phase5.component_toggle(),
+    },
+    {
+        "name": "unity_gameobject_set_active",
+        "description": "Activate or deactivate a GameObject (SetActive).",
+        "inputSchema": schemas_phase5.gameobject_set_active(),
+    },
+    {
+        "name": "unity_console_log",
+        "description": "Log a custom message to the Unity Console (log, warning, or error).",
+        "inputSchema": schemas_phase5.console_log(),
     },
 ]

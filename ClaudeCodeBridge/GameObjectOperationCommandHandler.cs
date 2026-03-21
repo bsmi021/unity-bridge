@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -65,6 +66,14 @@ namespace BWS.Editor.ClaudeCodeBridge
                         result = CreateGameObject(parameters);
                         break;
 
+                    case "create-primitive":
+                        result = CreatePrimitive(parameters);
+                        break;
+
+                    case "set-active":
+                        result = SetActive(parameters);
+                        break;
+
                     case "delete":
                         result = DeleteGameObject(parameters);
                         break;
@@ -77,7 +86,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                         return BridgeResponse.Error(
                             command.commandId,
                             command.commandType,
-                            $"Unknown operation: {parameters.operation}. Supported operations: create, delete, rename"
+                            $"Unknown operation: {parameters.operation}. "
+                            + "Supported: create, create-primitive, set-active, delete, rename"
                         );
                 }
 
@@ -143,7 +153,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 // Mark scene dirty
                 EditorUtility.SetDirty(newGameObject);
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
 
                 result.success = true;
                 result.message = $"Successfully created GameObject: {parameters.gameObjectName}";
@@ -192,7 +202,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 Undo.DestroyObjectImmediate(gameObject);
 
                 // Mark scene dirty
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
 
                 result.success = true;
                 result.message = $"Successfully deleted GameObject: {parameters.gameObjectPath}";
@@ -258,7 +268,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 // Mark scene dirty
                 EditorUtility.SetDirty(gameObject);
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+                EditorSceneManager.MarkSceneDirty(gameObject.scene);
 
                 result.success = true;
                 result.message = $"Successfully renamed GameObject from '{oldPath}' to '{result.gameObjectPath}'";
@@ -268,6 +278,160 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 result.success = false;
                 result.message = $"Failed to rename GameObject: {ex.Message}";
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Create a primitive or common object (light, camera, particle system).
+        /// </summary>
+        private GameObjectOperationResult CreatePrimitive(GameObjectOperationParams parameters)
+        {
+            var result = new GameObjectOperationResult { operation = "create-primitive" };
+            var typeName = parameters.primitiveType;
+
+            if (string.IsNullOrEmpty(typeName))
+            {
+                result.success = false;
+                result.message = "primitiveType is required for create-primitive operation";
+                return result;
+            }
+
+            try
+            {
+                GameObject go = CreateByType(typeName.ToLower());
+                if (go == null)
+                {
+                    result.success = false;
+                    result.message = $"Unknown primitiveType: {typeName}. Supported: "
+                        + "cube, sphere, capsule, cylinder, plane, quad, "
+                        + "directional-light, point-light, spot-light, area-light, "
+                        + "camera, particle-system";
+                    return result;
+                }
+
+                // Apply custom name if provided
+                if (!string.IsNullOrEmpty(parameters.gameObjectName))
+                {
+                    go.name = parameters.gameObjectName;
+                }
+
+                // Set parent if specified
+                if (!string.IsNullOrEmpty(parameters.parentPath))
+                {
+                    var parent = FindGameObjectByPath(parameters.parentPath);
+                    if (parent == null)
+                    {
+                        result.success = false;
+                        result.message = $"Parent not found: {parameters.parentPath}";
+                        Undo.DestroyObjectImmediate(go);
+                        return result;
+                    }
+                    go.transform.SetParent(parent.transform, false);
+                }
+
+                result.gameObjectPath = GetGameObjectPath(go);
+                EditorUtility.SetDirty(go);
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+                result.success = true;
+                result.message = $"Created {typeName}: {result.gameObjectPath}";
+                BridgeLogger.LogInfo(result.message);
+            }
+            catch (Exception ex)
+            {
+                result.success = false;
+                result.message = $"Failed to create primitive: {ex.Message}";
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Instantiate a GameObject by type keyword.
+        /// Returns null for unknown types.
+        /// </summary>
+        private GameObject CreateByType(string typeLower)
+        {
+            switch (typeLower)
+            {
+                case "cube": return ObjectFactory.CreatePrimitive(PrimitiveType.Cube);
+                case "sphere": return ObjectFactory.CreatePrimitive(PrimitiveType.Sphere);
+                case "capsule": return ObjectFactory.CreatePrimitive(PrimitiveType.Capsule);
+                case "cylinder": return ObjectFactory.CreatePrimitive(PrimitiveType.Cylinder);
+                case "plane": return ObjectFactory.CreatePrimitive(PrimitiveType.Plane);
+                case "quad": return ObjectFactory.CreatePrimitive(PrimitiveType.Quad);
+                case "directional-light": return CreateLight(LightType.Directional);
+                case "point-light": return CreateLight(LightType.Point);
+                case "spot-light": return CreateLight(LightType.Spot);
+                case "area-light": return CreateLight(LightType.Area);
+                case "camera": return CreateCamera();
+                case "particle-system": return CreateParticleSystem();
+                default: return null;
+            }
+        }
+
+        private GameObject CreateLight(LightType lightType)
+        {
+            var go = ObjectFactory.CreateGameObject(lightType + " Light");
+            var light = ObjectFactory.AddComponent<Light>(go);
+            light.type = lightType;
+            return go;
+        }
+
+        private GameObject CreateCamera()
+        {
+            var go = ObjectFactory.CreateGameObject("Camera");
+            ObjectFactory.AddComponent<Camera>(go);
+            ObjectFactory.AddComponent<AudioListener>(go);
+            return go;
+        }
+
+        private GameObject CreateParticleSystem()
+        {
+            var go = ObjectFactory.CreateGameObject("Particle System");
+            ObjectFactory.AddComponent<ParticleSystem>(go);
+            return go;
+        }
+
+        /// <summary>
+        /// Set active state on a GameObject.
+        /// </summary>
+        private GameObjectOperationResult SetActive(GameObjectOperationParams parameters)
+        {
+            var result = new GameObjectOperationResult { operation = "set-active" };
+
+            if (string.IsNullOrEmpty(parameters.gameObjectPath))
+            {
+                result.success = false;
+                result.message = "gameObjectPath is required for set-active operation";
+                return result;
+            }
+
+            try
+            {
+                var go = FindGameObjectByPath(parameters.gameObjectPath);
+                if (go == null)
+                {
+                    result.success = false;
+                    result.message = $"GameObject not found: {parameters.gameObjectPath}";
+                    return result;
+                }
+
+                Undo.RecordObject(go, "Set Active");
+                go.SetActive(parameters.active);
+                EditorUtility.SetDirty(go);
+                EditorSceneManager.MarkSceneDirty(go.scene);
+
+                result.gameObjectPath = parameters.gameObjectPath;
+                result.success = true;
+                result.message = $"Set active={parameters.active}: {parameters.gameObjectPath}";
+                BridgeLogger.LogInfo(result.message);
+            }
+            catch (Exception ex)
+            {
+                result.success = false;
+                result.message = $"Failed to set active: {ex.Message}";
             }
 
             return result;

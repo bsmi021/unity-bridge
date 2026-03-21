@@ -18,6 +18,7 @@ async def scene_load(
     bridge: DirectBridge,
     path: str,
     save_current: bool = False,
+    additive: bool = False,
     timeout: float = 30.0,
 ) -> CommandResult:
     """Load a scene in the Unity Editor.
@@ -26,15 +27,20 @@ async def scene_load(
         bridge: Active bridge connection.
         path: Scene asset path (e.g. ``Assets/Scenes/Main.unity``).
         save_current: Save the currently open scene before loading.
+        additive: Load additively (keeps existing scenes open).
         timeout: Timeout in seconds.
     """
+    params: dict[str, object] = {
+        "operation": "load",
+        "scenePath": path,
+        "saveCurrent": save_current,
+    }
+    if additive:
+        params["mode"] = "additive"
+
     return await bridge.send_command_with_retry(
         command_type="scene-operation",
-        parameters={
-            "operation": "load",
-            "scenePath": path,
-            "saveCurrent": save_current,
-        },
+        parameters=params,
         timeout=timeout,
     )
 
@@ -93,12 +99,16 @@ def scene_load_cli(
         bool,
         typer.Option("--save-current", help="Save current scene before loading."),
     ] = False,
+    additive: Annotated[
+        bool,
+        typer.Option("--additive", help="Load additively (keeps existing scenes)."),
+    ] = False,
 ) -> None:
     """Load a scene in the Unity Editor."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(scene_load(state.bridge, path, save_current))
+    result = asyncio.run(scene_load(state.bridge, path, save_current, additive))
     print_result(result, state.formatter)
 
 
