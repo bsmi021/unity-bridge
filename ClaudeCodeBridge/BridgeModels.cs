@@ -112,6 +112,11 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string gameObjectName; // Optional - filter by GameObject name (partial match)
         public bool includeInactive = false; // Include inactive GameObjects
         public int maxDepth = -1; // Max hierarchy depth (-1 = unlimited)
+        public int depth = -1; // Alias for maxDepth (CLI sends "depth")
+        public string rootPath; // Optional - start from this GameObject path
+
+        /// <summary>Resolve effective max depth (CLI sends "depth", MCP sends "maxDepth").</summary>
+        public int EffectiveMaxDepth => depth >= 0 ? depth : maxDepth;
     }
 
     /// <summary>
