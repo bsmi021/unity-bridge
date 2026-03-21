@@ -11,7 +11,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from unity_bridge.mcp import schemas, schemas_ext, schemas_phase3, schemas_phase4, schemas_phase5
+from unity_bridge.mcp import (
+    schemas,
+    schemas_ext,
+    schemas_phase3,
+    schemas_phase4,
+    schemas_phase5,
+    schemas_pipeline,
+)
 
 # ---------------------------------------------------------------------------
 # Tool name -> bridge command type mapping
@@ -66,6 +73,10 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_remove_component": "remove-component",
     "unity_component_toggle": "component-toggle",
     "unity_console_log": "console-log",
+    # Phase 4 expansion: Build, Platform, Pipeline
+    "unity_script_execution_order": "script-execution-order",
+    "unity_assembly_reload_lock": "assembly-reload-lock",
+    "unity_find_references": "find-references",
 }
 
 # ---------------------------------------------------------------------------
@@ -377,5 +388,30 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "name": "unity_console_log",
         "description": "Log a custom message to the Unity Console (log, warning, or error).",
         "inputSchema": schemas_phase5.console_log(),
+    },
+    # Phase 4 expansion: Build, Platform, Pipeline
+    {
+        "name": "unity_script_execution_order",
+        "description": (
+            "Get or set MonoScript execution order. "
+            "List all scripts with their order, or set a specific script's order."
+        ),
+        "inputSchema": schemas_pipeline.script_execution_order(),
+    },
+    {
+        "name": "unity_assembly_reload_lock",
+        "description": (
+            "Lock/unlock assembly reloading. "
+            "Prevents domain reload during batch operations."
+        ),
+        "inputSchema": schemas_pipeline.assembly_reload_lock(),
+    },
+    {
+        "name": "unity_find_references",
+        "description": (
+            "Find all references to an asset in loaded scenes. "
+            "Searches SerializedProperty ObjectReferences across all components."
+        ),
+        "inputSchema": schemas_pipeline.find_references(),
     },
 ]

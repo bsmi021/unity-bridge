@@ -79,6 +79,18 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "remove-component": 15,
     "component-toggle": 10,
     "console-log": 5,
+    # Phase 4 expansion: Build, Platform, Pipeline
+    "script-execution-order": 15,
+    "assembly-reload-lock": 5,
+    "find-references": 30,
+    # Phase 4 Misc: Expanded capabilities
+    "clipboard": 5,
+    "preset-operation": 15,
+    "scene-template": 30,
+    "script-info": 15,
+    "deep-serialize": 10,
+    "window-management": 5,
+    "input-system": 15,
 }
 
 # Commands that are safe for parallel execution in batch mode.
@@ -94,6 +106,13 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "shader-inspection",
     "transform-operation",  # get operation is read-only
     "serialized-property",  # list/get operations are read-only
+    "script-execution-order",  # get operation is read-only
+    "find-references",  # find-in-scene is read-only
+    "clipboard",  # read operation is read-only
+    "script-info",  # info/list are read-only
+    "deep-serialize",  # get operation is read-only
+    "window-management",  # list operation is read-only
+    "input-system",  # list-actions/get-action-map/export are read-only
 }
 
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.
