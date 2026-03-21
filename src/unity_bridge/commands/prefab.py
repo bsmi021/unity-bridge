@@ -84,7 +84,7 @@ async def prefab_destroy(
         command_type="prefab-operation",
         parameters={
             "operation": "destroy",
-            "objectPath": instance_path,
+            "gameObjectPath": instance_path,
         },
         timeout=timeout,
     )

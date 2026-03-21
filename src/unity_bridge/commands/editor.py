@@ -78,7 +78,7 @@ async def focus_object(
         no_frame: If True, select but do not frame the object in scene view.
         timeout: Timeout in seconds.
     """
-    params: dict[str, object] = {"objectPath": object_path}
+    params: dict[str, object] = {"gameObjectPath": object_path}
     if no_frame:
         params["noFrame"] = True
 
