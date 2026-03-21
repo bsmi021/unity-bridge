@@ -18,6 +18,7 @@ async def scene_load(
     bridge: DirectBridge,
     path: str,
     save_current: bool = False,
+    additive: bool = False,
     timeout: float = 30.0,
 ) -> CommandResult:
     """Load a scene in the Unity Editor.
@@ -26,15 +27,20 @@ async def scene_load(
         bridge: Active bridge connection.
         path: Scene asset path (e.g. ``Assets/Scenes/Main.unity``).
         save_current: Save the currently open scene before loading.
+        additive: Load additively (keeps existing scenes open).
         timeout: Timeout in seconds.
     """
+    params: dict[str, object] = {
+        "operation": "load",
+        "scenePath": path,
+        "saveCurrent": save_current,
+    }
+    if additive:
+        params["mode"] = "additive"
+
     return await bridge.send_command_with_retry(
         command_type="scene-operation",
-        parameters={
-            "operation": "load",
-            "scenePath": path,
-            "saveCurrent": save_current,
-        },
+        parameters=params,
         timeout=timeout,
     )
 
@@ -52,6 +58,24 @@ async def scene_save(
     return await bridge.send_command_with_retry(
         command_type="scene-operation",
         parameters={"operation": "save"},
+        timeout=timeout,
+    )
+
+
+async def scene_move_object(
+    bridge: DirectBridge,
+    object_path: str,
+    scene_path: str,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Move a root GameObject to a different loaded scene."""
+    return await bridge.send_command_with_retry(
+        command_type="scene-operation",
+        parameters={
+            "operation": "move-object",
+            "gameObjectPath": object_path,
+            "scenePath": scene_path,
+        },
         timeout=timeout,
     )
 
@@ -93,12 +117,16 @@ def scene_load_cli(
         bool,
         typer.Option("--save-current", help="Save current scene before loading."),
     ] = False,
+    additive: Annotated[
+        bool,
+        typer.Option("--additive", help="Load additively (keeps existing scenes)."),
+    ] = False,
 ) -> None:
     """Load a scene in the Unity Editor."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(scene_load(state.bridge, path, save_current))
+    result = asyncio.run(scene_load(state.bridge, path, save_current, additive))
     print_result(result, state.formatter)
 
 
@@ -122,4 +150,22 @@ def scene_create_cli(
 
     state = ctx.obj
     result = asyncio.run(scene_create(state.bridge, path))
+    print_result(result, state.formatter)
+
+
+@scene_app.command("move-object")
+def scene_move_object_cli(
+    ctx: typer.Context,
+    object_path: Annotated[
+        str, typer.Argument(help="Hierarchy path of root GameObject to move.")
+    ],
+    scene_path: Annotated[
+        str, typer.Argument(help="Target scene path (must be loaded).")
+    ],
+) -> None:
+    """Move a root GameObject to a different loaded scene."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(scene_move_object(state.bridge, object_path, scene_path))
     print_result(result, state.formatter)

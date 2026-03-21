@@ -169,6 +169,9 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string operation;
         public string materialPath;
         public string shader;
+        public string keyword;
+        public int renderQueue = -1;
+        public string sourceMaterialPath;
         public List<MaterialProperty> properties = new List<MaterialProperty>();
     }
 
@@ -186,6 +189,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string operation;
         public string materialPath;
         public string shaderName;
+        public int renderQueue = -1;
+        public List<string> keywords = new List<string>();
         public List<MaterialProperty> properties = new List<MaterialProperty>();
         public bool success;
         public string message;
@@ -203,6 +208,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string gameObjectPath;
         public string parentPath;
         public string newName;
+        public string primitiveType;
+        public bool active = true;
     }
 
     [Serializable]

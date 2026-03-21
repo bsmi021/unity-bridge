@@ -12,34 +12,9 @@ namespace BWS.Editor.ClaudeCodeBridge
     ///
     /// PURPOSE:
     /// Modifies serialized field values on Unity components programmatically.
-    /// Enables automated setup, testing, and configuration of GameObjects
-    /// without manual Inspector manipulation.
-    ///
-    /// USE CASES:
-    /// - Automated test setup (set health, position, etc.)
-    /// - Batch configuration of multiple objects
-    /// - Programmatic scene setup for specific scenarios
-    /// - Test data injection
-    /// - Quick iteration on component values during development
-    ///
-    /// COMMAND JSON:
-    /// {
-    ///   "commandId": "guid",
-    ///   "commandType": "set-component-data",
-    ///   "timestamp": "2025-10-05T18:00:00Z",
-    ///   "parametersJson": "{\"gameObjectPath\":\"Player\",\"componentType\":\"BWS.CharacterStats\",\"fieldUpdates\":[{\"fieldName\":\"maxHealth\",\"valueJson\":\"100\"},{\"fieldName\":\"currentHealth\",\"valueJson\":\"50\"}]}"
-    /// }
-    ///
-    /// USAGE EXAMPLES:
-    ///
-    /// 1. Set single field:
-    ///    send-command.ps1 -CommandType "set-component-data" -Parameters @{gameObjectPath="Player"; componentType="BWS.CharacterStats"; fieldUpdates=@(@{fieldName="maxHealth"; valueJson="150"})}
-    ///
-    /// 2. Set multiple fields:
-    ///    send-command.ps1 -CommandType "set-component-data" -Parameters @{gameObjectPath="Player"; componentType="Transform"; fieldUpdates=@(@{fieldName="position"; valueJson='{"x":0,"y":1,"z":0}'})}
-    ///
-    /// 3. Set nested object field:
-    ///    send-command.ps1 -CommandType "set-component-data" -Parameters @{gameObjectPath="Player/Camera"; componentType="Camera"; fieldUpdates=@(@{fieldName="fieldOfView"; valueJson="90"})}
+    /// Uses SerializedObject/SerializedProperty as the PRIMARY approach (works
+    /// with [SerializeField] private fields). Falls back to reflection only
+    /// for runtime-only fields not visible to serialization.
     ///
     /// NOTE: This command marks the scene as dirty to ensure changes are saved.
     /// </summary>
@@ -51,56 +26,62 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             try
             {
-                var parameters = JsonUtility.FromJson<SetComponentDataParams>(command.parametersJson ?? "{}");
-                if (parameters == null || string.IsNullOrEmpty(parameters.gameObjectPath) || string.IsNullOrEmpty(parameters.componentType))
+                var parameters = JsonUtility.FromJson<SetComponentDataParams>(
+                    command.parametersJson ?? "{}");
+                if (parameters == null
+                    || string.IsNullOrEmpty(parameters.gameObjectPath)
+                    || string.IsNullOrEmpty(parameters.componentType))
                 {
-                    return BridgeResponse.Error(command.commandId, command.commandType, "Missing required parameters: gameObjectPath and componentType");
+                    return BridgeResponse.Error(command.commandId, command.commandType,
+                        "Missing required parameters: gameObjectPath and componentType");
                 }
 
-                BridgeLogger.LogDebug($"Setting data on {parameters.gameObjectPath}::{parameters.componentType}");
+                BridgeLogger.LogDebug(
+                    $"Setting data on {parameters.gameObjectPath}::{parameters.componentType}");
 
-                // Find GameObject
                 var gameObject = FindGameObjectByPath(parameters.gameObjectPath);
                 if (gameObject == null)
                 {
-                    return BridgeResponse.Error(command.commandId, command.commandType, $"GameObject not found: {parameters.gameObjectPath}");
+                    return BridgeResponse.Error(command.commandId, command.commandType,
+                        $"GameObject not found: {parameters.gameObjectPath}");
                 }
 
-                // Find component
                 var component = FindComponent(gameObject, parameters.componentType);
                 if (component == null)
                 {
-                    return BridgeResponse.Error(command.commandId, command.commandType, $"Component not found: {parameters.componentType} on {parameters.gameObjectPath}");
+                    return BridgeResponse.Error(command.commandId, command.commandType,
+                        $"Component not found: {parameters.componentType} "
+                        + $"on {parameters.gameObjectPath}");
                 }
 
-                // Apply field updates
                 var result = new SetComponentDataResult
                 {
                     gameObjectPath = parameters.gameObjectPath,
                     componentType = parameters.componentType
                 };
 
+                // Primary: use SerializedObject (works with private [SerializeField])
+                var so = new SerializedObject(component);
                 foreach (var fieldUpdate in parameters.fieldUpdates)
                 {
-                    try
+                    bool updated = TrySetViaSerializedProperty(so, fieldUpdate);
+                    if (!updated)
                     {
-                        var field = component.GetType().GetField(fieldUpdate.fieldName, BindingFlags.Public | BindingFlags.Instance);
-                        if (field == null)
-                        {
-                            BridgeLogger.LogWarning($"Field not found: {fieldUpdate.fieldName}");
-                            continue;
-                        }
+                        // Fallback: reflection for runtime-only fields
+                        updated = TrySetViaReflection(component, fieldUpdate);
+                    }
 
-                        var value = DeserializeFieldValue(fieldUpdate.valueJson, field.FieldType);
-                        field.SetValue(component, value);
+                    if (updated)
+                    {
                         result.updatedFields.Add(fieldUpdate.fieldName);
                         result.fieldsUpdated++;
-
-                        BridgeLogger.LogDebug($"Set {fieldUpdate.fieldName} = {fieldUpdate.valueJson}");
+                        BridgeLogger.LogDebug(
+                            $"Set {fieldUpdate.fieldName} = {fieldUpdate.valueJson}");
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        BridgeLogger.LogError($"Error setting field {fieldUpdate.fieldName}: {ex.Message}");
+                        BridgeLogger.LogWarning(
+                            $"Field not found or unsupported: {fieldUpdate.fieldName}");
                     }
                 }
 
@@ -108,39 +89,87 @@ namespace BWS.Editor.ClaudeCodeBridge
                 if (result.fieldsUpdated > 0)
                 {
                     EditorUtility.SetDirty(component);
-                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+                        gameObject.scene);
                 }
 
                 var resultJson = JsonUtility.ToJson(result);
                 BridgeLogger.LogInfo($"Updated {result.fieldsUpdated} fields");
-
-                return BridgeResponse.Success(command.commandId, command.commandType, resultJson);
+                return BridgeResponse.Success(
+                    command.commandId, command.commandType, resultJson);
             }
             catch (Exception ex)
             {
                 BridgeLogger.LogError($"Error: {ex}");
-                return BridgeResponse.Error(command.commandId, command.commandType, ex.ToString());
+                return BridgeResponse.Error(
+                    command.commandId, command.commandType, ex.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Try to set a field value using SerializedObject/SerializedProperty.
+        /// This is the CORRECT way to modify Unity components — works with
+        /// private [SerializeField] fields and records proper Undo.
+        /// </summary>
+        private bool TrySetViaSerializedProperty(SerializedObject so, FieldUpdate update)
+        {
+            try
+            {
+                var prop = so.FindProperty(update.fieldName);
+                if (prop == null) return false;
+
+                bool set = SerializedPropertyHelpers.SetPropertyValue(prop, update.valueJson);
+                if (set)
+                    so.ApplyModifiedProperties();
+                return set;
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogWarning(
+                    $"SerializedProperty set failed for {update.fieldName}: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Fallback: set field via reflection for runtime-only fields not
+        /// visible to Unity serialization.
+        /// </summary>
+        private bool TrySetViaReflection(Component component, FieldUpdate update)
+        {
+            try
+            {
+                var field = component.GetType().GetField(
+                    update.fieldName,
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (field == null) return false;
+
+                var value = DeserializeFieldValue(update.valueJson, field.FieldType);
+                Undo.RecordObject(component, $"Set {update.fieldName}");
+                field.SetValue(component, value);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError(
+                    $"Reflection set failed for {update.fieldName}: {ex.Message}");
+                return false;
             }
         }
 
         private GameObject FindGameObjectByPath(string path)
         {
             var parts = path.Split('/');
-            GameObject current = null;
-
             var rootObjects = SceneManager.GetActiveScene().GetRootGameObjects();
-            current = rootObjects.FirstOrDefault(go => go.name == parts[0]);
-            if (current == null)
-                return null;
+            var current = rootObjects.FirstOrDefault(go => go.name == parts[0]);
+            if (current == null) return null;
 
             for (int i = 1; i < parts.Length; i++)
             {
                 var child = current.transform.Find(parts[i]);
-                if (child == null)
-                    return null;
+                if (child == null) return null;
                 current = child.gameObject;
             }
-
             return current;
         }
 
@@ -148,47 +177,29 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             var components = go.GetComponents<Component>();
             return components.FirstOrDefault(c =>
-                c.GetType().Name == typeName ||
-                c.GetType().FullName == typeName
+                c.GetType().Name == typeName
+                || c.GetType().FullName == typeName
             );
         }
 
-        /// <summary>
-        /// Deserialize JSON value to field type.
-        /// </summary>
         private object DeserializeFieldValue(string valueJson, Type fieldType)
         {
             if (string.IsNullOrEmpty(valueJson) || valueJson == "null")
                 return null;
 
-            try
+            if (fieldType == typeof(int)) return int.Parse(valueJson);
+            if (fieldType == typeof(float)) return float.Parse(valueJson);
+            if (fieldType == typeof(double)) return double.Parse(valueJson);
+            if (fieldType == typeof(bool)) return bool.Parse(valueJson);
+            if (fieldType == typeof(string)) return valueJson.Trim('"');
+
+            if (fieldType == typeof(Vector3) || fieldType == typeof(Vector2)
+                || fieldType == typeof(Quaternion) || fieldType == typeof(Color))
             {
-                // Handle primitives
-                if (fieldType == typeof(int))
-                    return int.Parse(valueJson);
-                if (fieldType == typeof(float))
-                    return float.Parse(valueJson);
-                if (fieldType == typeof(double))
-                    return double.Parse(valueJson);
-                if (fieldType == typeof(bool))
-                    return bool.Parse(valueJson);
-                if (fieldType == typeof(string))
-                    return valueJson.Trim('"');
-
-                // Handle Unity types with JsonUtility
-                if (fieldType == typeof(Vector3) || fieldType == typeof(Vector2) ||
-                    fieldType == typeof(Quaternion) || fieldType == typeof(Color))
-                {
-                    return JsonUtility.FromJson(valueJson, fieldType);
-                }
-
-                // Try generic JsonUtility deserialization
                 return JsonUtility.FromJson(valueJson, fieldType);
             }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to deserialize value '{valueJson}' to type {fieldType.Name}: {ex.Message}");
-            }
+
+            return JsonUtility.FromJson(valueJson, fieldType);
         }
     }
 }

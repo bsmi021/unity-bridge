@@ -1,19 +1,16 @@
 # Unity Bridge CLI -- Complete Command Reference
 
-Every command example uses the EXACT syntax from `unity-bridge --help`.
+Every command and argument documented from the exact `unity-bridge --help` output.
 
-**CRITICAL SYNTAX RULE: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND OPTIONS]`**
+**Syntax: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND OPTIONS/ARGS]`**
 
-`--human`, `--pretty`, `--verbose`, `--quiet`, `--timeout`, `--project`, `--no-color`
-are GLOBAL flags. They MUST go BEFORE the command name. Placing them after the command
-causes "No such option" errors. Most commands do NOT have their own `--timeout` or
-`--human` — use the global flags instead.
+Global flags go BEFORE the command name:
 
 ```bash
-unity-bridge --human console read --types error     # CORRECT
-unity-bridge console read --types error --human     # WRONG: "No such option: --human"
-unity-bridge -t 60 menu "File/Save"                 # CORRECT
-unity-bridge menu "File/Save" --timeout 60          # WRONG: "No such option: --timeout"
+unity-bridge --human console read --types error
+unity-bridge -t 60 menu "File/Save"
+unity-bridge --pretty component get Player Transform
+unity-bridge -v -t 120 test run --platform EditMode
 ```
 
 ## Table of Contents
@@ -43,7 +40,19 @@ unity-bridge menu "File/Save" --timeout 60          # WRONG: "No such option: --
 23. [Shader Group](#shader-group)
 24. [Scene Extensions Group](#scene-extensions-group)
 25. [Import Settings Group](#import-settings-group)
-26. [Bridge Command Types](#bridge-command-types)
+26. [Hierarchy Duplicate](#hierarchy-duplicate)
+27. [Select Group](#select-group)
+28. [Transform Group](#transform-group)
+29. [Property Group](#property-group)
+30. [Prefs Group](#prefs-group)
+31. [Build Scenes Group](#build-scenes-group)
+32. [Physics Group](#physics-group)
+33. [Quality Group](#quality-group)
+34. [Tags Group](#tags-group)
+35. [Layers Group](#layers-group)
+36. [Sorting Layers Group](#sorting-layers-group)
+37. [Editor Config Group](#editor-config-group)
+38. [Bridge Command Types](#bridge-command-types)
 
 ---
 
@@ -193,7 +202,8 @@ Read field values from a component. Arguments are positional (bare values, not f
 |----------|------|----------|-------------|
 | `OBJECT_PATH` | positional | yes | GameObject path (e.g., `Player`) |
 | `COMPONENT_TYPE` | positional | yes | Component type (e.g., `Transform`, `PlayerStats`) |
-| `--fields` | TEXT | no | Comma-separated field names to read |
+| `--fields` / `-F` | TEXT | no | Comma-separated field names to retrieve |
+| `--deep` | flag | no | Use EditorJsonUtility for full serialization |
 
 ```bash
 unity-bridge component get Player Transform
@@ -1472,6 +1482,489 @@ unity-bridge import-settings template-apply "mobile-texture" Assets/Textures/bg.
 
 ---
 
+## Hierarchy Duplicate
+
+### `hierarchy duplicate`
+
+Duplicate a GameObject in the scene.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+
+```bash
+unity-bridge hierarchy duplicate "Environment/Tree"
+unity-bridge hierarchy duplicate "Player"
+```
+
+---
+
+## Select Group
+
+### `select`
+
+Set or clear the Unity Editor selection.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECTS` | positional (variadic) | no | GameObject paths to select |
+| `--clear` | flag | no | Clear the current selection |
+
+```bash
+unity-bridge select Player
+unity-bridge select Player "Environment/Tree"
+unity-bridge select --clear
+```
+
+---
+
+## Transform Group
+
+### `transform get`
+
+Get all transform data (position, rotation, scale) for a GameObject.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+
+```bash
+unity-bridge transform get Player
+unity-bridge --human transform get "Environment/Tree"
+```
+
+### `transform set`
+
+Set transform position, rotation, and/or scale.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+| `--position` / `-p` | TEXT | no | Position as X,Y,Z |
+| `--rotation` / `-r` | TEXT | no | Euler rotation as X,Y,Z |
+| `--scale` / `-s` | TEXT | no | Local scale as X,Y,Z |
+| `--local` | flag | no | Use local position instead of world |
+
+```bash
+unity-bridge transform set Player -p 5,0,3
+unity-bridge transform set Player -r 0,90,0
+unity-bridge transform set Player -s 2,2,2
+unity-bridge transform set Player -p 1,0,0 --local
+unity-bridge transform set Player -p 5,0,3 -r 0,90,0 -s 2,2,2
+```
+
+### `transform parent`
+
+Reparent a GameObject.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+| `NEW_PARENT` | positional | no | Hierarchy path of new parent (omit to unparent) |
+| `--world-position-stays` / `--no-world-position-stays` | flag | true | Preserve world position |
+
+```bash
+unity-bridge transform parent "Enemy" "EnemyGroup"
+unity-bridge transform parent "Enemy"
+unity-bridge transform parent "Enemy" "Group" --no-world-position-stays
+```
+
+### `transform sibling-index`
+
+Set hierarchy order within parent.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+| `INDEX` | INTEGER | yes | Target sibling index |
+
+```bash
+unity-bridge transform sibling-index "Enemy" 0
+unity-bridge transform sibling-index "UI/Button" 3
+```
+
+---
+
+## Property Group
+
+SerializedProperty access commands for fine-grained component field manipulation.
+
+### `property list`
+
+List all serialized properties on a component.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+| `COMPONENT_TYPE` | positional | yes | Component type name |
+
+```bash
+unity-bridge property list Player BoxCollider
+unity-bridge property list "UI/Canvas" CanvasScaler
+```
+
+### `property get`
+
+Get a serialized property value.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+| `COMPONENT_TYPE` | positional | yes | Component type name |
+| `PROPERTY_PATH` | positional | yes | SerializedProperty path |
+
+```bash
+unity-bridge property get Player BoxCollider "m_Size"
+unity-bridge property get Player Transform "m_LocalPosition"
+```
+
+### `property set`
+
+Set a serialized property value.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | Hierarchy path to the GameObject |
+| `COMPONENT_TYPE` | positional | yes | Component type name |
+| `PROPERTY_PATH` | positional | yes | SerializedProperty path |
+| `VALUE` | positional | yes | JSON value to set |
+
+```bash
+unity-bridge property set Player BoxCollider "m_Size" '{"x":2,"y":2,"z":2}'
+unity-bridge property set Player MeshRenderer "m_Enabled" "true"
+```
+
+---
+
+## Prefs Group
+
+EditorPrefs and SessionState commands.
+
+### `prefs get`
+
+Get an EditorPrefs or SessionState value.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `KEY` | positional | yes | Preference key |
+| `--type / -t` | TEXT | no | Value type: string, int, float, bool (default: string) |
+| `--scope / -s` | TEXT | no | Storage scope: prefs or session (default: prefs) |
+
+```bash
+unity-bridge prefs get MyPlugin.Setting
+unity-bridge prefs get MyPlugin.Setting -t int
+unity-bridge prefs get MyKey -s session
+unity-bridge prefs get MyPlugin.Debug -t bool -s session
+```
+
+### `prefs set`
+
+Set an EditorPrefs or SessionState value.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `KEY` | positional | yes | Preference key |
+| `VALUE` | positional | yes | Value to set |
+| `--type / -t` | TEXT | no | Value type: string, int, float, bool (default: string) |
+| `--scope / -s` | TEXT | no | Storage scope: prefs or session (default: prefs) |
+
+```bash
+unity-bridge prefs set MyPlugin.Setting "value"
+unity-bridge prefs set MyPlugin.Count 42 -t int
+unity-bridge prefs set MyFlag true -t bool -s session
+```
+
+### `prefs delete`
+
+Delete an EditorPrefs or SessionState key.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `KEY` | positional | yes | Preference key to delete |
+| `--scope / -s` | TEXT | no | Storage scope: prefs or session (default: prefs) |
+
+```bash
+unity-bridge prefs delete MyPlugin.Setting
+unity-bridge prefs delete MyKey -s session
+```
+
+### `prefs has`
+
+Check if an EditorPrefs or SessionState key exists.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `KEY` | positional | yes | Preference key to check |
+| `--scope / -s` | TEXT | no | Storage scope: prefs or session (default: prefs) |
+
+```bash
+unity-bridge prefs has MyPlugin.Setting
+unity-bridge prefs has MyKey -s session
+```
+
+---
+
+## Build Scenes Group
+
+Manage the Build Settings scene list.
+
+### `build-scenes list`
+
+List all scenes in Build Settings. No arguments.
+
+```bash
+unity-bridge build-scenes list
+```
+
+### `build-scenes add`
+
+Add a scene to the Build Settings list.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `SCENE_PATH` | positional | yes | Scene asset path |
+| `--index / -i` | INTEGER | no | Position to insert at (-1 = append, default: -1) |
+
+```bash
+unity-bridge build-scenes add Assets/Scenes/Main.unity
+unity-bridge build-scenes add Assets/Scenes/Main.unity -i 0
+```
+
+### `build-scenes remove`
+
+Remove a scene from the Build Settings list.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `SCENE_PATH` | positional | yes | Scene asset path to remove |
+
+```bash
+unity-bridge build-scenes remove Assets/Scenes/Old.unity
+```
+
+### `build-scenes enable`
+
+Enable a scene in the Build Settings list.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `SCENE_PATH` | positional | yes | Scene asset path to enable |
+
+```bash
+unity-bridge build-scenes enable Assets/Scenes/Main.unity
+```
+
+### `build-scenes disable`
+
+Disable a scene in the Build Settings list.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `SCENE_PATH` | positional | yes | Scene asset path to disable |
+
+```bash
+unity-bridge build-scenes disable Assets/Scenes/Test.unity
+```
+
+---
+
+## Physics Group
+
+Physics configuration commands.
+
+### `physics get`
+
+Get current physics settings. No arguments.
+
+```bash
+unity-bridge physics get
+```
+
+### `physics set`
+
+Set physics configuration values.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `--gravity / -g` | TEXT | no | Gravity as X,Y,Z (e.g. `0,-9.81,0`) |
+| `--solver-iterations` | INTEGER | no | Default solver iterations |
+
+```bash
+unity-bridge physics set -g "0,-9.81,0"
+unity-bridge physics set --solver-iterations 12
+unity-bridge physics set -g "0,-20,0" --solver-iterations 8
+```
+
+### `physics collision get`
+
+Get the layer collision matrix. No arguments.
+
+```bash
+unity-bridge physics collision get
+```
+
+### `physics collision set`
+
+Set collision between two layers.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `LAYER1` | INTEGER | yes | First layer index (0-31) |
+| `LAYER2` | INTEGER | yes | Second layer index (0-31) |
+| `--ignore / --collide` | flag | no | Ignore or enable collisions (default: `--collide`) |
+
+```bash
+unity-bridge physics collision set 8 9 --ignore
+unity-bridge physics collision set 8 9 --collide
+```
+
+---
+
+## Quality Group
+
+Quality settings commands.
+
+### `quality list`
+
+List all quality levels. No arguments.
+
+```bash
+unity-bridge quality list
+```
+
+### `quality get`
+
+Get current quality settings. No arguments.
+
+```bash
+unity-bridge quality get
+```
+
+### `quality set-level`
+
+Switch active quality level.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `LEVEL` | INTEGER | yes | Quality level index |
+
+```bash
+unity-bridge quality set-level 0
+unity-bridge quality set-level 2
+```
+
+---
+
+## Tags Group
+
+Tag management commands.
+
+### `tags list`
+
+List all project tags. No arguments.
+
+```bash
+unity-bridge tags list
+```
+
+### `tags add`
+
+Add a custom tag.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `TAG_NAME` | positional | yes | Tag name to add |
+
+```bash
+unity-bridge tags add "Interactable"
+unity-bridge tags add "Collectible"
+```
+
+---
+
+## Layers Group
+
+Layer management commands.
+
+### `layers list`
+
+List all layers. No arguments.
+
+```bash
+unity-bridge layers list
+```
+
+### `layers add`
+
+Add a layer to a user slot.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `LAYER_NAME` | positional | yes | Layer name to add |
+| `--index / -i` | INTEGER | no | Specific slot index (8-31) |
+
+```bash
+unity-bridge layers add "Interactables"
+unity-bridge layers add "Interactables" -i 10
+```
+
+---
+
+## Sorting Layers Group
+
+Sorting layer commands.
+
+### `sorting-layers list`
+
+List all sorting layers. No arguments.
+
+```bash
+unity-bridge sorting-layers list
+```
+
+### `sorting-layers add`
+
+Add a sorting layer.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Sorting layer name |
+
+```bash
+unity-bridge sorting-layers add "Foreground"
+unity-bridge sorting-layers add "UI Overlay"
+```
+
+---
+
+## Editor Config Group
+
+Editor configuration commands.
+
+### `editor-config get`
+
+Get current editor settings. No arguments.
+
+```bash
+unity-bridge editor-config get
+```
+
+### `editor-config set`
+
+Set an editor configuration value.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `KEY` | positional | yes | Setting key |
+| `VALUE` | positional | yes | New value |
+
+```bash
+unity-bridge editor-config set "enterPlayModeOptionsEnabled" "true"
+unity-bridge editor-config set "serializationMode" "ForceText"
+```
+
+---
+
 ## Bridge Command Types
 
 For batch files and advanced use, these are the bridge command type strings and
@@ -1502,3 +1995,16 @@ their CLI equivalents:
 | `focus-object` | `focus` |
 | `execute-menu-item` | `menu` |
 | `execute-script` | `script` |
+| `duplicate-object` | `hierarchy duplicate` |
+| `set-selection` | `select` |
+| `transform-operation` | `transform get/set/parent/sibling-index` |
+| `serialized-property` | `property list/get/set` |
+| `editor-prefs` | `prefs get/set/delete/has` |
+| `build-scenes-operation` | `build-scenes list/add/remove/enable/disable` |
+| `physics-operation` | `physics get/set` |
+| `physics-collision` | `physics collision get/set` |
+| `quality-operation` | `quality list/get/set-level` |
+| `tags-operation` | `tags list/add` |
+| `layers-operation` | `layers list/add` |
+| `sorting-layers-operation` | `sorting-layers list/add` |
+| `editor-config-operation` | `editor-config get/set` |

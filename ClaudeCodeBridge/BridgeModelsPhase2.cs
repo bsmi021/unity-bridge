@@ -255,6 +255,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string tag;
         public int affectedCount;
         public bool changed;
+        public string duplicatePath;
+        public string duplicateName;
     }
 
     /// <summary>

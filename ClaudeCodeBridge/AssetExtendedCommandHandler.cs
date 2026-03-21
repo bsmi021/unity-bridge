@@ -133,14 +133,19 @@ namespace BWS.Editor.ClaudeCodeBridge
                 return result;
             }
 
-            var asset = CreateAssetByType(parameters.assetType);
+            EnsureDirectoryExists(parameters.assetPath);
+
+            // File-based types (TextAsset, Shader, asmdef, asmref)
+            if (TryCreateFileBasedAsset(parameters, result))
+                return result;
+
+            var asset = CreateAssetByType(parameters.assetType, parameters);
             if (asset == null)
             {
                 result.message = $"Unsupported asset type: {parameters.assetType}";
                 return result;
             }
 
-            EnsureDirectoryExists(parameters.assetPath);
             AssetDatabase.CreateAsset(asset, parameters.assetPath);
             AssetDatabase.SaveAssets();
 

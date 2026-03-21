@@ -11,7 +11,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from unity_bridge.mcp import schemas, schemas_ext, schemas_phase3
+from unity_bridge.mcp import (
+    schemas,
+    schemas_ext,
+    schemas_phase3,
+    schemas_phase4,
+    schemas_phase5,
+    schemas_phase6b,
+    schemas_pipeline,
+)
 
 # ---------------------------------------------------------------------------
 # Tool name -> bridge command type mapping
@@ -53,6 +61,29 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_shader_inspection": "shader-inspection",
     "unity_scene_extended": "scene-setup-operation",
     "unity_import_settings": "import-settings-operation",
+    "unity_set_selection": "set-selection",
+    "unity_editor_prefs": "editor-prefs",
+    "unity_build_scenes": "build-scenes",
+    "unity_transform": "transform-operation",
+    "unity_serialized_property": "serialized-property",
+    "unity_physics_config": "physics-config",
+    "unity_quality_settings": "quality-settings",
+    "unity_tags_layers": "tags-layers",
+    "unity_editor_config": "editor-config",
+    # Phase 5: Quick Wins
+    "unity_remove_component": "remove-component",
+    "unity_component_toggle": "component-toggle",
+    "unity_console_log": "console-log",
+    # Phase 4 expansion: Build, Platform, Pipeline
+    "unity_script_execution_order": "script-execution-order",
+    "unity_assembly_reload_lock": "assembly-reload-lock",
+    "unity_find_references": "find-references",
+    # Phase 6b: Scene/Material/Component/Inspector Gaps
+    "unity_component_copy": "component-copy",
+    "unity_component_reset": "component-reset",
+    "unity_scene_view": "scene-view",
+    "unity_game_view": "game-view",
+    "unity_profiler_control": "profiler-control",
 }
 
 # ---------------------------------------------------------------------------
@@ -266,5 +297,163 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "save/apply templates for textures, models, audio."
         ),
         "inputSchema": schemas_phase3.import_settings(),
+    },
+    {
+        "name": "unity_set_selection",
+        "description": "Set or clear the Unity Editor selection programmatically.",
+        "inputSchema": schemas_phase4.set_selection(),
+    },
+    {
+        "name": "unity_editor_prefs",
+        "description": (
+            "Read/write EditorPrefs and SessionState values (string, int, float, bool)."
+        ),
+        "inputSchema": schemas_phase4.editor_prefs(),
+    },
+    {
+        "name": "unity_build_scenes",
+        "description": (
+            "Manage Build Settings scene list: list, add, remove, enable, disable, reorder scenes."
+        ),
+        "inputSchema": schemas_phase4.build_scenes(),
+    },
+    {
+        "name": "unity_transform",
+        "description": (
+            "Dedicated transform control: get/set position, rotation, scale, "
+            "reparent GameObjects, set sibling index. Supports Undo."
+        ),
+        "inputSchema": schemas_phase4.transform_operation(),
+    },
+    {
+        "name": "unity_serialized_property",
+        "description": (
+            "Access ALL serialized fields including [SerializeField] private fields. "
+            "List, get, or set any property via Unity's SerializedObject API."
+        ),
+        "inputSchema": schemas_phase4.serialized_property(),
+    },
+    {
+        "name": "unity_physics_config",
+        "description": (
+            "Physics configuration: get/set gravity, solver settings, "
+            "read/modify the 32x32 layer collision matrix."
+        ),
+        "inputSchema": schemas_phase4.physics_config(),
+    },
+    {
+        "name": "unity_quality_settings",
+        "description": (
+            "Quality settings: list levels, get current settings "
+            "(shadows, AA, LOD, vsync), switch active level."
+        ),
+        "inputSchema": schemas_phase4.quality_settings(),
+    },
+    {
+        "name": "unity_tags_layers",
+        "description": (
+            "Tags and layers management: list/add tags, list/add layers, "
+            "list/add sorting layers via TagManager."
+        ),
+        "inputSchema": schemas_phase4.tags_layers(),
+    },
+    {
+        "name": "unity_editor_config",
+        "description": (
+            "Editor settings: enter play mode options, serialization mode, "
+            "async shader compilation, line endings, root namespace."
+        ),
+        "inputSchema": schemas_phase4.editor_config(),
+    },
+    # Phase 5: Quick Wins
+    {
+        "name": "unity_create_primitive",
+        "description": (
+            "Create primitives (cube, sphere, etc.), lights, cameras, "
+            "or particle systems in the scene."
+        ),
+        "inputSchema": schemas_phase5.create_primitive(),
+    },
+    {
+        "name": "unity_remove_component",
+        "description": "Remove a component from a GameObject (cannot remove Transform).",
+        "inputSchema": schemas_phase5.remove_component(),
+    },
+    {
+        "name": "unity_component_toggle",
+        "description": (
+            "Enable or disable a component (Behaviour, Renderer, or Collider subclasses)."
+        ),
+        "inputSchema": schemas_phase5.component_toggle(),
+    },
+    {
+        "name": "unity_gameobject_set_active",
+        "description": "Activate or deactivate a GameObject (SetActive).",
+        "inputSchema": schemas_phase5.gameobject_set_active(),
+    },
+    {
+        "name": "unity_console_log",
+        "description": "Log a custom message to the Unity Console (log, warning, or error).",
+        "inputSchema": schemas_phase5.console_log(),
+    },
+    # Phase 4 expansion: Build, Platform, Pipeline
+    {
+        "name": "unity_script_execution_order",
+        "description": (
+            "Get or set MonoScript execution order. "
+            "List all scripts with their order, or set a specific script's order."
+        ),
+        "inputSchema": schemas_pipeline.script_execution_order(),
+    },
+    {
+        "name": "unity_assembly_reload_lock",
+        "description": (
+            "Lock/unlock assembly reloading. "
+            "Prevents domain reload during batch operations."
+        ),
+        "inputSchema": schemas_pipeline.assembly_reload_lock(),
+    },
+    {
+        "name": "unity_find_references",
+        "description": (
+            "Find all references to an asset in loaded scenes. "
+            "Searches SerializedProperty ObjectReferences across all components."
+        ),
+        "inputSchema": schemas_pipeline.find_references(),
+    },
+    # Phase 6b: Scene/Material/Component/Inspector Gaps
+    {
+        "name": "unity_component_copy",
+        "description": (
+            "Copy/paste component values between GameObjects using "
+            "EditorJsonUtility serialization."
+        ),
+        "inputSchema": schemas_phase6b.component_copy(),
+    },
+    {
+        "name": "unity_component_reset",
+        "description": "Reset a component to its default values.",
+        "inputSchema": schemas_phase6b.component_reset(),
+    },
+    {
+        "name": "unity_scene_view",
+        "description": (
+            "Scene View camera: get/set pivot, rotation, size, "
+            "toggle 2D, change draw mode."
+        ),
+        "inputSchema": schemas_phase6b.scene_view(),
+    },
+    {
+        "name": "unity_game_view",
+        "description": "Game View: get state, set resolution, set zoom scale.",
+        "inputSchema": schemas_phase6b.game_view(),
+    },
+    {
+        "name": "unity_profiler_control",
+        "description": (
+            "Profiler controls: start/stop profiling, save data to file, "
+            "get detailed memory statistics."
+        ),
+        "inputSchema": schemas_phase6b.profiler_control(),
     },
 ]

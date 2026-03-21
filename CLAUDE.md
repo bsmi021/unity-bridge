@@ -76,7 +76,7 @@ unity-bridge/
 │   │   ├── protocol.py        # Timeout defaults, parallel-safe commands
 │   │   ├── project.py         # Unity project auto-detection
 │   │   └── output.py          # OutputFormatter (json/pretty/human)
-│   ├── commands/              # 27 command modules (one per domain)
+│   ├── commands/              # 33+ command modules (one per domain)
 │   │   ├── hierarchy.py       # hierarchy + component groups
 │   │   ├── workflow.py        # workflow + snapshot groups
 │   │   ├── settings.py        # Phase 1: PlayerSettings
@@ -92,10 +92,11 @@ unity-bridge/
 │   │   └── ...                # animator, asset, batch, build, console, etc.
 │   └── mcp/                   # MCP server layer
 │       ├── server.py          # MCP server using shared core functions
-│       ├── tools.py           # Tool definitions + dispatch map (39 MCP tools)
+│       ├── tools.py           # Tool definitions + dispatch map (48 MCP tools)
 │       ├── schemas.py         # Schemas for 24 core MCP tools
 │       ├── schemas_ext.py     # Schemas for Phase 1+2 tools (11 tools)
-│       └── schemas_phase3.py  # Schemas for Phase 3 tools (4 tools)
+│       ├── schemas_phase3.py  # Schemas for Phase 3 tools (4 tools)
+│       └── schemas_phase4.py  # Schemas for Phase 4 tools (9 tools)
 ├── ClaudeCodeBridge/          # C# scripts installed into Unity Editor (60+ files)
 │   ├── ClaudeUnityBridge.cs   # Main bridge loop (EditorApplication.update)
 │   ├── BridgeCommandRegistry.cs # Command handler registration
@@ -143,12 +144,13 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 - `BridgeConfig` (`core/config.py`) — unified config with precedence resolution
 - `AppState` (`app.py`) — shared state passed to commands via `ctx.obj`, lazy-inits bridge
 
-### Command Groups (29 CLI groups)
+### Command Groups (40+ CLI groups)
 
 **Core:** animator, asset, batch, build, component, console, diagnostics, editor, hierarchy, lifecycle, material, playmode, prefab, scene, script, serve, snapshot, test, workflow
 **Phase 1:** asset-ext, package, profile, settings
 **Phase 2:** compile, undo (+ prefab overrides/gameobject-utility subcommands)
 **Phase 3:** import-settings, lightmap, scene-ext, shader
+**Phase 4:** select, prefs, build-scenes, transform, property, physics, quality, tags, layers, sorting-layers, editor-config
 
 ## C# Bridge Installation
 
@@ -203,16 +205,17 @@ def do_thing_cli(ctx: typer.Context, ...) -> None:
 - Parameters use camelCase (matching C# conventions): `testPlatform`, `waitForCompletion`
 - Timeout defaults are in `core/protocol.py` — use `get_timeout()` with 3-level precedence
 - `PARALLEL_SAFE_COMMANDS` in `core/protocol.py` is the single source of truth for batch parallelism
-- Current parallel-safe (read-only) commands: `query-hierarchy`, `get-component-data`, `get-selection`, `read-console`, `validate-prefab`, `health-check`, `list-tests`, `shader-inspection`
+- Current parallel-safe (read-only) commands: `query-hierarchy`, `get-component-data`, `get-selection`, `read-console`, `validate-prefab`, `health-check`, `list-tests`, `shader-inspection`, `transform-operation`, `serialized-property`
 
 ### MCP Schema Split
 
-Schemas are split across 3 files to stay under the 500 LOC limit:
+Schemas are split across 4 files to stay under the 500 LOC limit:
 - `schemas.py` — 24 core tool schemas (original tools)
 - `schemas_ext.py` — 11 schemas: 9 Phase 1+2 tools + `batch` + `help`
 - `schemas_phase3.py` — 4 Phase 3 tool schemas (lightmap, shader, scene-extended, import-settings)
+- `schemas_phase4.py` — 9 Phase 4 tool schemas (selection, prefs, build-scenes, transform, property, physics, quality, tags-layers, editor-config)
 
-Total: 39 MCP tools defined in `mcp/tools.py` TOOL_DEFINITIONS list, 35 mapped to bridge commands via TOOL_COMMAND_MAP (4 are client-side: `unity_bridge_config`, `unity_health_check`, `unity_batch`, `unity_help`).
+Total: 48 MCP tools defined in `mcp/tools.py` TOOL_DEFINITIONS list, 44 mapped to bridge commands via TOOL_COMMAND_MAP (4 are client-side: `unity_bridge_config`, `unity_health_check`, `unity_batch`, `unity_help`).
 
 ## Testing
 

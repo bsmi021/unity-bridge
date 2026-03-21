@@ -25,6 +25,7 @@ VALID_OPERATIONS = frozenset(
         "folder-list",
         "export",
         "import-package",
+        "reserialize",
     }
 )
 
@@ -37,6 +38,7 @@ MUTATING_OPERATIONS = frozenset(
         "folder-create",
         "export",
         "import-package",
+        "reserialize",
     }
 )
 
@@ -62,6 +64,7 @@ async def asset_extended_operation(
     include_dependencies: bool = True,
     interactive: bool = False,
     package_path: str | None = None,
+    reserialize_mode: str | None = None,
     timeout: float = 60.0,
 ) -> CommandResult:
     """Perform an extended asset database operation.
@@ -69,7 +72,7 @@ async def asset_extended_operation(
     Args:
         bridge: Active bridge connection.
         action: Operation — create, delete, copy, move, deps, guid,
-                folder-create, folder-list, export, import-package.
+                folder-create, folder-list, export, import-package, reserialize.
         asset_path: Primary asset path for create/delete/deps.
         source_path: Source path for copy/move.
         destination_path: Destination path for copy/move.
@@ -83,6 +86,7 @@ async def asset_extended_operation(
         include_dependencies: Include dependencies in export.
         interactive: Show import dialog for import-package.
         package_path: Path to .unitypackage for import-package.
+        reserialize_mode: Mode for reserialize (assets, metadata, both).
         timeout: Command timeout in seconds.
 
     Raises:
@@ -123,6 +127,8 @@ async def asset_extended_operation(
         params["interactive"] = True
     if package_path is not None:
         params["packagePath"] = package_path
+    if reserialize_mode is not None:
+        params["reserializeMode"] = reserialize_mode
 
     return await bridge.send_command_with_retry(
         command_type="asset-extended-operation",

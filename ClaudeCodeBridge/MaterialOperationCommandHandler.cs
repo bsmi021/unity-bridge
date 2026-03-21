@@ -7,8 +7,10 @@ namespace BWS.Editor.ClaudeCodeBridge
 {
     /// <summary>
     /// Command handler for material operations.
-    /// Supports: create, modify, get-properties, set-shader.
+    /// Supports: create, modify, get-properties, set-shader,
+    /// enable-keyword, disable-keyword, get-keywords, set-render-queue, copy-properties.
     /// Property helpers in MaterialOperationHelpers.cs (partial class).
+    /// Keyword/queue helpers in MaterialKeywordHelpers.cs (partial class).
     /// </summary>
     public partial class MaterialOperationCommandHandler : ICommandHandler
     {
@@ -46,12 +48,27 @@ namespace BWS.Editor.ClaudeCodeBridge
                     case "set-shader":
                         result = SetShader(parameters);
                         break;
+                    case "enable-keyword":
+                        result = EnableKeyword(parameters);
+                        break;
+                    case "disable-keyword":
+                        result = DisableKeyword(parameters);
+                        break;
+                    case "get-keywords":
+                        result = GetKeywords(parameters);
+                        break;
+                    case "set-render-queue":
+                        result = SetRenderQueue(parameters);
+                        break;
+                    case "copy-properties":
+                        result = CopyProperties(parameters);
+                        break;
 
                     default:
                         return BridgeResponse.Error(
                             command.commandId,
                             command.commandType,
-                            $"Unknown operation: {parameters.operation}. Supported operations: create, modify, get-properties, set-shader"
+                            $"Unknown operation: {parameters.operation}. Supported: create, modify, get-properties, set-shader, enable-keyword, disable-keyword, get-keywords, set-render-queue, copy-properties"
                         );
                 }
 

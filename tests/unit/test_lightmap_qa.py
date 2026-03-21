@@ -58,7 +58,7 @@ def _extract_kwarg(call_args: Any, key: str) -> Any:
 
 class TestValidActions:
     def test_all_expected_actions(self) -> None:
-        expected = {"bake", "cancel", "clear", "status", "settings"}
+        expected = {"bake", "cancel", "clear", "status", "settings", "set-settings"}
         assert VALID_ACTIONS == expected
 
     def test_is_frozenset(self) -> None:

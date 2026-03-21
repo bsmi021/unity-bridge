@@ -199,12 +199,21 @@ def component_get_cli(
         str | None,
         typer.Option("--fields", "-F", help="Comma-separated field names to retrieve."),
     ] = None,
+    deep: Annotated[
+        bool,
+        typer.Option("--deep", help="Use EditorJsonUtility for full serialization."),
+    ] = False,
 ) -> None:
     """Get component data from a GameObject."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(get_component(state.bridge, object_path, component_type, fields))
+    if deep:
+        from unity_bridge.commands.deep_serialize import deep_get
+
+        result = asyncio.run(deep_get(state.bridge, object_path, component_type))
+    else:
+        result = asyncio.run(get_component(state.bridge, object_path, component_type, fields))
     print_result(result, state.formatter)
 
 
@@ -241,6 +250,33 @@ def component_add_cli(
     state = ctx.obj
     result = asyncio.run(add_component(state.bridge, object_path, component_type))
     print_result(result, state.formatter)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Duplicate GameObject
+# ---------------------------------------------------------------------------
+
+
+async def duplicate_gameobject(
+    bridge: DirectBridge,
+    object_path: str,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Duplicate a GameObject in the scene.
+
+    Args:
+        bridge: Active bridge connection.
+        object_path: Hierarchy path to the GameObject to duplicate.
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="gameobject-utility",
+        parameters={
+            "operation": "duplicate",
+            "gameObjectPath": object_path,
+        },
+        timeout=timeout,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +406,19 @@ async def set_tag(
 # ---------------------------------------------------------------------------
 # Phase 2: GameObject utility CLI wrappers
 # ---------------------------------------------------------------------------
+
+
+@hierarchy_app.command("duplicate")
+def duplicate_cli(
+    ctx: typer.Context,
+    object_path: Annotated[str, typer.Argument(help="Hierarchy path to the GameObject.")],
+) -> None:
+    """Duplicate a GameObject in the scene."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(duplicate_gameobject(state.bridge, object_path))
+    print_result(result, state.formatter)
 
 
 @hierarchy_app.command("missing-scripts")

@@ -8,6 +8,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 4 Misc: 8 expanded capabilities covering remaining miscellaneous gaps
+- Expanded `CreateAssetByType`: PhysicsMaterial, PhysicsMaterial2D, AnimationClip, RenderTexture, TextAsset, Shader, asmdef, asmref, custom ScriptableObject subtypes
+- `clipboard` command: read/write system clipboard via `EditorGUIUtility.systemCopyBuffer`
+- `preset-operation` command: create, apply, can-apply presets, list defaults
+- `scene-template` command: list, create-from-scene, instantiate scene templates
+- `script-info` command: MonoScript inspection — class info, list all scripts, find component source
+- `deep-serialize` command: EditorJsonUtility deep serialization including private fields
+- `--deep` flag on `component get` CLI for full Editor serialization
+- `window-management` command: list, open, focus, close Editor windows
+- `input-system` command: list/export/import InputActionAssets (requires com.unity.inputsystem)
+- 7 new MCP tools: `unity_clipboard`, `unity_preset`, `unity_scene_template`, `unity_script_info`, `unity_deep_serialize`, `unity_window_management`, `unity_input_system`
+- `schemas_phase4_misc.py` with MCP input schemas for Phase 4 Misc tools
+- Phase 6b: Scene, material, component, and inspector gap closures (7 capabilities)
+- Material keyword operations: `enable-keyword`, `disable-keyword`, `get-keywords` on material-operation
+- Material `set-render-queue` and `copy-properties` operations on material-operation
+- `component-copy` command: copy/paste component values via EditorJsonUtility serialization
+- `component-reset` command: reset component to defaults via SmartReset or temp-object fallback
+- `move-object` operation on `scene-operation`: move root GameObjects between loaded scenes
+- `scene-view` command: get/set Scene View camera (pivot, rotation, size, ortho, 2D, draw mode)
+- `game-view` command: get Game View state, set resolution, set zoom scale
+- `profiler-control` command: start/stop profiler, save data to file, get detailed memory stats
+- 5 new C# handlers: ComponentCopyCommandHandler, ComponentResetCommandHandler, SceneViewCommandHandler, GameViewCommandHandler, ProfilerControlCommandHandler
+- MaterialKeywordHelpers.cs: partial class for keyword/queue/copy operations
+- 5 new MCP tools: `unity_component_copy`, `unity_component_reset`, `unity_scene_view`, `unity_game_view`, `unity_profiler_control`
+- `schemas_phase6b.py` with MCP input schemas for Phase 6b tools
+- `material` CLI group with subcommands: enable-keyword, disable-keyword, get-keywords, set-render-queue, copy-properties
+- `component copy`, `component paste`, `component reset` CLI commands
+- `scene move-object` CLI command
+- `scene-view` CLI group: get, set, toggle-2d, set-draw-mode
+- `game-view` CLI group: get, set-resolution, set-scale
+- `profiler` CLI group: start, stop, save, memory
+- Phase 6b timeout defaults in `protocol.py` for 5 new command types
+- Unit tests for all Phase 6b core functions (38 tests)
+- Build, platform, and pipeline gap closures: 6 capabilities across build, scripting, and asset systems
+- `switch-platform` operation on `build-operation`: switch active build target with deferred response (domain reload)
+- `list-platforms` operation on `build-operation`: enumerate all BuildTargets with support status
+- Extended build options: `autoRunPlayer`, `connectProfiler`, `allowDebugging`, `compress` (lz4/lz4hc), `cleanBuildCache`, `detailedBuildReport`, `buildScriptsOnly`, `--scenes` override, `--subtarget` (Server/Player)
+- `script-execution-order` command: get/set MonoScript execution order via MonoImporter API
+- `assembly-reload-lock` command: lock/unlock/status for EditorApplication assembly reload control
+- `find-references` command: find all ObjectReference properties pointing at a given asset across loaded scenes
+- `reserialize` operation on `asset-extended-operation`: force reserialize all or specific assets with mode control
+- `build switch-platform`, `build list-platforms` CLI commands
+- `execution-order get`, `execution-order set` CLI commands
+- `assembly-lock`, `assembly-unlock`, `assembly-status` CLI commands
+- `find-references` CLI command
+- `asset-ext reserialize` CLI command with `--paths` and `--mode` options
+- 3 new MCP tools: `unity_script_execution_order`, `unity_assembly_reload_lock`, `unity_find_references`
+- `schemas_pipeline.py` with MCP input schemas for pipeline tools
+- 3 new C# handlers: ScriptExecutionOrderCommandHandler, AssemblyReloadLockCommandHandler, FindReferencesCommandHandler
+- `BuildPlatformOperations.cs` partial class with switch-platform, list-platforms, and extended build option helpers
+- Pipeline timeout defaults in `protocol.py` for 3 new command types
+- `script-execution-order` and `find-references` added to `PARALLEL_SAFE_COMMANDS` (read-only)
+- Unit tests for all 6 new capabilities (57 tests)
+- Phase 5 Quick Wins: 6 new capabilities covering daily-use gaps from adversarial review
+- `create-primitive` operation on `gameobject-operation`: create cubes, spheres, lights, cameras, particle systems
+- `set-active` operation on `gameobject-operation`: activate/deactivate GameObjects with Undo
+- `remove-component` command: remove components from GameObjects (undo-aware, blocks Transform removal)
+- `component-toggle` command: enable/disable Behaviour, Renderer, and Collider components
+- Additive scene loading: `mode` parameter on `scene-operation load` (single, additive, additive-without-loading)
+- `unload` and `set-active` operations on `scene-operation` for multi-scene editing workflows
+- `console-log` command: log custom messages to Unity Console (log, warning, error)
+- `--additive` flag on `scene load` CLI command
+- `hierarchy create-primitive`, `hierarchy set-active` CLI commands
+- `component remove`, `component enable`, `component disable` CLI commands
+- `scene load-additive`, `scene unload`, `scene set-active` CLI commands
+- `console log` CLI command with `--type` flag
+- 5 new MCP tools: `unity_create_primitive`, `unity_remove_component`, `unity_component_toggle`, `unity_gameobject_set_active`, `unity_console_log`
+- `schemas_phase5.py` with MCP input schemas for Phase 5 tools
+- 3 new C# handlers: RemoveComponentCommandHandler, ComponentToggleCommandHandler, ConsoleLogCommandHandler
+- Phase 5 timeout defaults in `protocol.py` for new command types
+- Unit tests for all Phase 5 core functions
+- Phase 4 Critical Gaps: 9 new command types with C#, Python, and MCP support
+- `set-selection`: programmatically set or clear Unity Editor selection by GameObject paths
+- `editor-prefs`: read/write EditorPrefs and SessionState (string, int, float, bool)
+- `build-scenes`: manage Build Settings scene list (list, add, remove, enable, disable, reorder)
+- `duplicate` operation added to `gameobject-utility` for duplicating GameObjects with Undo support
+- 3 new MCP tools (`unity_set_selection`, `unity_editor_prefs`, `unity_build_scenes`)
+- 3 new C# command handlers (SelectionCommandHandler, EditorPrefsCommandHandler, BuildScenesCommandHandler)
+- Phase 4 timeout defaults in `protocol.py` for all 3 new command types
+- `select` CLI command group for selection management
+- `prefs` CLI command group for editor preferences
+- `build-scenes` CLI command group for build scene list management
+- `hierarchy duplicate` CLI command for duplicating GameObjects
+- Unit tests for select, prefs, build-scenes, and duplicate commands
+- `transform-operation`: dedicated transform control (get/set position, rotation, scale, reparent, sibling index) with Undo support
+- `serialized-property`: access ALL serialized fields including `[SerializeField]` private fields via Unity SerializedObject API (list, get, set)
+- `physics-config`: read/set gravity, solver settings, read/modify 32x32 layer collision matrix
+- `quality-settings`: list quality levels, get current settings (shadows, AA, LOD, vsync), switch active level
+- `tags-layers`: list/add tags, list/add layers (user slots 8-31), list/add sorting layers via TagManager
+- `editor-config`: read/set enter play mode options, serialization mode, async shader compilation, line endings, root namespace
+- 6 new MCP tools (`unity_transform`, `unity_serialized_property`, `unity_physics_config`, `unity_quality_settings`, `unity_tags_layers`, `unity_editor_config`)
+- 6 new C# command handlers (Transform, SerializedProperty, PhysicsConfig, QualitySettings, TagsLayers, EditorConfig)
+- `schemas_phase4.py` extended with 6 additional Phase 4 MCP schema definitions
+- Phase 4 timeout defaults in `protocol.py` for 6 new command types
+- `transform` CLI command group for transform manipulation
+- `property` CLI command group for SerializedProperty access
+- `physics` CLI command group with `collision` subgroup for physics configuration
+- `quality` CLI command group for quality settings
+- `tags`, `layers`, `sorting-layers` CLI command groups for tags/layers management
+- `editor-config` CLI command group for editor settings
+- Unit tests for all 6 new Phase 4 command modules (96 tests)
+
+### Fixed
+- `SetComponentDataCommandHandler.cs`: rewritten to use SerializedObject/SerializedProperty as primary approach (fixes `[SerializeField] private` field access), with reflection fallback for runtime-only fields
+- `GameObjectOperationCommandHandler.cs`: replaced `Object.DestroyImmediate()` with `Undo.DestroyObjectImmediate()` for undo-aware destruction
+- `GameObjectOperationCommandHandler.cs`: replaced `new GameObject()` with `ObjectFactory.CreateGameObject()` for auto Undo registration and Preset application
+
+### Added (previous)
 - Phase 1 Core Platform APIs: 4 new command groups with C#, Python, and MCP support
 - `player-settings-operation`: read/write PlayerSettings and manage scripting define symbols
 - `asset-extended-operation`: create, delete, copy, move, deps, guid, folder management, export/import

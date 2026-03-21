@@ -82,7 +82,7 @@ _HELP_CONTENT: dict[str, str] = {
     "examples": (
         "# Example Commands\n\n"
         "## Run All EditMode Tests\n"
-        "```\nunity_run_tests(testPlatform=\"EditMode\")\n```\n\n"
+        '```\nunity_run_tests(testPlatform="EditMode")\n```\n\n'
         "## Check for Compilation Errors\n"
         "```\nunity_compile(waitForCompletion=true)\n```"
     ),
@@ -229,6 +229,7 @@ async def _handle_health_check(
     if wait:
         # wait_for_healthy is MCP-specific; not in the shared status() path
         from unity_bridge.core.health import HealthMonitor
+
         try:
             monitor = HealthMonitor(project_root)
             health = monitor.wait_for_healthy(timeout_seconds=30.0)
@@ -327,6 +328,38 @@ async def run_mcp_server(config: BridgeConfig | None = None) -> None:
         )
 
 
+async def _handle_create_primitive(
+    arguments: dict[str, Any],
+    project_root: Path,
+) -> dict[str, Any]:
+    """Translate unity_create_primitive into gameobject-operation create-primitive."""
+    timeout = arguments.pop("timeout", None)
+    params: dict[str, Any] = {"operation": "create-primitive"}
+    if "primitiveType" in arguments:
+        params["primitiveType"] = arguments["primitiveType"]
+    if "gameObjectName" in arguments:
+        params["gameObjectName"] = arguments["gameObjectName"]
+    if "parentPath" in arguments:
+        params["parentPath"] = arguments["parentPath"]
+    resolved_timeout = get_timeout("gameobject-operation", command_override=timeout)
+    return await _invoke_command(project_root, "gameobject-operation", params, resolved_timeout)
+
+
+async def _handle_set_active(
+    arguments: dict[str, Any],
+    project_root: Path,
+) -> dict[str, Any]:
+    """Translate unity_gameobject_set_active into gameobject-operation set-active."""
+    timeout = arguments.pop("timeout", None)
+    params: dict[str, Any] = {
+        "operation": "set-active",
+        "gameObjectPath": arguments.get("gameObjectPath", ""),
+        "active": arguments.get("active", True),
+    }
+    resolved_timeout = get_timeout("gameobject-operation", command_override=timeout)
+    return await _invoke_command(project_root, "gameobject-operation", params, resolved_timeout)
+
+
 async def _dispatch(
     name: str,
     arguments: dict[str, Any],
@@ -342,6 +375,12 @@ async def _dispatch(
         return await _handle_health_check(arguments, project_root)
     if name == "unity_batch":
         return await _handle_batch(arguments, project_root)
+
+    # Phase 5: synthetic tools that wrap gameobject-operation
+    if name == "unity_create_primitive":
+        return await _handle_create_primitive(arguments, project_root)
+    if name == "unity_gameobject_set_active":
+        return await _handle_set_active(arguments, project_root)
 
     command_type = TOOL_COMMAND_MAP.get(name)
     if not command_type:

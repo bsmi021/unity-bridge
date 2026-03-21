@@ -13,7 +13,7 @@ from unity_bridge.core.bridge import CommandResult, DirectBridge
 # Valid actions
 # ---------------------------------------------------------------------------
 
-VALID_ACTIONS = frozenset({"bake", "cancel", "clear", "status", "settings"})
+VALID_ACTIONS = frozenset({"bake", "cancel", "clear", "status", "settings", "set-settings"})
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -108,6 +108,91 @@ async def lightmap_settings(
     )
 
 
+async def lightmap_set_settings(
+    bridge: DirectBridge,
+    baked_gi: bool | None = None,
+    realtime_gi: bool | None = None,
+    lightmapper: str | None = None,
+    bounce_boost: float | None = None,
+    indirect_intensity: float | None = None,
+    direct_samples: int | None = None,
+    indirect_samples: int | None = None,
+    lightmap_max_size: int | None = None,
+    lightmap_resolution: float | None = None,
+    max_bounces: int | None = None,
+    compress: bool | None = None,
+    ambient_occlusion: bool | None = None,
+    ao_max_distance: float | None = None,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Set lightmap settings (writable).
+
+    Args:
+        bridge: Active bridge connection.
+        baked_gi: Enable baked global illumination.
+        realtime_gi: Enable realtime global illumination.
+        lightmapper: Lightmapper enum (ProgressiveCPU, ProgressiveGPU).
+        bounce_boost: Albedo boost (bounce boost).
+        indirect_intensity: Indirect light intensity scale.
+        direct_samples: Direct sample count.
+        indirect_samples: Indirect sample count.
+        lightmap_max_size: Maximum lightmap atlas size.
+        lightmap_resolution: Lightmap texels per world unit.
+        max_bounces: Maximum number of bounces.
+        compress: Compress lightmaps.
+        ambient_occlusion: Enable ambient occlusion.
+        ao_max_distance: AO max distance.
+        timeout: Timeout in seconds.
+    """
+    params: dict[str, object] = {"operation": "set-settings"}
+
+    if baked_gi is not None:
+        params["bakedGI"] = baked_gi
+        params["setBakedGI"] = True
+    if realtime_gi is not None:
+        params["realtimeGI"] = realtime_gi
+        params["setRealtimeGI"] = True
+    if lightmapper is not None:
+        params["lightmapper"] = lightmapper
+        params["setLightmapper"] = True
+    if bounce_boost is not None:
+        params["bounceBoost"] = bounce_boost
+        params["setBounceBoost"] = True
+    if indirect_intensity is not None:
+        params["indirectIntensity"] = indirect_intensity
+        params["setIndirectIntensity"] = True
+    if direct_samples is not None:
+        params["directSampleCount"] = direct_samples
+        params["setDirectSampleCount"] = True
+    if indirect_samples is not None:
+        params["indirectSampleCount"] = indirect_samples
+        params["setIndirectSampleCount"] = True
+    if lightmap_max_size is not None:
+        params["lightmapMaxSize"] = lightmap_max_size
+        params["setLightmapMaxSize"] = True
+    if lightmap_resolution is not None:
+        params["lightmapResolution"] = lightmap_resolution
+        params["setLightmapResolution"] = True
+    if max_bounces is not None:
+        params["maxBounces"] = max_bounces
+        params["setMaxBounces"] = True
+    if compress is not None:
+        params["compressLightmaps"] = compress
+        params["setCompressLightmaps"] = True
+    if ambient_occlusion is not None:
+        params["ambientOcclusion"] = ambient_occlusion
+        params["setAmbientOcclusion"] = True
+    if ao_max_distance is not None:
+        params["aoMaxDistance"] = ao_max_distance
+        params["setAoMaxDistance"] = True
+
+    return await bridge.send_command_with_retry(
+        command_type="lightmap-operation",
+        parameters=params,
+        timeout=timeout,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Typer CLI wrapper
 # ---------------------------------------------------------------------------
@@ -172,4 +257,45 @@ def lightmap_settings_cli(ctx: typer.Context) -> None:
 
     state = ctx.obj
     result = asyncio.run(lightmap_settings(state.bridge))
+    print_result(result, state.formatter)
+
+
+@lightmap_app.command("set-settings")
+def lightmap_set_settings_cli(
+    ctx: typer.Context,
+    lightmap_size: Annotated[
+        int | None,
+        typer.Option("--lightmap-size", help="Max lightmap atlas size."),
+    ] = None,
+    bounces: Annotated[
+        int | None,
+        typer.Option("--bounces", help="Maximum bounces."),
+    ] = None,
+    baked_gi: Annotated[
+        bool | None,
+        typer.Option("--baked-gi/--no-baked-gi", help="Baked GI."),
+    ] = None,
+    realtime_gi: Annotated[
+        bool | None,
+        typer.Option("--realtime-gi/--no-realtime-gi", help="Realtime GI."),
+    ] = None,
+    compress: Annotated[
+        bool | None,
+        typer.Option("--compress/--no-compress", help="Compress lightmaps."),
+    ] = None,
+) -> None:
+    """Set lightmap settings (writable)."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        lightmap_set_settings(
+            state.bridge,
+            lightmap_max_size=lightmap_size,
+            max_bounces=bounces,
+            baked_gi=baked_gi,
+            realtime_gi=realtime_gi,
+            compress=compress,
+        )
+    )
     print_result(result, state.formatter)
