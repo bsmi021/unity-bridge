@@ -10,7 +10,10 @@ description: >
   "take screenshot", "build for Android", "execute C# in Unity", "TDD workflow",
   "watch for changes", "is Unity running", "install bridge", "clean orphaned files",
   "list packages", "bake lightmaps", "shader info", "undo", "import settings",
-  "quality profile", "scene setup", "asset dependencies", or any request that
+  "quality profile", "scene setup", "asset dependencies", "select objects",
+  "transform position", "serialized property", "editor prefs", "build scenes",
+  "physics settings", "quality level", "tags and layers", "sorting layers",
+  "editor config", "duplicate object", or any request that
   involves communicating with an open Unity Editor. Also trigger proactively whenever
   you are about to write raw JSON command files to .claude/unity/commands/ -- use the
   CLI instead, it handles retries, timeouts, caching, and error formatting
@@ -101,6 +104,38 @@ unity-bridge hierarchy set-static-flags "Environment/Tree" BatchingStatic Naviga
 unity-bridge hierarchy set-layer Player 8               # Set layer
 unity-bridge hierarchy set-layer Player 8 --recursive   # Include children
 unity-bridge hierarchy set-tag Player "Enemy"           # Set tag
+unity-bridge hierarchy duplicate "Environment/Tree"     # Duplicate a GameObject
+```
+
+### Selection
+
+```bash
+unity-bridge select Player                              # Select a single object
+unity-bridge select Player "Environment/Tree"           # Select multiple objects
+unity-bridge select --clear                             # Clear the current selection
+```
+
+### Transform
+
+```bash
+unity-bridge transform get Player                       # Get all transform data
+unity-bridge transform set Player -p 5,0,3              # Set world position
+unity-bridge transform set Player -r 0,90,0             # Set rotation
+unity-bridge transform set Player -s 2,2,2              # Set scale
+unity-bridge transform set Player -p 1,0,0 --local      # Set local position
+unity-bridge transform set Player -p 5,0,3 -r 0,90,0 -s 2,2,2
+unity-bridge transform parent "Enemy" "EnemyGroup"      # Reparent to new parent
+unity-bridge transform parent "Enemy"                   # Unparent (move to root)
+unity-bridge transform parent "Enemy" "Group" --no-world-position-stays
+unity-bridge transform sibling-index "Enemy" 0          # Set hierarchy order
+```
+
+### Serialized Properties
+
+```bash
+unity-bridge property list Player BoxCollider           # List all properties
+unity-bridge property get Player BoxCollider "m_Size"   # Get property value
+unity-bridge property set Player BoxCollider "m_Size" '{"x":2,"y":2,"z":2}'
 ```
 
 ### Components
@@ -366,6 +401,72 @@ unity-bridge lightmap status                            # Check progress
 unity-bridge lightmap settings                          # Current settings
 ```
 
+### Editor Preferences
+
+```bash
+unity-bridge prefs get MyPlugin.Setting                 # Get EditorPrefs value
+unity-bridge prefs get MyPlugin.Setting -t int          # Get as specific type
+unity-bridge prefs get MyKey -s session                 # Get from SessionState
+unity-bridge prefs set MyPlugin.Setting "value"         # Set EditorPrefs value
+unity-bridge prefs set MyPlugin.Count 42 -t int         # Set as int
+unity-bridge prefs set MyFlag true -t bool -s session   # Set SessionState bool
+unity-bridge prefs delete MyPlugin.Setting              # Delete a key
+unity-bridge prefs delete MyKey -s session              # Delete from SessionState
+unity-bridge prefs has MyPlugin.Setting                 # Check if key exists
+unity-bridge prefs has MyKey -s session                 # Check in SessionState
+```
+
+### Build Settings Scenes
+
+```bash
+unity-bridge build-scenes list                          # List all build scenes
+unity-bridge build-scenes add Assets/Scenes/Main.unity  # Append scene
+unity-bridge build-scenes add Assets/Scenes/Main.unity -i 0  # Insert at index
+unity-bridge build-scenes remove Assets/Scenes/Old.unity     # Remove scene
+unity-bridge build-scenes enable Assets/Scenes/Main.unity    # Enable scene
+unity-bridge build-scenes disable Assets/Scenes/Test.unity   # Disable scene
+```
+
+### Physics Configuration
+
+```bash
+unity-bridge physics get                                # Get physics settings
+unity-bridge physics set -g "0,-9.81,0"                 # Set gravity
+unity-bridge physics set --solver-iterations 12         # Set solver iterations
+unity-bridge physics set -g "0,-20,0" --solver-iterations 8
+unity-bridge physics collision get                      # Get collision matrix
+unity-bridge physics collision set 8 9 --ignore         # Ignore collisions
+unity-bridge physics collision set 8 9 --collide        # Enable collisions
+```
+
+### Quality Settings
+
+```bash
+unity-bridge quality list                               # List all quality levels
+unity-bridge quality get                                # Get current quality settings
+unity-bridge quality set-level 2                        # Switch quality level by index
+```
+
+### Tags & Layers
+
+```bash
+unity-bridge tags list                                  # List all project tags
+unity-bridge tags add "Interactable"                    # Add a custom tag
+unity-bridge layers list                                # List all layers
+unity-bridge layers add "Interactables"                 # Add layer to next free slot
+unity-bridge layers add "Interactables" -i 10           # Add to specific slot (8-31)
+unity-bridge sorting-layers list                        # List all sorting layers
+unity-bridge sorting-layers add "Foreground"            # Add a sorting layer
+```
+
+### Editor Configuration
+
+```bash
+unity-bridge editor-config get                          # Get all editor settings
+unity-bridge editor-config set "enterPlayModeOptionsEnabled" "true"
+unity-bridge editor-config set "serializationMode" "ForceText"
+```
+
 ### Script Execution
 
 ```bash
@@ -442,4 +543,6 @@ For complete argument lists, types, defaults, and short flags for every command:
 - The `-u` flag is shorthand for `--update` on `component set`. Pass multiple: `-u "field1:val" -u "field2:val"`.
 - The `-s` flag is shorthand for `--setting` on `import-settings set` and `import-settings bulk-set`.
 - `compile` is a command group (assemblies/defines/which/optimization). Use `test compile` to trigger script compilation.
+- The `-s` flag is shorthand for `--scope` on `prefs` commands (values: `prefs` or `session`).
+- The `-t` flag on `prefs` commands is `--type` (values: `string`, `int`, `float`, `bool`), not the global `--timeout`.
 - Timeouts vary by command (5s reads, 300s tests, 600s builds). Override globally with `-t SEC`.
