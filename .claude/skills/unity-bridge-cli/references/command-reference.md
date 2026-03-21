@@ -1,10 +1,20 @@
 # Unity Bridge CLI -- Complete Command Reference
 
-Every command example uses the EXACT syntax from `unity-bridge --help`. Global flags
-(`--human`, `--pretty`, `--verbose`, `--quiet`, `--project`, `--timeout`, `--no-color`)
-always go BEFORE the command name.
+Every command example uses the EXACT syntax from `unity-bridge --help`.
 
-**Syntax: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND ARGS/OPTIONS]`**
+**CRITICAL SYNTAX RULE: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND OPTIONS]`**
+
+`--human`, `--pretty`, `--verbose`, `--quiet`, `--timeout`, `--project`, `--no-color`
+are GLOBAL flags. They MUST go BEFORE the command name. Placing them after the command
+causes "No such option" errors. Most commands do NOT have their own `--timeout` or
+`--human` — use the global flags instead.
+
+```bash
+unity-bridge --human console read --types error     # CORRECT
+unity-bridge console read --types error --human     # WRONG: "No such option: --human"
+unity-bridge -t 60 menu "File/Save"                 # CORRECT
+unity-bridge menu "File/Save" --timeout 60          # WRONG: "No such option: --timeout"
+```
 
 ## Table of Contents
 

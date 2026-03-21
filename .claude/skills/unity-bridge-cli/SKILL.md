@@ -25,22 +25,34 @@ file-based bridge protocol. It replaces the need to write raw JSON command files
 use the MCP server directly. Every command returns JSON to stdout by default (pipe
 to `jq` for filtering), or use `--human` for formatted output.
 
-## CRITICAL: Global Flag Placement
+## CRITICAL: Syntax Rules (Read Before Every Command)
 
-**Global flags MUST go BEFORE the command name.** This is the single most important
-syntax rule. Getting this wrong causes argument parsing errors.
+**RULE 1: Global flags MUST go BEFORE the command name.** `--human`, `--pretty`,
+`--verbose`, `--quiet`, `--timeout`, `--project`, and `--no-color` are NOT
+per-command options. They ONLY work when placed between `unity-bridge` and the
+command. Putting them after the command WILL FAIL with "No such option".
+
+**RULE 2: `--timeout` and `--human` are GLOBAL-ONLY flags.** Most commands do NOT
+accept `--timeout` or `--human` as their own options. The only commands with a
+local `--timeout` are: `test run`, `script`, `build`, and `lightmap bake`.
+For everything else, use the global `-t` flag before the command.
+
+**RULE 3: `hierarchy` queries directly.** There is no `hierarchy list` subcommand.
+Use `unity-bridge hierarchy --depth 3`, not `unity-bridge hierarchy list --depth 3`.
 
 ```bash
-# CORRECT -- global flags before the command
+# CORRECT
 unity-bridge --human hierarchy --depth 3
-unity-bridge --verbose --timeout 60 test run --platform EditMode
-unity-bridge --project /path/to/project --pretty component get Player Transform
-unity-bridge -H -v console read --types error
+unity-bridge -t 60 menu "File/Save"
+unity-bridge --human console read --types error
+unity-bridge -H -v component get Player Transform
+unity-bridge hierarchy --depth 3                     # direct query, no "list"
 
-# WRONG -- global flags after the command (will fail or be misinterpreted)
-unity-bridge hierarchy --depth 3 --human         # WRONG
-unity-bridge test run --platform EditMode --verbose   # WRONG
-unity-bridge component get Player Transform --pretty  # WRONG
+# WRONG -- these will ALL fail with "No such option"
+unity-bridge hierarchy --depth 3 --human             # WRONG: --human after command
+unity-bridge menu "File/Save" --timeout 60           # WRONG: --timeout after command
+unity-bridge console read --types error --human      # WRONG: --human after command
+unity-bridge hierarchy list --depth 3                # WRONG: "list" doesn't exist
 ```
 
 ## Quick Start
