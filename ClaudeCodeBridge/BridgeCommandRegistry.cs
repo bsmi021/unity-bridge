@@ -44,7 +44,9 @@ namespace BWS.Editor.ClaudeCodeBridge
             // Phase 1 expansion: Core Platform APIs
             registerHandler(new PlayerSettingsCommandHandler());
             registerHandler(new AssetExtendedCommandHandler());
+#if UNITY_6000_0_OR_NEWER
             registerHandler(new BuildProfileCommandHandler());
+#endif
             registerHandler(new PackageManagerCommandHandler());
 
             // Phase 3: Specialized APIs
