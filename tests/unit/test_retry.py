@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from retry_handler import (
+from unity_bridge.core.retry import (
     RetryConfig,
     is_retryable_error,
     retry_async,

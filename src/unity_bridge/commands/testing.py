@@ -1,4 +1,4 @@
-"""Testing commands: test run, compile.
+"""Testing commands: test run, compile, test listing.
 
 Async core functions are shared between CLI and MCP entry points.
 Typer wrappers provide the CLI surface with ``asyncio.run()``.
@@ -12,6 +12,12 @@ from typing import Annotated
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+
+# ---------------------------------------------------------------------------
+# Valid list modes
+# ---------------------------------------------------------------------------
+
+VALID_LIST_MODES = frozenset({"tests", "categories", "assemblies"})
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -43,6 +49,44 @@ async def run_tests(
         command_type="run-tests",
         parameters=params,
         timeout=float(timeout),
+    )
+
+
+async def list_tests(
+    bridge: DirectBridge,
+    mode: str = "tests",
+    platform: str | None = None,
+    filter_pattern: str | None = None,
+    timeout: float = 30.0,
+) -> CommandResult:
+    """Discover available tests without executing them.
+
+    Args:
+        bridge: Active bridge connection.
+        mode: What to list — ``tests``, ``categories``, or ``assemblies``.
+        platform: Test platform filter (``EditMode`` or ``PlayMode``).
+        filter_pattern: Test name filter pattern.
+        timeout: Timeout in seconds.
+
+    Raises:
+        ValueError: If *mode* is not recognised.
+    """
+    normalised = mode.lower().strip()
+    if normalised not in VALID_LIST_MODES:
+        raise ValueError(
+            f"Invalid list mode '{mode}'. Must be one of: {', '.join(sorted(VALID_LIST_MODES))}"
+        )
+
+    params: dict[str, object] = {"mode": normalised}
+    if platform is not None:
+        params["testPlatform"] = platform
+    if filter_pattern is not None:
+        params["filter"] = filter_pattern
+
+    return await bridge.send_command_with_retry(
+        command_type="list-tests",
+        parameters=params,
+        timeout=timeout,
     )
 
 
@@ -96,6 +140,40 @@ def test_run_cli(
 
     state = ctx.obj
     result = asyncio.run(run_tests(state.bridge, platform, filter_pattern, timeout))
+    print_result(result, state.formatter)
+
+
+@test_app.command("list")
+def test_list_cli(
+    ctx: typer.Context,
+    platform: Annotated[
+        str | None,
+        typer.Option("--platform", "-P", help="Test platform: EditMode or PlayMode."),
+    ] = None,
+    filter_pattern: Annotated[
+        str | None,
+        typer.Option("--filter", "-f", help="Filter pattern for test names."),
+    ] = None,
+    categories: Annotated[
+        bool,
+        typer.Option("--categories", help="List test categories instead of tests."),
+    ] = False,
+    assemblies: Annotated[
+        bool,
+        typer.Option("--assemblies", help="List test assemblies instead of tests."),
+    ] = False,
+) -> None:
+    """Discover available tests without executing them."""
+    from unity_bridge.core.output import print_result
+
+    mode = "tests"
+    if categories:
+        mode = "categories"
+    elif assemblies:
+        mode = "assemblies"
+
+    state = ctx.obj
+    result = asyncio.run(list_tests(state.bridge, mode, platform, filter_pattern))
     print_result(result, state.formatter)
 
 

@@ -7,12 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- `install` command: replaced missing `install_bridge` module with native install logic in `lifecycle.py`
-- `version` command: bridge version no longer shows "unknown"
-- MCP server auto-install now uses shared `lifecycle.install()` instead of missing legacy module
-
 ### Added
+- Phase 1 Core Platform APIs: 4 new command groups with C#, Python, and MCP support
+- `player-settings-operation`: read/write PlayerSettings and manage scripting define symbols
+- `asset-extended-operation`: create, delete, copy, move, deps, guid, folder management, export/import
+- `build-profile-operation`: list, get/set active, inspect Unity 6 Build Profiles
+- `package-operation`: list, search, add, remove, info, embed, resolve UPM packages
+- 4 new MCP tools (`unity_player_settings`, `unity_asset_extended`, `unity_build_profile`, `unity_package_operation`)
+- `schemas_ext.py` for Phase 1 MCP schema definitions
+- Unit tests for all 4 new command modules
+- Phase 2 Developer Workflow APIs: 5 new command types with C#, Python, and MCP support
+- `undo-operation`: perform, redo, history, clear, group-name, collapse undo groups
+- `compilation-pipeline`: list assemblies, query defines, script-to-assembly lookup, optimization mode
+- `prefab-override`: list, apply, revert overrides; status, find-instances, unpack prefabs
+- `list-tests`: discover tests, categories, and assemblies without running them (uses TestRunnerApi.RetrieveTestTree)
+- `gameobject-utility`: find missing scripts, manage static flags, set layer/tag
+- 5 new MCP tools (`unity_compilation_pipeline`, `unity_undo_operation`, `unity_prefab_overrides`, `unity_list_tests`, `unity_gameobject_utility`)
+- 5 new C# command handlers with separate model files (CompilationPipeline, TestList, PrefabOverride, Undo, GameObjectUtility)
+- Phase 2 timeout defaults in `protocol.py` for all 5 new command types
+- `list-tests` added to `PARALLEL_SAFE_COMMANDS` (read-only)
+- `compile` CLI command group for compilation pipeline queries
+- `undo` CLI command group for undo/redo management
+- Prefab override CLI subcommands under `prefab overrides`
+- Hierarchy utility CLI subcommands: `missing-scripts`, `static-flags`, `set-static-flags`, `set-layer`, `set-tag`
+- `test list` CLI command for test discovery
+- Unit tests for compilation pipeline, test listing, and all Phase 2 modules
+- Phase 3 Specialized APIs: 4 new command types with C#, Python, and MCP support
+- `shader-inspection`: list all shaders, get info, check errors, enumerate properties, find by property, list keywords (read-only, parallel-safe)
+- `lightmap-operation`: bake (async/sync), cancel, clear, status, read settings
+- `import-settings-operation`: get/set import settings, reimport, bulk-set, save/apply templates for textures, models, audio
+- `scene-setup-operation`: save/restore multi-scene setups, play mode start scene, cross-scene refs, preview scenes
+- 4 new MCP tools (`unity_shader_inspection`, `unity_lightmap_operation`, `unity_import_settings`, `unity_scene_extended`)
+- `schemas_phase3.py` for Phase 3 MCP schema definitions
+- 4 new C# command handlers with separate model files (ShaderInspection, LightmapOperation, ImportSettings, SceneSetup)
+- Phase 3 timeout defaults in `protocol.py` (15s shader, 30s lightmap/scene-setup, 60s import-settings)
+- `shader-inspection` added to `PARALLEL_SAFE_COMMANDS` (read-only)
+- `shader` CLI command group for shader inspection
+- `lightmap` CLI command group for lightmap operations
+- `import-settings` CLI command group for asset import settings
+- `scene-ext` CLI command group for extended scene management
+- Unit tests for all 4 Phase 3 command modules
 - `app.py` Typer entry point with global flags (`--project`, `--pretty`, `--human`, `--verbose`, `--quiet`, `--timeout`, `--no-color`)
 - `mcp/server.py` migrated from monolithic `unity_bridge_mcp_server.py`, uses shared core async functions
 - `mcp/tools.py` tool definitions and command map for MCP tool dispatch
@@ -20,6 +54,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lazy DirectBridge initialization in `AppState.get_bridge()`
 - Signal handler for clean Ctrl+C exit (code 130)
 - Graceful degradation for optional command modules via `_try_register_command`
+
+### Changed
+- Split all source files over 500 LOC into partial classes or companion files to meet architecture limit
+- `AnimatorOperationCommandHandler.cs` (2081 LOC) split into 5 partial class files by operation category
+- `ClaudeUnityBridge.cs` (864 LOC) split: command registry to `BridgeCommandRegistry.cs`, menu items to `BridgeMenuItems.cs`
+- `BridgeModels.cs` (778 LOC) split: late-phase models moved to `BridgeModelsPhase3.cs`
+- `ImportSettingsCommandHandler.cs` (707 LOC) split: per-importer helpers to `ImportSettingsHelpers.cs`
+- `PrefabOperationCommandHandler.cs` (621 LOC) split: helpers to `PrefabOperationHelpers.cs`, trimmed doc comment
+- `AssetExtendedCommandHandler.cs` (572 LOC) split: export/import/utility to `AssetExtendedHelpers.cs`
+- `BuildOperationCommandHandler.cs` (542 LOC) split: validation to `BuildOperationHelpers.cs`
+- `MaterialOperationCommandHandler.cs` (527 LOC) split: property helpers to `MaterialOperationHelpers.cs`
+- `schemas.py` (518 LOC): moved `batch()` and `help_topic()` schemas to `schemas_ext.py`
+- `tools.py` updated to reference `schemas_ext.batch()` and `schemas_ext.help_topic()`
+- Phase 3 tech spec revised (v0.2.0): consolidated 22 MCP tools to 4, fixed obsolete API references, added edge case handling
+- MCP tool count increased from 35 to 39 (26 core + 4 Phase 1 + 5 Phase 2 + 4 Phase 3)
+- `schemas_ext.py` extended with Phase 2 schemas (undo, compilation pipeline, prefab overrides, list tests, gameobject utility)
+- `hierarchy_app` registered as Typer group to expose Phase 2 utility subcommands
+
+### Fixed
+- `install` command: replaced missing `install_bridge` module with native install logic in `lifecycle.py`
+- `version` command: bridge version no longer shows "unknown"
+- MCP server auto-install now uses shared `lifecycle.install()` instead of missing legacy module
+- Broken unit test imports: `test_cache.py` and `test_retry.py` updated from stale `response_cache`/`retry_handler` imports to `unity_bridge.core.cache`/`unity_bridge.core.retry`
+- `test_cache.py` `CacheEntry` tests: fixed offset-naive `datetime.now()` to `datetime.now(timezone.utc)` to match `cache.py` implementation
+- CHANGELOG duplicate `### Added` section merged into one under `[Unreleased]`
 
 ## [3.0.0] - 2026-02-21
 

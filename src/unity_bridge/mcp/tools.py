@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from unity_bridge.mcp import schemas
+from unity_bridge.mcp import schemas, schemas_ext, schemas_phase3
 
 # ---------------------------------------------------------------------------
 # Tool name -> bridge command type mapping
@@ -40,6 +40,19 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_focus_object": "focus-object",
     "unity_compile": "compile",
     "unity_execute_menu_item": "execute-menu-item",
+    "unity_player_settings": "player-settings-operation",
+    "unity_asset_extended": "asset-extended-operation",
+    "unity_build_profile": "build-profile-operation",
+    "unity_package_operation": "package-operation",
+    "unity_compilation_pipeline": "compilation-pipeline",
+    "unity_undo_operation": "undo-operation",
+    "unity_prefab_overrides": "prefab-override",
+    "unity_list_tests": "list-tests",
+    "unity_gameobject_utility": "gameobject-utility",
+    "unity_lightmap_operation": "lightmap-operation",
+    "unity_shader_inspection": "shader-inspection",
+    "unity_scene_extended": "scene-setup-operation",
+    "unity_import_settings": "import-settings-operation",
 }
 
 # ---------------------------------------------------------------------------
@@ -173,11 +186,85 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "unity_batch",
         "description": "Execute multiple Unity commands in a single round-trip.",
-        "inputSchema": schemas.batch(),
+        "inputSchema": schemas_ext.batch(),
     },
     {
         "name": "unity_help",
         "description": "Get help on Unity Bridge commands and workflows.",
-        "inputSchema": schemas.help_topic(),
+        "inputSchema": schemas_ext.help_topic(),
+    },
+    {
+        "name": "unity_player_settings",
+        "description": "Read/write Unity PlayerSettings and manage scripting define symbols.",
+        "inputSchema": schemas_ext.player_settings(),
+    },
+    {
+        "name": "unity_asset_extended",
+        "description": "Extended asset operations: create, delete, copy, move, deps, guid, folder management, export/import.",
+        "inputSchema": schemas_ext.asset_extended(),
+    },
+    {
+        "name": "unity_build_profile",
+        "description": "Manage Unity 6 Build Profiles: list, get/set active, inspect details.",
+        "inputSchema": schemas_ext.build_profile(),
+    },
+    {
+        "name": "unity_package_operation",
+        "description": "Unity Package Manager: list, search, add, remove, info, embed, resolve packages.",
+        "inputSchema": schemas_ext.package_operation(),
+    },
+    {
+        "name": "unity_compilation_pipeline",
+        "description": "Query project assemblies, scripting defines, and code optimization.",
+        "inputSchema": schemas_ext.compilation_pipeline(),
+    },
+    {
+        "name": "unity_undo_operation",
+        "description": "Manage Unity Editor undo/redo history.",
+        "inputSchema": schemas_ext.undo_operation(),
+    },
+    {
+        "name": "unity_prefab_overrides",
+        "description": "List, apply, or revert prefab instance overrides.",
+        "inputSchema": schemas_ext.prefab_overrides(),
+    },
+    {
+        "name": "unity_list_tests",
+        "description": "Discover available tests without running them.",
+        "inputSchema": schemas_ext.list_tests(),
+    },
+    {
+        "name": "unity_gameobject_utility",
+        "description": "Find missing scripts, manage static flags, layers, and tags.",
+        "inputSchema": schemas_ext.gameobject_utility(),
+    },
+    {
+        "name": "unity_lightmap_operation",
+        "description": "Lightmap baking: bake, cancel, clear, check status, read settings.",
+        "inputSchema": schemas_phase3.unity_lightmap_operation(),
+    },
+    {
+        "name": "unity_shader_inspection",
+        "description": (
+            "Inspect Unity shaders: list all, get info, check errors, "
+            "enumerate properties, find by property, list keywords."
+        ),
+        "inputSchema": schemas_phase3.shader_inspection(),
+    },
+    {
+        "name": "unity_scene_extended",
+        "description": (
+            "Extended scene management: save/restore multi-scene setups, "
+            "play mode start scene, cross-scene refs, preview scenes."
+        ),
+        "inputSchema": schemas_phase3.unity_scene_extended(),
+    },
+    {
+        "name": "unity_import_settings",
+        "description": (
+            "Asset import settings: get, set, reimport, bulk-set, "
+            "save/apply templates for textures, models, audio."
+        ),
+        "inputSchema": schemas_phase3.import_settings(),
     },
 ]

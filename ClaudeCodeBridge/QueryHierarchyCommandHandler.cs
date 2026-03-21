@@ -52,21 +52,41 @@ namespace BWS.Editor.ClaudeCodeBridge
                 if (parameters == null)
                     parameters = new QueryHierarchyParams();
 
-                BridgeLogger.LogDebug($"Querying hierarchy: name='{parameters.gameObjectName ?? "all"}', includeInactive={parameters.includeInactive}, maxDepth={parameters.maxDepth}");
+                // Resolve effective depth (CLI sends "depth", MCP sends "maxDepth")
+                parameters.maxDepth = parameters.EffectiveMaxDepth;
+
+                BridgeLogger.LogDebug($"Querying hierarchy: name='{parameters.gameObjectName ?? "all"}', includeInactive={parameters.includeInactive}, maxDepth={parameters.maxDepth}, rootPath='{parameters.rootPath ?? ""}' ");
 
                 var result = new QueryHierarchyResult();
                 var activeScene = SceneManager.GetActiveScene();
-                var rootObjects = activeScene.GetRootGameObjects();
 
-                foreach (var rootObject in rootObjects)
+                // If rootPath is specified, find that GameObject and start from it
+                if (!string.IsNullOrEmpty(parameters.rootPath))
                 {
-                    if (!parameters.includeInactive && !rootObject.activeInHierarchy)
-                        continue;
-
-                    var objectInfo = BuildGameObjectInfo(rootObject, "", 0, parameters);
-                    if (objectInfo != null)
+                    var rootGo = FindGameObjectByPath(parameters.rootPath, activeScene);
+                    if (rootGo == null)
                     {
+                        return BridgeResponse.Error(command.commandId, command.commandType,
+                            $"Root GameObject not found: {parameters.rootPath}");
+                    }
+
+                    var objectInfo = BuildGameObjectInfo(rootGo, "", 0, parameters);
+                    if (objectInfo != null)
                         result.gameObjects.Add(objectInfo);
+                }
+                else
+                {
+                    var rootObjects = activeScene.GetRootGameObjects();
+                    foreach (var rootObject in rootObjects)
+                    {
+                        if (!parameters.includeInactive && !rootObject.activeInHierarchy)
+                            continue;
+
+                        var objectInfo = BuildGameObjectInfo(rootObject, "", 0, parameters);
+                        if (objectInfo != null)
+                        {
+                            result.gameObjects.Add(objectInfo);
+                        }
                     }
                 }
 
@@ -156,6 +176,25 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             return info;
+        }
+
+        /// <summary>
+        /// Find a GameObject by hierarchy path (e.g. "Player/Camera").
+        /// </summary>
+        private GameObject FindGameObjectByPath(string path, Scene scene)
+        {
+            var parts = path.Split('/');
+            var rootObjects = scene.GetRootGameObjects();
+            var current = rootObjects.FirstOrDefault(go => go.name == parts[0]);
+            if (current == null) return null;
+
+            for (int i = 1; i < parts.Length; i++)
+            {
+                var child = current.transform.Find(parts[i]);
+                if (child == null) return null;
+                current = child.gameObject;
+            }
+            return current;
         }
 
         /// <summary>

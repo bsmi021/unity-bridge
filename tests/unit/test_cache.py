@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
 
-from response_cache import CacheEntry, ResponseCache, get_cache
+from unity_bridge.core.cache import CacheEntry, ResponseCache, get_cache
 
 
 # ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ class TestCacheEntry:
     def test_valid_entry(self) -> None:
         entry = CacheEntry(
             data={"success": True},
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             ttl_seconds=10.0,
         )
         assert entry.is_valid() is True
@@ -28,7 +28,7 @@ class TestCacheEntry:
     def test_expired_entry(self) -> None:
         entry = CacheEntry(
             data={"success": True},
-            timestamp=datetime.now() - timedelta(seconds=20),
+            timestamp=datetime.now(timezone.utc) - timedelta(seconds=20),
             ttl_seconds=5.0,
         )
         assert entry.is_valid() is False
@@ -177,9 +177,9 @@ class TestGetCache:
 
     def test_returns_same_instance(self) -> None:
         # Reset global
-        import response_cache
-        response_cache._cache = None
+        import unity_bridge.core.cache as cache_mod
+        cache_mod._cache = None
         c1 = get_cache()
         c2 = get_cache()
         assert c1 is c2
-        response_cache._cache = None  # cleanup
+        cache_mod._cache = None  # cleanup
