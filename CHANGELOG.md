@@ -8,6 +8,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 4 Critical Gaps: 9 new command types with C#, Python, and MCP support
+- `set-selection`: programmatically set or clear Unity Editor selection by GameObject paths
+- `editor-prefs`: read/write EditorPrefs and SessionState (string, int, float, bool)
+- `build-scenes`: manage Build Settings scene list (list, add, remove, enable, disable, reorder)
+- `duplicate` operation added to `gameobject-utility` for duplicating GameObjects with Undo support
+- 3 new MCP tools (`unity_set_selection`, `unity_editor_prefs`, `unity_build_scenes`)
+- 3 new C# command handlers (SelectionCommandHandler, EditorPrefsCommandHandler, BuildScenesCommandHandler)
+- Phase 4 timeout defaults in `protocol.py` for all 3 new command types
+- `select` CLI command group for selection management
+- `prefs` CLI command group for editor preferences
+- `build-scenes` CLI command group for build scene list management
+- `hierarchy duplicate` CLI command for duplicating GameObjects
+- Unit tests for select, prefs, build-scenes, and duplicate commands
+- `transform-operation`: dedicated transform control (get/set position, rotation, scale, reparent, sibling index) with Undo support
+- `serialized-property`: access ALL serialized fields including `[SerializeField]` private fields via Unity SerializedObject API (list, get, set)
+- `physics-config`: read/set gravity, solver settings, read/modify 32x32 layer collision matrix
+- `quality-settings`: list quality levels, get current settings (shadows, AA, LOD, vsync), switch active level
+- `tags-layers`: list/add tags, list/add layers (user slots 8-31), list/add sorting layers via TagManager
+- `editor-config`: read/set enter play mode options, serialization mode, async shader compilation, line endings, root namespace
+- 6 new MCP tools (`unity_transform`, `unity_serialized_property`, `unity_physics_config`, `unity_quality_settings`, `unity_tags_layers`, `unity_editor_config`)
+- 6 new C# command handlers (Transform, SerializedProperty, PhysicsConfig, QualitySettings, TagsLayers, EditorConfig)
+- `schemas_phase4.py` extended with 6 additional Phase 4 MCP schema definitions
+- Phase 4 timeout defaults in `protocol.py` for 6 new command types
+- `transform` CLI command group for transform manipulation
+- `property` CLI command group for SerializedProperty access
+- `physics` CLI command group with `collision` subgroup for physics configuration
+- `quality` CLI command group for quality settings
+- `tags`, `layers`, `sorting-layers` CLI command groups for tags/layers management
+- `editor-config` CLI command group for editor settings
+- Unit tests for all 6 new Phase 4 command modules (96 tests)
+
+### Fixed
+- `SetComponentDataCommandHandler.cs`: rewritten to use SerializedObject/SerializedProperty as primary approach (fixes `[SerializeField] private` field access), with reflection fallback for runtime-only fields
+- `GameObjectOperationCommandHandler.cs`: replaced `Object.DestroyImmediate()` with `Undo.DestroyObjectImmediate()` for undo-aware destruction
+- `GameObjectOperationCommandHandler.cs`: replaced `new GameObject()` with `ObjectFactory.CreateGameObject()` for auto Undo registration and Preset application
+
+### Added (previous)
 - Phase 1 Core Platform APIs: 4 new command groups with C#, Python, and MCP support
 - `player-settings-operation`: read/write PlayerSettings and manage scripting define symbols
 - `asset-extended-operation`: create, delete, copy, move, deps, guid, folder management, export/import

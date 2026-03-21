@@ -55,6 +55,17 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new ImportSettingsCommandHandler());
             registerHandler(new SceneSetupCommandHandler());
 
+            // Phase 4: Critical Gaps
+            registerHandler(new SelectionCommandHandler());
+            registerHandler(new EditorPrefsCommandHandler());
+            registerHandler(new BuildScenesCommandHandler());
+            registerHandler(new TransformCommandHandler());
+            registerHandler(new SerializedPropertyCommandHandler());
+            registerHandler(new PhysicsConfigCommandHandler());
+            registerHandler(new QualitySettingsCommandHandler());
+            registerHandler(new TagsLayersCommandHandler());
+            registerHandler(new EditorConfigCommandHandler());
+
             // Original handlers (split into partial classes during LOC refactor)
             registerHandler(new AnimatorOperationCommandHandler());
             registerHandler(new MaterialOperationCommandHandler());

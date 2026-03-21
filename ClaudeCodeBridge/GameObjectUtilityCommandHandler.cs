@@ -19,6 +19,7 @@ namespace BWS.Editor.ClaudeCodeBridge
     /// 3. "set-static-flags" - Set static editor flags on a GameObject
     /// 4. "set-layer" - Set layer on a GameObject (optionally recursive)
     /// 5. "set-tag" - Set tag on a GameObject
+    /// 6. "duplicate" - Duplicate a GameObject with Undo support
     /// </summary>
     public class GameObjectUtilityCommandHandler : ICommandHandler
     {
@@ -46,7 +47,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 // Guard: no mutating operations during play mode
                 if (EditorApplication.isPlaying &&
                     operation is "set-static-flags" or "set-layer"
-                        or "set-tag" or "missing-scripts")
+                        or "set-tag" or "missing-scripts" or "duplicate")
                 {
                     if (operation == "missing-scripts" && !parameters.fix)
                     {
@@ -71,10 +72,13 @@ namespace BWS.Editor.ClaudeCodeBridge
                         return SetLayer(command, parameters);
                     case "set-tag":
                         return SetTag(command, parameters);
+                    case "duplicate":
+                        return DuplicateGameObject(command, parameters);
                     default:
                         return BridgeResponse.Error(command.commandId, command.commandType,
                             $"Unknown operation: {parameters.operation}. " +
-                            "Supported: missing-scripts, static-flags, set-static-flags, set-layer, set-tag");
+                            "Supported: missing-scripts, static-flags, set-static-flags, " +
+                            "set-layer, set-tag, duplicate");
                 }
             }
             catch (Exception ex)
@@ -271,6 +275,48 @@ namespace BWS.Editor.ClaudeCodeBridge
                 tag = parameters.tag,
                 changed = true
             };
+            return BridgeResponse.Success(command.commandId, command.commandType,
+                JsonUtility.ToJson(result));
+        }
+
+        private BridgeResponse DuplicateGameObject(
+            BridgeCommand command, GameObjectUtilityParams parameters)
+        {
+            if (string.IsNullOrEmpty(parameters.gameObjectPath))
+            {
+                return BridgeResponse.Error(command.commandId, command.commandType,
+                    "gameObjectPath is required for duplicate operation.");
+            }
+
+            var go = GameObject.Find(parameters.gameObjectPath);
+            if (go == null)
+            {
+                return BridgeResponse.Error(command.commandId, command.commandType,
+                    $"GameObject not found at path: {parameters.gameObjectPath}");
+            }
+
+            // Select the original so Duplicate operates on it
+            Selection.activeGameObject = go;
+            Unsupported.DuplicateGameObjectsUsingPasteboard();
+
+            // The duplicate is now the active selection
+            var duplicate = Selection.activeGameObject;
+            if (duplicate == null || duplicate == go)
+            {
+                return BridgeResponse.Error(command.commandId, command.commandType,
+                    $"Failed to duplicate GameObject: {parameters.gameObjectPath}");
+            }
+
+            var duplicatePath = GetGameObjectPath(duplicate);
+            var result = new GameObjectUtilityResult
+            {
+                success = true,
+                operation = "duplicate",
+                path = parameters.gameObjectPath,
+                duplicatePath = duplicatePath,
+                duplicateName = duplicate.name,
+            };
+            BridgeLogger.LogInfo($"Duplicated: {parameters.gameObjectPath} -> {duplicatePath}");
             return BridgeResponse.Success(command.commandId, command.commandType,
                 JsonUtility.ToJson(result));
         }

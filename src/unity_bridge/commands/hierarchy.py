@@ -244,6 +244,33 @@ def component_add_cli(
 
 
 # ---------------------------------------------------------------------------
+# Phase 4: Duplicate GameObject
+# ---------------------------------------------------------------------------
+
+
+async def duplicate_gameobject(
+    bridge: DirectBridge,
+    object_path: str,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Duplicate a GameObject in the scene.
+
+    Args:
+        bridge: Active bridge connection.
+        object_path: Hierarchy path to the GameObject to duplicate.
+        timeout: Timeout in seconds.
+    """
+    return await bridge.send_command_with_retry(
+        command_type="gameobject-utility",
+        parameters={
+            "operation": "duplicate",
+            "gameObjectPath": object_path,
+        },
+        timeout=timeout,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Phase 2: GameObject utility core async functions
 # ---------------------------------------------------------------------------
 
@@ -370,6 +397,19 @@ async def set_tag(
 # ---------------------------------------------------------------------------
 # Phase 2: GameObject utility CLI wrappers
 # ---------------------------------------------------------------------------
+
+
+@hierarchy_app.command("duplicate")
+def duplicate_cli(
+    ctx: typer.Context,
+    object_path: Annotated[str, typer.Argument(help="Hierarchy path to the GameObject.")],
+) -> None:
+    """Duplicate a GameObject in the scene."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(duplicate_gameobject(state.bridge, object_path))
+    print_result(result, state.formatter)
 
 
 @hierarchy_app.command("missing-scripts")

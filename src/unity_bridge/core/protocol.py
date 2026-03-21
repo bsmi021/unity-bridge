@@ -57,6 +57,24 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "scene-setup-operation": 30,
     # Phase 3: Import settings (medium — reimport can take time)
     "import-settings-operation": 60,
+    # Phase 4: Set selection (quick)
+    "set-selection": 5,
+    # Phase 4: Editor prefs (quick, read/write)
+    "editor-prefs": 5,
+    # Phase 4: Build scenes (quick, mutating)
+    "build-scenes": 15,
+    # Phase 4: Transform (quick read, medium write)
+    "transform-operation": 10,
+    # Phase 4: Serialized property (quick read, medium write)
+    "serialized-property": 15,
+    # Phase 4: Physics config (quick read/write)
+    "physics-config": 10,
+    # Phase 4: Quality settings (quick read/write)
+    "quality-settings": 10,
+    # Phase 4: Tags/layers (quick read, medium write)
+    "tags-layers": 15,
+    # Phase 4: Editor config (quick read/write)
+    "editor-config": 10,
 }
 
 # Commands that are safe for parallel execution in batch mode.
@@ -70,6 +88,8 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "health-check",
     "list-tests",
     "shader-inspection",
+    "transform-operation",  # get operation is read-only
+    "serialized-property",  # list/get operations are read-only
 }
 
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.

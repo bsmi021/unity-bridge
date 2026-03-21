@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from unity_bridge.mcp import schemas, schemas_ext, schemas_phase3
+from unity_bridge.mcp import schemas, schemas_ext, schemas_phase3, schemas_phase4
 
 # ---------------------------------------------------------------------------
 # Tool name -> bridge command type mapping
@@ -53,6 +53,15 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_shader_inspection": "shader-inspection",
     "unity_scene_extended": "scene-setup-operation",
     "unity_import_settings": "import-settings-operation",
+    "unity_set_selection": "set-selection",
+    "unity_editor_prefs": "editor-prefs",
+    "unity_build_scenes": "build-scenes",
+    "unity_transform": "transform-operation",
+    "unity_serialized_property": "serialized-property",
+    "unity_physics_config": "physics-config",
+    "unity_quality_settings": "quality-settings",
+    "unity_tags_layers": "tags-layers",
+    "unity_editor_config": "editor-config",
 }
 
 # ---------------------------------------------------------------------------
@@ -266,5 +275,72 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "save/apply templates for textures, models, audio."
         ),
         "inputSchema": schemas_phase3.import_settings(),
+    },
+    {
+        "name": "unity_set_selection",
+        "description": "Set or clear the Unity Editor selection programmatically.",
+        "inputSchema": schemas_phase4.set_selection(),
+    },
+    {
+        "name": "unity_editor_prefs",
+        "description": (
+            "Read/write EditorPrefs and SessionState values (string, int, float, bool)."
+        ),
+        "inputSchema": schemas_phase4.editor_prefs(),
+    },
+    {
+        "name": "unity_build_scenes",
+        "description": (
+            "Manage Build Settings scene list: list, add, remove, enable, disable, reorder scenes."
+        ),
+        "inputSchema": schemas_phase4.build_scenes(),
+    },
+    {
+        "name": "unity_transform",
+        "description": (
+            "Dedicated transform control: get/set position, rotation, scale, "
+            "reparent GameObjects, set sibling index. Supports Undo."
+        ),
+        "inputSchema": schemas_phase4.transform_operation(),
+    },
+    {
+        "name": "unity_serialized_property",
+        "description": (
+            "Access ALL serialized fields including [SerializeField] private fields. "
+            "List, get, or set any property via Unity's SerializedObject API."
+        ),
+        "inputSchema": schemas_phase4.serialized_property(),
+    },
+    {
+        "name": "unity_physics_config",
+        "description": (
+            "Physics configuration: get/set gravity, solver settings, "
+            "read/modify the 32x32 layer collision matrix."
+        ),
+        "inputSchema": schemas_phase4.physics_config(),
+    },
+    {
+        "name": "unity_quality_settings",
+        "description": (
+            "Quality settings: list levels, get current settings "
+            "(shadows, AA, LOD, vsync), switch active level."
+        ),
+        "inputSchema": schemas_phase4.quality_settings(),
+    },
+    {
+        "name": "unity_tags_layers",
+        "description": (
+            "Tags and layers management: list/add tags, list/add layers, "
+            "list/add sorting layers via TagManager."
+        ),
+        "inputSchema": schemas_phase4.tags_layers(),
+    },
+    {
+        "name": "unity_editor_config",
+        "description": (
+            "Editor settings: enter play mode options, serialization mode, "
+            "async shader compilation, line endings, root namespace."
+        ),
+        "inputSchema": schemas_phase4.editor_config(),
     },
 ]

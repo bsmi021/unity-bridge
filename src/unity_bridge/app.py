@@ -217,6 +217,19 @@ def _register_optional_commands() -> None:
         "unity_bridge.commands.import_settings", "import_settings_app", "import-settings"
     )
 
+    # Phase 4: Critical Gaps
+    _try_register_group("unity_bridge.commands.select", "select_app", "select")
+    _try_register_group("unity_bridge.commands.prefs", "prefs_app", "prefs")
+    _try_register_group("unity_bridge.commands.build_scenes", "build_scenes_app", "build-scenes")
+    _try_register_group("unity_bridge.commands.transform", "transform_app", "transform")
+    _try_register_group("unity_bridge.commands.property", "property_app", "property")
+    _try_register_group("unity_bridge.commands.physics_config", "physics_app", "physics")
+    _try_register_group("unity_bridge.commands.quality_config", "quality_app", "quality")
+    _try_register_group("unity_bridge.commands.tags_layers", "tags_app", "tags")
+    _try_register_group("unity_bridge.commands.tags_layers", "layers_app", "layers")
+    _try_register_group("unity_bridge.commands.tags_layers", "sorting_layers_app", "sorting-layers")
+    _try_register_group("unity_bridge.commands.editor_config", "editor_config_app", "editor-config")
+
 
 def _try_register_command(module_path: str, attr_name: str, command_name: str) -> None:
     """Import *attr_name* from *module_path* and register as a top-level command."""

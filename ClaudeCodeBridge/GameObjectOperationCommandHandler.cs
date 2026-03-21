@@ -118,8 +118,8 @@ namespace BWS.Editor.ClaudeCodeBridge
 
             try
             {
-                // Create new GameObject
-                var newGameObject = new GameObject(parameters.gameObjectName);
+                // Create new GameObject (auto-registers Undo and applies Presets)
+                var newGameObject = ObjectFactory.CreateGameObject(parameters.gameObjectName);
 
                 // Set parent if specified
                 if (!string.IsNullOrEmpty(parameters.parentPath))
@@ -129,7 +129,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     {
                         result.success = false;
                         result.message = $"Parent GameObject not found: {parameters.parentPath}";
-                        UnityEngine.Object.DestroyImmediate(newGameObject);
+                        Undo.DestroyObjectImmediate(newGameObject);
                         return result;
                     }
 
@@ -188,8 +188,8 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 result.gameObjectPath = parameters.gameObjectPath;
 
-                // Delete the GameObject
-                UnityEngine.Object.DestroyImmediate(gameObject);
+                // Delete the GameObject (undo-aware)
+                Undo.DestroyObjectImmediate(gameObject);
 
                 // Mark scene dirty
                 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());

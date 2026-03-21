@@ -385,6 +385,7 @@ def gameobject_utility() -> dict[str, Any]:
                     "set-static-flags",
                     "set-layer",
                     "set-tag",
+                    "duplicate",
                 ],
                 "description": "Utility operation",
             },
