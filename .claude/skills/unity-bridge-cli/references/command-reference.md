@@ -1,218 +1,233 @@
 # Unity Bridge CLI -- Complete Command Reference
 
+Every command example uses the EXACT syntax from `unity-bridge --help`. Global flags
+(`--human`, `--pretty`, `--verbose`, `--quiet`, `--project`, `--timeout`, `--no-color`)
+always go BEFORE the command name.
+
+**Syntax: `unity-bridge [GLOBAL FLAGS] COMMAND [COMMAND ARGS/OPTIONS]`**
+
 ## Table of Contents
 
-1. [Testing Commands](#testing-commands)
+1. [Testing & Compilation](#testing--compilation)
 2. [Hierarchy & Components](#hierarchy--components)
 3. [Scene Management](#scene-management)
-4. [Scene Extended](#scene-extended)
-5. [Prefab Operations](#prefab-operations)
-6. [Play Mode Control](#play-mode-control)
-7. [Console & Logging](#console--logging)
-8. [Editor Utilities](#editor-utilities)
-9. [Asset Operations](#asset-operations)
-10. [Asset Extended Operations](#asset-extended-operations)
-11. [Material Operations](#material-operations)
-12. [Build Operations](#build-operations)
-13. [Build Profiles](#build-profiles)
-14. [Animator Operations](#animator-operations)
-15. [Player Settings](#player-settings)
-16. [Package Manager](#package-manager)
-17. [Compilation Pipeline](#compilation-pipeline)
-18. [Undo System](#undo-system)
-19. [Shader Inspection](#shader-inspection)
-20. [Lightmap Operations](#lightmap-operations)
-21. [Import Settings](#import-settings)
-22. [Workflow Commands](#workflow-commands)
-23. [Scripting](#scripting)
-24. [Diagnostics & Lifecycle](#diagnostics--lifecycle)
-25. [Batch & Serve](#batch--serve)
+4. [Prefab Operations](#prefab-operations)
+5. [Play Mode Control](#play-mode-control)
+6. [Console & Logging](#console--logging)
+7. [Editor Utilities](#editor-utilities)
+8. [Asset Operations](#asset-operations)
+9. [Extended Asset Operations](#extended-asset-operations)
+10. [Material Operations](#material-operations)
+11. [Build Operations](#build-operations)
+12. [Animator Operations](#animator-operations)
+13. [Workflow Commands](#workflow-commands)
+14. [Scripting](#scripting)
+15. [Diagnostics & Lifecycle](#diagnostics--lifecycle)
+16. [Batch & Serve](#batch--serve)
+17. [Compile Group](#compile-group)
+18. [Undo Group](#undo-group)
+19. [Settings Group](#settings-group)
+20. [Profile Group](#profile-group)
+21. [Package Group](#package-group)
+22. [Lightmap Group](#lightmap-group)
+23. [Shader Group](#shader-group)
+24. [Scene Extensions Group](#scene-extensions-group)
+25. [Import Settings Group](#import-settings-group)
 26. [Bridge Command Types](#bridge-command-types)
 
 ---
 
-## Testing Commands
+## Testing & Compilation
 
-### `unity-bridge test run`
+### `test run`
 
 Run EditMode or PlayMode tests.
 
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--platform` | `-P` | string | `EditMode` | `EditMode` or `PlayMode` |
-| `--filter` | `-f` | string | none | Test name filter pattern |
-| `--timeout` |  | int | 300 | Seconds to wait |
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--platform` | TEXT | `EditMode` | `EditMode` or `PlayMode` |
+| `--filter` | TEXT | none | Test name filter pattern |
+| `--timeout` | INT | 300 | Seconds to wait |
 
 ```bash
 unity-bridge test run --platform EditMode
-unity-bridge test run -P PlayMode --filter "Combat*"
+unity-bridge test run --platform PlayMode --filter "Combat*"
 unity-bridge test run --filter InventoryTests --timeout 60
 ```
-### `unity-bridge test compile`
+
+### `test list`
+
+List available tests without running them.
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--platform` | TEXT | `EditMode` | `EditMode` or `PlayMode` |
+| `--filter` | TEXT | none | Test name filter pattern |
+| `--categories` | flag | false | Include test categories |
+| `--assemblies` | flag | false | Include assembly info |
+
+```bash
+unity-bridge test list --platform EditMode
+unity-bridge test list --categories --assemblies
+unity-bridge test list --filter "Combat*"
+```
+
+### `test compile`
 
 Trigger script compilation and wait for results.
 
 | Argument | Type | Default | Description |
-|---|---|---|---|
-| `--wait/--no-wait` | bool | true | Wait for compilation to complete |
-| `--timeout` | int | 120 | Seconds to wait |
+|----------|------|---------|-------------|
+| `--wait/--no-wait` | flag | true | Wait for compilation to complete |
+| `--timeout` | INT | 120 | Seconds to wait |
 
 ```bash
 unity-bridge test compile
 unity-bridge test compile --no-wait
-```
-### `unity-bridge test list`
-
-Discover available tests without executing them.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--platform` | `-P` | string | none | `EditMode` or `PlayMode` filter |
-| `--filter` | `-f` | string | none | Test name filter pattern |
-| `--categories` |  | flag | false | List test categories instead of tests |
-| `--assemblies` |  | flag | false | List test assemblies instead of tests |
-
-```bash
-unity-bridge test list
-unity-bridge test list --platform EditMode
-unity-bridge test list --filter "Combat*"
-unity-bridge test list --categories
-unity-bridge test list --assemblies
 ```
 
 ---
 
 ## Hierarchy & Components
 
-### `unity-bridge hierarchy`
+### `hierarchy` (direct query)
 
-Query the active scene's GameObject tree.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--depth` | `-d` | int | 5 | Max depth to traverse |
-| `--inactive` |  | flag | false | Include inactive GameObjects |
-| `--root` | `-r` | string | none | Start from this GameObject path |
-
-```bash
-unity-bridge hierarchy --depth 2
-unity-bridge hierarchy --root "Player" --inactive
-unity-bridge hierarchy --depth 1 --human  # Tree view output
-```
-### `unity-bridge component get`
-
-Read field values from a component.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `OBJECT` | positional | yes | GameObject path (e.g. `Player`) |
-| `TYPE` | positional | yes | Component type (e.g. `Transform`, `PlayerStats`) |
-| `--fields` / `-F` | string | no | Comma-separated field names to read |
-
-```bash
-unity-bridge component get Player Transform
-unity-bridge component get "Environment/Tree" MeshRenderer --fields "material,enabled"
-```
-### `unity-bridge component set`
-
-Modify field values on a component. Supports multiple updates in one call.
-
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `OBJECT` |  | positional | yes | GameObject path |
-| `TYPE` |  | positional | yes | Component type |
-| `--update` | `-u` | repeatable | yes | `FIELD:JSON_VALUE` pairs |
-
-```bash
-unity-bridge component set Player Health --update 'currentHp:100'
-unity-bridge component set Player Transform --update 'position.x:5.0' --update 'position.y:0'
-```
-### `unity-bridge component add`
-
-Add a component to a GameObject.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `OBJECT` | positional | yes | GameObject path |
-| `TYPE` | positional | yes | Component type to add |
-
-```bash
-unity-bridge component add Player "AudioSource"
-unity-bridge component add Enemy "EnemyAI"
-```
-### `unity-bridge hierarchy missing-scripts`
-
-Find (and optionally remove) missing MonoBehaviour scripts.
+Query the active scene GameObject tree. Options are on the group itself, NOT a subcommand.
+There is no `hierarchy list` -- just use `hierarchy` with options.
 
 | Argument | Type | Default | Description |
-|---|---|---|---|
-| `--fix` | flag | false | Remove missing scripts instead of just listing |
+|----------|------|---------|-------------|
+| `--depth` | INT | 5 | Max depth to traverse |
+| `--inactive` | flag | false | Include inactive GameObjects |
+| `--root` | TEXT | none | Start from this GameObject path |
+
+```bash
+unity-bridge hierarchy
+unity-bridge hierarchy --depth 2
+unity-bridge hierarchy --root "Player" --inactive
+unity-bridge --human hierarchy --depth 3   # Human-readable tree view
+```
+
+### `hierarchy missing-scripts`
+
+Find GameObjects with missing script references.
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--fix` | flag | false | Remove missing script components |
 
 ```bash
 unity-bridge hierarchy missing-scripts
 unity-bridge hierarchy missing-scripts --fix
 ```
-### `unity-bridge hierarchy static-flags`
 
-Get static editor flags for a GameObject.
+### `hierarchy static-flags`
 
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `OBJECT` | positional | yes | Hierarchy path to the GameObject |
-
-```bash
-unity-bridge hierarchy static-flags Player
-```
-### `unity-bridge hierarchy set-static-flags`
-
-Set static editor flags on a GameObject.
+Get static flags for a GameObject.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `OBJECT` | positional | yes | Hierarchy path to the GameObject |
-| `FLAGS...` | positional | yes | Flag names (e.g. BatchingStatic, NavigationStatic) |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path |
 
 ```bash
-unity-bridge hierarchy set-static-flags Terrain BatchingStatic NavigationStatic OccludeeStatic
+unity-bridge hierarchy static-flags "Environment/Tree"
 ```
-### `unity-bridge hierarchy set-layer`
 
-Set layer on a GameObject.
+### `hierarchy set-static-flags`
 
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `OBJECT` |  | positional | yes | Hierarchy path to the GameObject |
-| `LAYER` |  | positional | yes | Layer index (int) |
-| `--recursive` | `-r` | flag | no | Apply to all children (including inactive) |
+Set static flags on a GameObject.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path |
+| `FLAGS` | positional (variadic) | yes | Static flags to set |
+
+```bash
+unity-bridge hierarchy set-static-flags "Environment/Tree" BatchingStatic LightmapStatic
+```
+
+### `hierarchy set-layer`
+
+Set the layer of a GameObject.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path |
+| `LAYER` | positional | yes | Layer number |
+| `--recursive` | flag | false | Apply to all children |
 
 ```bash
 unity-bridge hierarchy set-layer Player 8
-unity-bridge hierarchy set-layer Environment/Trees 10 --recursive
+unity-bridge hierarchy set-layer Environment 10 --recursive
 ```
-### `unity-bridge hierarchy set-tag`
 
-Set tag on a GameObject.
+### `hierarchy set-tag`
+
+Set the tag of a GameObject.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `OBJECT` | positional | yes | Hierarchy path to the GameObject |
-| `TAG` | positional | yes | Tag name to set |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path |
+| `TAG` | positional | yes | Tag name |
 
 ```bash
 unity-bridge hierarchy set-tag Player "Player"
 unity-bridge hierarchy set-tag Enemy "Enemy"
 ```
 
+### `component get`
+
+Read field values from a component. Arguments are positional (bare values, not flags).
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path (e.g., `Player`) |
+| `COMPONENT_TYPE` | positional | yes | Component type (e.g., `Transform`, `PlayerStats`) |
+| `--fields` | TEXT | no | Comma-separated field names to read |
+
+```bash
+unity-bridge component get Player Transform
+unity-bridge component get "Environment/Tree" MeshRenderer --fields "material,enabled"
+unity-bridge --human component get Player Health
+```
+
+### `component set`
+
+Modify field values on a component. Supports multiple `--update` (`-u`) flags in one call.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path |
+| `COMPONENT_TYPE` | positional | yes | Component type |
+| `--update` / `-u` | TEXT (repeatable) | yes | `FIELD:JSON_VALUE` pairs |
+
+```bash
+unity-bridge component set Player Health --update "currentHp:100"
+unity-bridge component set Player Transform -u "position.x:5.0" -u "position.y:0"
+```
+
+### `component add`
+
+Add a component to a GameObject.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path |
+| `COMPONENT_TYPE` | positional | yes | Component type to add |
+
+```bash
+unity-bridge component add Player "AudioSource"
+unity-bridge component add Enemy "EnemyAI"
+```
+
 ---
 
 ## Scene Management
 
-### `unity-bridge scene load`
-
-Load a scene in the Unity Editor.
+### `scene load`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `PATH` | positional | yes | Scene asset path |
 | `--save-current` | flag | no | Save current scene before loading |
 
@@ -220,16 +235,19 @@ Load a scene in the Unity Editor.
 unity-bridge scene load Assets/Scenes/Main.unity
 unity-bridge scene load Assets/Scenes/Test.unity --save-current
 ```
-### `unity-bridge scene save`
+
+### `scene save`
 
 Save the current scene. No arguments.
 
-### `unity-bridge scene create`
+```bash
+unity-bridge scene save
+```
 
-Create a new scene at the given path.
+### `scene create`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `PATH` | positional | yes | Path for the new scene |
 
 ```bash
@@ -238,199 +256,133 @@ unity-bridge scene create Assets/Scenes/NewLevel.unity
 
 ---
 
-## Scene Extended
-
-### `unity-bridge scene-ext setup save`
-
-Save the current multi-scene layout as a named setup.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Setup name (alphanumeric, hyphens, underscores, max 64) |
-
-```bash
-unity-bridge scene-ext setup save combat-setup
-```
-### `unity-bridge scene-ext setup restore`
-
-Restore a previously saved multi-scene layout.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Setup name to restore |
-
-```bash
-unity-bridge scene-ext setup restore combat-setup
-```
-### `unity-bridge scene-ext setup list`
-
-List all saved scene setups. No arguments.
-
-### `unity-bridge scene-ext play-start`
-
-Get, set, or clear the play mode start scene.
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `--set` | string | none | Scene path to set as play mode start scene |
-| `--clear` | flag | false | Clear the play mode start scene |
-
-```bash
-unity-bridge scene-ext play-start
-unity-bridge scene-ext play-start --set Assets/Scenes/Boot.unity
-unity-bridge scene-ext play-start --clear
-```
-### `unity-bridge scene-ext cross-refs`
-
-Detect cross-scene references across all loaded scenes. No arguments.
-
-### `unity-bridge scene-ext list-loaded`
-
-List all loaded scenes with status (active, loaded, dirty, path). No arguments.
-
-### `unity-bridge scene-ext preview-create`
-
-Create an empty preview scene for isolated testing. No arguments.
-
-
-Returns a `handle` integer used to close the preview later.
-### `unity-bridge scene-ext preview-close`
-
-Close a previously created preview scene.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `HANDLE` | positional (int) | yes | Preview scene handle from preview-create |
-
-```bash
-unity-bridge scene-ext preview-close 12345
-```
-
----
-
 ## Prefab Operations
 
-### `unity-bridge prefab validate`
+### `prefab validate`
 
 Check prefab integrity and missing references.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `PATH` | positional | yes | Prefab asset path |
 
 ```bash
 unity-bridge prefab validate Assets/Prefabs/Player.prefab
 ```
-### `unity-bridge prefab instantiate`
+
+### `prefab instantiate`
 
 Create a prefab instance in the scene.
 
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `PATH` |  | positional | yes | Prefab asset path |
-| `--position` | `-pos` | string | no | `X,Y,Z` position |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Prefab asset path |
+| `--position` | TEXT | no | `X,Y,Z` world position |
 
 ```bash
 unity-bridge prefab instantiate Assets/Prefabs/Enemy.prefab
 unity-bridge prefab instantiate Assets/Prefabs/Enemy.prefab --position 5,0,3
 ```
-### `unity-bridge prefab destroy`
+
+### `prefab destroy`
 
 Remove a prefab instance from the scene (does NOT delete the asset).
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `INSTANCE_PATH` | positional | yes | GameObject path in scene |
 
 ```bash
 unity-bridge prefab destroy "Enemy(Clone)"
 ```
-### `unity-bridge prefab overrides list`
 
-List all overrides on a prefab instance.
+### `prefab status`
 
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `INSTANCE_PATH` | positional (required) |  | Hierarchy path to prefab instance |
-| `--include-default-overrides` | flag | false | Include default overrides (position/rotation) |
-
-```bash
-unity-bridge prefab overrides list Player
-unity-bridge prefab overrides list Player --include-default-overrides
-```
-### `unity-bridge prefab overrides apply`
-
-Apply overrides from a prefab instance to the prefab asset.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `INSTANCE_PATH` |  | positional (required) |  | Hierarchy path to prefab instance |
-| `--target` | `-t` | string | none | Specific override to apply (omit for all) |
-
-```bash
-unity-bridge prefab overrides apply Player
-unity-bridge prefab overrides apply Player --target "Transform"
-```
-### `unity-bridge prefab overrides revert`
-
-Revert overrides on a prefab instance back to the prefab asset state.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `INSTANCE_PATH` |  | positional (required) |  | Hierarchy path to prefab instance |
-| `--target` | `-t` | string | none | Specific override to revert (omit for all) |
-
-```bash
-unity-bridge prefab overrides revert Player
-unity-bridge prefab overrides revert Player --target "Transform"
-```
-### `unity-bridge prefab status`
-
-Get prefab type and instance status.
+Get the prefab status of an instance.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `PATH` | positional | yes | Hierarchy path or asset path to query |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Instance path in scene |
 
 ```bash
-unity-bridge prefab status Player
-unity-bridge prefab status Assets/Prefabs/Player.prefab
+unity-bridge prefab status "Player"
 ```
-### `unity-bridge prefab find-instances`
 
-Find all scene instances of a prefab asset (root-level only).
+### `prefab find-instances`
+
+Find all instances of a prefab asset in the current scene.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `ASSET_PATH` | positional | yes | Prefab asset path |
 
 ```bash
 unity-bridge prefab find-instances Assets/Prefabs/Enemy.prefab
 ```
-### `unity-bridge prefab unpack`
+
+### `prefab unpack`
 
 Unpack a prefab instance.
 
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `INSTANCE_PATH` | positional (required) |  | Hierarchy path to prefab instance |
-| `--completely` | flag | false | Fully unpack nested prefabs |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `INSTANCE_PATH` | positional | yes | Instance path in scene |
+| `--completely` | flag | no | Fully unpack (recursive) |
 
 ```bash
-unity-bridge prefab unpack Player
-unity-bridge prefab unpack Player --completely
+unity-bridge prefab unpack "Player"
+unity-bridge prefab unpack "Player" --completely
+```
+
+### `prefab overrides list`
+
+List property overrides on a prefab instance.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `INSTANCE_PATH` | positional | yes | Instance path in scene |
+| `--include-default-overrides` | flag | no | Include default overrides |
+
+```bash
+unity-bridge prefab overrides list "Player"
+unity-bridge prefab overrides list "Player" --include-default-overrides
+```
+
+### `prefab overrides apply`
+
+Apply overrides from instance back to the prefab asset.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `INSTANCE_PATH` | positional | yes | Instance path in scene |
+| `--target` | TEXT | no | Specific override target |
+
+```bash
+unity-bridge prefab overrides apply "Player"
+unity-bridge prefab overrides apply "Player" --target Transform
+```
+
+### `prefab overrides revert`
+
+Revert overrides on a prefab instance.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `INSTANCE_PATH` | positional | yes | Instance path in scene |
+| `--target` | TEXT | no | Specific override target |
+
+```bash
+unity-bridge prefab overrides revert "Player"
 ```
 
 ---
 
 ## Play Mode Control
 
-### `unity-bridge playmode`
-
-Control Unity Editor play mode.
+### `playmode`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `ACTION` | positional | yes | `play`, `pause`, or `stop` |
 
 ```bash
@@ -443,280 +395,314 @@ unity-bridge playmode stop
 
 ## Console & Logging
 
-### `unity-bridge console read`
+### `console read`
 
 One-shot read of Unity console logs.
 
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--types` | `-T` | string | all | Comma-separated: `error,warning,log` |
-| `--max` | `-m` | int | none | Max entries to return |
-| `--pattern` | `-p` | string | none | Regex filter pattern |
-| `--stack-trace` |  | flag | false | Include stack traces |
-| `--max-stack-lines` |  | int | none | Lines per stack trace |
-| `--max-message-length` |  | int | none | Truncate messages (0=unlimited) |
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--types` | TEXT | all | Comma-separated: `error,warning,log` |
+| `--max` | INT | 50 | Max entries to return |
+| `--pattern` | TEXT | none | Regex filter pattern |
+| `--stack-trace/--no-stack-trace` | flag | true | Include stack traces |
+| `--max-stack-lines` | INT | 5 | Lines per stack trace (0=unlimited, -1=none) |
+| `--max-message-length` | INT | 500 | Truncate messages (0=unlimited) |
 
 ```bash
 unity-bridge console read --types error --max 10
-unity-bridge console read --pattern "NullReference"
-unity-bridge console read --types error,warning --human
+unity-bridge console read --pattern "NullReference" --no-stack-trace
+unity-bridge --human console read --types error,warning
 ```
-### `unity-bridge console watch`
+
+### `console watch`
 
 Follow mode -- tail console logs in real-time until Ctrl+C.
 
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--types` | `-T` | string | all | Comma-separated log types |
-| `--poll-interval` |  | float | 2.0 | Seconds between polls |
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--types` | TEXT | all | Comma-separated log types |
+| `--poll-interval` | FLOAT | 1.0 | Seconds between polls |
 
 ```bash
 unity-bridge console watch --types error,warning
 unity-bridge console watch --poll-interval 0.5
 ```
-### `unity-bridge console clear`
+
+### `console clear`
 
 Clear all Unity console logs. No arguments.
 
+```bash
+unity-bridge console clear
+```
 
 ---
 
 ## Editor Utilities
 
-### `unity-bridge selection`
+### `selection`
 
 Get currently selected GameObjects.
 
 | Argument | Type | Default | Description |
-|---|---|---|---|
+|----------|------|---------|-------------|
 | `--components` | flag | false | Include component lists |
 | `--children` | flag | false | Include child objects |
-### `unity-bridge refresh`
+
+```bash
+unity-bridge selection
+unity-bridge selection --components
+unity-bridge selection --children
+unity-bridge --human selection --components
+```
+
+### `refresh`
 
 Refresh the Unity asset database.
 
 | Argument | Type | Default | Description |
-|---|---|---|---|
+|----------|------|---------|-------------|
 | `--force` | flag | false | Force reimport all assets |
-### `unity-bridge focus`
 
-Frame a GameObject in the scene view.
+```bash
+unity-bridge refresh
+unity-bridge refresh --force
+```
+
+### `focus`
+
+Select and frame a GameObject in the scene view.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `OBJECT` | positional | yes | GameObject path |
-| `--no-frame` | flag | no | Select without framing |
-### `unity-bridge menu`
+|----------|------|----------|-------------|
+| `OBJECT_PATH` | positional | yes | GameObject path |
+| `--no-frame` | flag | false | Select without framing |
+
+```bash
+unity-bridge focus Player
+unity-bridge focus "Environment/Tree" --no-frame
+```
+
+### `menu`
 
 Execute any Unity Editor menu command.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `MENU_PATH` | positional | yes | Full menu path |
-| `--validate-only` | flag | no | Check existence without executing |
+| `--validate-only` | flag | false | Check existence without executing |
 
 ```bash
 unity-bridge menu "File/Save"
 unity-bridge menu "GameObject/Create Empty"
 unity-bridge menu "Assets/Refresh" --validate-only
 ```
-### `unity-bridge screenshot`
+
+### `screenshot`
 
 Capture the game view.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `OUTPUT_PATH` | positional | yes | Where to save the image |
-| `--camera` | string | no | Camera to capture from |
-| `--width` | int | no | Screenshot width |
-| `--height` | int | no | Screenshot height |
+| `--camera` | TEXT | `Main Camera` | Camera to capture from |
+| `--width` | INT | none | Screenshot width |
+| `--height` | INT | none | Screenshot height |
 
 ```bash
 unity-bridge screenshot screenshots/test.png
 unity-bridge screenshot output.png --width 1920 --height 1080
+unity-bridge screenshot debug.png --camera "Debug Camera"
+```
+
+### `profiler`
+
+Capture a performance profiler snapshot.
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--memory` | flag | false | Include memory profiling |
+| `--rendering` | flag | false | Include rendering stats |
+| `--cpu` | flag | false | Include CPU profiling |
+
+```bash
+unity-bridge profiler --memory --rendering
+unity-bridge profiler --cpu
+unity-bridge profiler --memory --rendering --cpu
 ```
 
 ---
 
 ## Asset Operations
 
-### `unity-bridge asset`
+### `asset`
 
-Basic asset database operations.
-
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `ACTION` |  | positional | yes | `find`, `query`, `import`, or `refresh` |
-| `--path` | `-p` | string | no | Asset path or search directory |
-| `--type` | `-t` | string | no | Asset type filter (`Prefab`, `Material`, `Scene`) |
-| `--pattern` |  | string | no | Search pattern |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `ACTION` | positional | yes | `find`, `query`, `import`, or `refresh` |
+| `--path` | TEXT | no | Asset path or search directory |
+| `--type` | TEXT | no | Asset type filter (`Prefab`, `Material`, `Scene`) |
+| `--pattern` | TEXT | no | Search pattern |
 
 ```bash
 unity-bridge asset find --type Prefab --pattern "Enemy*"
 unity-bridge asset query --path Assets/Materials/
+unity-bridge asset import --path Assets/Models/character.fbx
+unity-bridge asset refresh
 ```
 
 ---
 
-## Asset Extended Operations
+## Extended Asset Operations
 
-### `unity-bridge asset-ext create`
-
-Create a new asset at the specified path.
-
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `PATH` |  | positional | yes | Asset path (e.g. `Assets/Data/Config.asset`) |
-| `--type` | `-t` | string | yes | Asset type (ScriptableObject, Material, etc.) |
-
-```bash
-unity-bridge asset-ext create Assets/Data/Config.asset --type ScriptableObject
-```
-### `unity-bridge asset-ext delete`
-
-Delete an asset (permanently or to trash).
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `PATH` | positional (required) |  | Asset path to delete |
-| `--trash` | flag | false | Move to trash instead of permanent delete |
-
-```bash
-unity-bridge asset-ext delete Assets/Data/OldConfig.asset
-unity-bridge asset-ext delete Assets/Data/OldConfig.asset --trash
-```
-### `unity-bridge asset-ext copy`
-
-Copy an asset to a new path.
+### `asset-ext create`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `SOURCE` | positional | yes | Source asset path |
-| `DEST` | positional | yes | Destination asset path |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Asset path to create |
+| `--type` | TEXT | yes | Asset type to create |
 
 ```bash
-unity-bridge asset-ext copy Assets/Mats/Old.mat Assets/Mats/New.mat
+unity-bridge asset-ext create Assets/Scripts/NewScript.cs --type MonoScript
 ```
-### `unity-bridge asset-ext move`
 
-Move or rename an asset.
+### `asset-ext delete`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `SOURCE` | positional | yes | Source asset path |
-| `DEST` | positional | yes | Destination asset path |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Asset path to delete |
+| `--trash` | flag | no | Move to trash instead of permanent delete |
 
 ```bash
-unity-bridge asset-ext move Assets/Mats/Temp.mat Assets/Mats/Final.mat
+unity-bridge asset-ext delete Assets/Old/unused.mat
+unity-bridge asset-ext delete Assets/Old/unused.mat --trash
 ```
-### `unity-bridge asset-ext deps`
 
-List dependencies of an asset.
+### `asset-ext copy`
 
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `PATH` | positional (required) |  | Asset path to check |
-| `--recursive/--no-recursive` | bool | true | Include transitive dependencies |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `SOURCE` | positional | yes | Source asset path |
+| `DEST` | positional | yes | Destination path |
+
+```bash
+unity-bridge asset-ext copy Assets/Materials/Old.mat Assets/Materials/New.mat
+```
+
+### `asset-ext move`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `SOURCE` | positional | yes | Source asset path |
+| `DEST` | positional | yes | Destination path |
+
+```bash
+unity-bridge asset-ext move Assets/Old/script.cs Assets/New/script.cs
+```
+
+### `asset-ext deps`
+
+Get dependencies of an asset.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Asset path |
+| `--recursive/--no-recursive` | flag | false | Include transitive dependencies |
 
 ```bash
 unity-bridge asset-ext deps Assets/Prefabs/Player.prefab
-unity-bridge asset-ext deps Assets/Prefabs/Player.prefab --no-recursive
+unity-bridge asset-ext deps Assets/Prefabs/Player.prefab --recursive
 ```
-### `unity-bridge asset-ext guid`
 
-Convert between asset path and GUID.
+### `asset-ext guid`
+
+Get the GUID for an asset path, or resolve a GUID to a path.
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `INPUT` | positional | yes | Asset path or GUID to convert |
+|----------|------|----------|-------------|
+| `PATH_OR_GUID` | positional | yes | Asset path or GUID string |
 
 ```bash
-unity-bridge asset-ext guid Assets/Scripts/Player.cs
-unity-bridge asset-ext guid a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+unity-bridge asset-ext guid Assets/Prefabs/Player.prefab
+unity-bridge asset-ext guid a1b2c3d4e5f6...
 ```
-### `unity-bridge asset-ext folder-create`
 
-Create a folder in the Unity project.
+### `asset-ext folder-create`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `PATH` | positional | yes | Folder path to create |
 
 ```bash
-unity-bridge asset-ext folder-create Assets/Data/Configs
+unity-bridge asset-ext folder-create Assets/NewFeature
 ```
-### `unity-bridge asset-ext folder-list`
 
-List subfolders of a folder.
+### `asset-ext folder-list`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `PATH` | positional | yes | Folder path to list |
 
 ```bash
-unity-bridge asset-ext folder-list Assets/
+unity-bridge asset-ext folder-list Assets/Scripts
 ```
-### `unity-bridge asset-ext export`
 
-Export assets as a .unitypackage file.
+### `asset-ext export`
 
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `PATHS...` |  | positional | yes | Asset paths to export |
-| `--output` | `-o` | string | yes | Output .unitypackage path |
-| `--include-deps/--no-deps` |  | bool | default true | Include dependencies |
+Export assets to a Unity package.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PATHS` | positional (variadic) | yes | Asset paths to export |
+| `--output` | TEXT | yes | Output .unitypackage file path |
 
 ```bash
-unity-bridge asset-ext export Assets/Prefabs/ Assets/Materials/ --output export.unitypackage
-unity-bridge asset-ext export Assets/Scenes/Main.unity --output scene.unitypackage --no-deps
+unity-bridge asset-ext export Assets/Prefabs Assets/Materials --output mypackage.unitypackage
 ```
-### `unity-bridge asset-ext import-package`
 
-Import a .unitypackage file.
+### `asset-ext import-package`
 
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `PACKAGE` | positional (required) |  | Path to .unitypackage file |
-| `--interactive` | flag | false | Show import dialog |
+Import a Unity package.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `FILE` | positional | yes | .unitypackage file to import |
 
 ```bash
-unity-bridge asset-ext import-package export.unitypackage
-unity-bridge asset-ext import-package export.unitypackage --interactive
+unity-bridge asset-ext import-package mypackage.unitypackage
 ```
 
 ---
 
 ## Material Operations
 
-### `unity-bridge material`
-
-Material operations.
+### `material`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
+|----------|------|----------|-------------|
 | `ACTION` | positional | yes | `modify`, `create`, or `duplicate` |
 | `PATH` | positional | yes | Material asset path |
-| `--properties` | string | no | JSON properties to set |
+| `--properties` | JSON | no | JSON properties to set |
 
 ```bash
 unity-bridge material modify Assets/Materials/Player.mat --properties '{"_Color": {"r":1,"g":0,"b":0,"a":1}}'
+unity-bridge material create Assets/Materials/NewMat.mat
+unity-bridge material duplicate Assets/Materials/Old.mat
 ```
 
 ---
 
 ## Build Operations
 
-### `unity-bridge build`
+### `build`
 
-Build the Unity project for a target platform.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--target` | `-T` | string | required | Platform target |
-| `--validate-only` |  | flag | false | Validate without building |
-| `--output` | `-o` | string | none | Build output path |
-| `--dev` |  | flag | false | Development build |
-| `--timeout` |  | int | 600 | Build timeout |
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--target` | TEXT | none | Platform target |
+| `--validate-only` | flag | false | Validate without building |
+| `--output` | TEXT | none | Build output path |
+| `--dev` | flag | false | Development build |
+| `--timeout` | INT | 600 | Build timeout |
 
 **Targets:** `StandaloneWindows64`, `StandaloneWindows`, `StandaloneLinux64`, `StandaloneOSX`, `Android`, `iOS`, `WebGL`
 
@@ -728,542 +714,59 @@ unity-bridge build --target WebGL --validate-only
 
 ---
 
-## Build Profiles
-
-Requires Unity 6 or later.
-
-### `unity-bridge profile list`
-
-List all build profiles in the project. No arguments.
-
-### `unity-bridge profile active`
-
-Get the currently active build profile. No arguments.
-
-### `unity-bridge profile set`
-
-Set the active build profile.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `PATH` | positional | yes | Asset path to build profile |
-
-```bash
-unity-bridge profile set Assets/Settings/BuildProfiles/Android.asset
-```
-### `unity-bridge profile info`
-
-Get detailed info about a build profile.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `PATH` | positional | yes | Asset path to build profile |
-
-```bash
-unity-bridge profile info Assets/Settings/BuildProfiles/Android.asset
-```
-
----
-
 ## Animator Operations
 
-### `unity-bridge animator`
-
-Animator state and parameter operations.
+### `animator`
 
 | Argument | Type | Required | Description |
-|---|---|---|---|
-| `ACTION` | positional | yes | `get-state`, `set-state`, `get-params`, `set-param` |
-| `OBJECT` | positional | yes | GameObject with Animator |
-| `--state-name` | string | no | Animator state name (for set-state) |
-| `--param-name` | string | no | Parameter name (for set-param) |
-| `--param-value` | string | no | Parameter value (for set-param) |
-| `--layer` | int | no | Animator layer index |
+|----------|------|----------|-------------|
+| `ACTION` | positional | yes | Animator action |
+| `OBJECT_PATH` | positional | yes | GameObject with Animator |
+| `--state-name` | TEXT | no | Animator state name |
+| `--param-name` | TEXT | no | Parameter name |
+| `--param-value` | TEXT | no | Parameter value |
+| `--layer` | INT | 0 | Animator layer index |
 
 ```bash
 unity-bridge animator get-state Player
 unity-bridge animator set-param Player --param-name "Speed" --param-value 5.0
-unity-bridge animator get-params Player
-```
-
----
-
-## Player Settings
-
-### `unity-bridge settings get`
-
-Get player settings (all or a specific key).
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `KEY` | positional | no | Setting key (omit for all settings) |
-
-```bash
-unity-bridge settings get
-unity-bridge settings get companyName
-```
-### `unity-bridge settings set`
-
-Set a player setting value.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `KEY` | positional | yes | Setting key to modify |
-| `VALUE` | positional | yes | New value |
-
-```bash
-unity-bridge settings set companyName "MyStudio"
-unity-bridge settings set productName "MyGame"
-```
-### `unity-bridge settings defines`
-
-Manage scripting define symbols.
-
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `ACTION` |  | positional | yes | `list`, `add`, or `remove` |
-| `--symbol` | `-s` | string | for add/remove | Define symbol name |
-| `--platform` | `-p` | string | no | Target platform (default: active) |
-
-```bash
-unity-bridge settings defines list
-unity-bridge settings defines add --symbol ENABLE_DEBUG
-unity-bridge settings defines remove --symbol ENABLE_DEBUG
-unity-bridge settings defines list --platform Android
-```
-
----
-
-## Package Manager
-
-### `unity-bridge package list`
-
-List installed packages.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--offline` |  | flag | false | Use cached data only |
-| `--include-indirect` |  | flag | false | Include transitive dependencies |
-| `--source` | `-s` | string | none | Filter by source (registry, git, embedded, local) |
-
-```bash
-unity-bridge package list
-unity-bridge package list --source git
-unity-bridge package list --include-indirect
-```
-### `unity-bridge package search`
-
-Search for packages by ID/name.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `QUERY` | positional | yes | Package ID or name to search for |
-| `--all` | flag | no | List all available packages instead of searching |
-
-```bash
-unity-bridge package search "input system"
-unity-bridge package search textmeshpro
-unity-bridge package search unused --all
-```
-### `unity-bridge package add`
-
-Add a package by identifier.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `IDENTIFIER` | positional | yes | Package identifier (name@version or git URL) |
-
-```bash
-unity-bridge package add com.unity.inputsystem@1.7.0
-unity-bridge package add com.unity.textmeshpro
-unity-bridge package add https://github.com/user/repo.git
-```
-### `unity-bridge package remove`
-
-Remove a package.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Package name to remove |
-
-```bash
-unity-bridge package remove com.unity.textmeshpro
-```
-### `unity-bridge package info`
-
-Get detailed package information.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Package name to get info for |
-
-```bash
-unity-bridge package info com.unity.inputsystem
-```
-### `unity-bridge package embed`
-
-Embed a package into the Packages/ folder for local editing.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Package name to embed |
-
-```bash
-unity-bridge package embed com.unity.inputsystem
-```
-### `unity-bridge package resolve`
-
-Trigger package resolution. No arguments.
-
-
----
-
-## Compilation Pipeline
-
-### `unity-bridge compile assemblies`
-
-List all project assemblies with metadata. No arguments.
-
-
-```bash
-unity-bridge compile assemblies
-```
-### `unity-bridge compile defines`
-
-Get scripting defines for a named assembly.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `ASSEMBLY` | positional | yes | Assembly name (e.g. `Assembly-CSharp`) |
-
-```bash
-unity-bridge compile defines Assembly-CSharp
-unity-bridge compile defines Assembly-CSharp-Editor
-```
-### `unity-bridge compile which`
-
-Determine which assembly owns a script file.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `SCRIPT_PATH` | positional | yes | Script asset path |
-
-```bash
-unity-bridge compile which Assets/Scripts/Player.cs
-```
-### `unity-bridge compile optimization`
-
-Get or set the code optimization level.
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `--set` | string | none | Set optimization mode: `None`, `Debug`, or `Release` |
-
-```bash
-unity-bridge compile optimization
-unity-bridge compile optimization --set Debug
-unity-bridge compile optimization --set Release
-```
-
----
-
-## Undo System
-
-### `unity-bridge undo perform`
-
-Undo the last operation. No arguments.
-
-### `unity-bridge undo redo`
-
-Redo the last undone operation. No arguments.
-
-### `unity-bridge undo history`
-
-List recent undo operations (bridge-tracked only).
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--limit` | `-n` | int | 20 | Max history entries to return |
-
-```bash
-unity-bridge undo history
-unity-bridge undo history --limit 5
-```
-### `unity-bridge undo clear`
-
-Clear all undo history.
-
-
-**WARNING:** Clears ALL undo history, including non-bridge operations. This cannot be undone.
-### `unity-bridge undo group-name`
-
-Get the current undo group name. No arguments.
-
-### `unity-bridge undo collapse`
-
-Collapse undo operations from a group index into one undo step.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `GROUP_INDEX` |  | positional (int) | required | Undo group index to collapse from |
-| `--name` | `-n` | string | none | Optional name for the collapsed undo group |
-
-```bash
-unity-bridge undo collapse 5
-unity-bridge undo collapse 5 --name "Level setup"
-```
-
----
-
-## Shader Inspection
-
-All shader operations are read-only and safe for parallel batch execution.
-
-### `unity-bridge shader list`
-
-List all available shaders.
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `--errors-only` | flag | false | Only show shaders with compilation errors |
-
-```bash
-unity-bridge shader list
-unity-bridge shader list --errors-only
-```
-### `unity-bridge shader info`
-
-Get detailed info about a specific shader.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Full shader name |
-
-```bash
-unity-bridge shader info "Universal Render Pipeline/Lit"
-unity-bridge shader info "Custom/MyShader"
-```
-### `unity-bridge shader errors`
-
-Get compilation errors and warnings for a shader.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Full shader name |
-
-```bash
-unity-bridge shader errors "Custom/MyShader"
-```
-### `unity-bridge shader properties`
-
-Enumerate all properties of a shader.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Full shader name |
-
-```bash
-unity-bridge shader properties "Universal Render Pipeline/Lit"
-```
-### `unity-bridge shader find-by-property`
-
-Find all shaders that declare a given property.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `PROPERTY_NAME` | positional | yes | Shader property name (e.g. `_MainTex`) |
-
-```bash
-unity-bridge shader find-by-property "_MainTex"
-unity-bridge shader find-by-property "_BumpMap"
-```
-### `unity-bridge shader keywords`
-
-List shader keywords and variants.
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `NAME` | positional (required) |  | Full shader name |
-| `--filter` | string | none | `global` or `local` to filter keyword type |
-
-```bash
-unity-bridge shader keywords "Universal Render Pipeline/Lit"
-unity-bridge shader keywords "Custom/MyShader" --filter global
-```
-
----
-
-## Lightmap Operations
-
-### `unity-bridge lightmap bake`
-
-Start a lightmap bake.
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `--run-async/--no-run-async` | bool | true | Return immediately (async) or wait for completion (sync) |
-| `--timeout` | float | 30 async / 3600 sync | Timeout in seconds |
-
-```bash
-unity-bridge lightmap bake
-unity-bridge lightmap bake --no-run-async
-unity-bridge lightmap bake --no-run-async --timeout 7200
-```
-### `unity-bridge lightmap cancel`
-
-Cancel an in-progress lightmap bake. No arguments.
-
-### `unity-bridge lightmap clear`
-
-Clear all baked lightmap data from disk. No arguments.
-
-### `unity-bridge lightmap status`
-
-Get current lightmap bake status and progress. No arguments.
-
-### `unity-bridge lightmap settings`
-
-Get current lightmap settings (read-only). No arguments.
-
-
----
-
-## Import Settings
-
-### `unity-bridge import-settings get`
-
-Get current import settings for an asset.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `PATH` | positional | yes | Asset path (e.g. `Assets/Textures/Albedo.png`) |
-
-```bash
-unity-bridge import-settings get Assets/Textures/Albedo.png
-```
-### `unity-bridge import-settings set`
-
-Modify import settings and reimport.
-
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `PATH` |  | positional | yes | Asset path |
-| `--setting` | `-s` | repeatable | yes | Setting as `key:value` (repeatable) |
-
-```bash
-unity-bridge import-settings set Assets/Textures/Albedo.png -s maxTextureSize:2048
-unity-bridge import-settings set Assets/Textures/Albedo.png -s maxTextureSize:2048 -s filterMode:Bilinear
-```
-### `unity-bridge import-settings reimport`
-
-Reimport an asset with current settings.
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `PATH` | positional (required) |  | Asset path |
-| `--force` | flag | false | Force reimport even if unchanged |
-
-```bash
-unity-bridge import-settings reimport Assets/Textures/Albedo.png
-unity-bridge import-settings reimport Assets/Textures/Albedo.png --force
-```
-### `unity-bridge import-settings bulk-set`
-
-Bulk-modify import settings for all matching assets in a folder.
-
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `FOLDER` |  | positional | yes | Folder path |
-| `--setting` | `-s` | repeatable | yes | Setting as `key:value` (repeatable) |
-| `--filter` |  | string | no | Glob filter (e.g. `*.png`) |
-
-```bash
-unity-bridge import-settings bulk-set Assets/Textures/ -s maxTextureSize:1024 --filter "*.png"
-```
-### `unity-bridge import-settings template-save`
-
-Save current import settings of an asset as a named template.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Template name (alphanumeric, hyphens, underscores, max 64) |
-| `PATH` | positional | yes | Source asset path |
-
-```bash
-unity-bridge import-settings template-save mobile-texture Assets/Textures/Reference.png
-```
-### `unity-bridge import-settings template-apply`
-
-Apply a saved template to an asset.
-
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `NAME` | positional | yes | Template name |
-| `PATH` | positional | yes | Target asset path |
-
-```bash
-unity-bridge import-settings template-apply mobile-texture Assets/Textures/NewAsset.png
+unity-bridge animator set-state Player --state-name "Running"
+unity-bridge animator get-params Player --layer 1
 ```
 
 ---
 
 ## Workflow Commands
 
-### `unity-bridge tdd`
+### `tdd`
 
 Compound workflow: clear console -> compile -> run tests -> read console (on failure).
 
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--platform` | `-P` | string | `EditMode` | Test platform |
-| `--filter` | `-f` | string | none | Test filter |
-| `--strict` |  | flag | false | Treat warnings as failures |
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--platform` | TEXT | `EditMode` | Test platform |
+| `--filter` | TEXT | none | Test filter |
+| `--strict` | flag | false | Treat warnings as failures |
 
 ```bash
 unity-bridge tdd --filter CombatTests
 unity-bridge tdd --platform PlayMode --strict
+unity-bridge tdd --platform EditMode --filter InventoryTests
 ```
-### `unity-bridge test watch`
-
-Auto-rerun tests on .cs file changes. Requires `pip install unity-bridge[watch]`.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `--platform` | `-P` | string | `EditMode` | Test platform |
-| `--filter` | `-f` | string | none | Test filter |
-| `--path` |  | path | `Assets/` | Directory to watch |
-### `unity-bridge snapshot save`
-
-Capture scene hierarchy to a JSON file.
-
-| Argument | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `FILE` |  | positional | required | Output file path |
-| `--depth` | `-d` | int | 5 | Max hierarchy depth |
-| `--max-objects` |  | int | 1000 | Truncation limit |
-| `--root` | `-r` | string | none | Start from subtree |
-### `unity-bridge snapshot diff`
-
-Compare two snapshots. Returns added/removed/modified objects.
-
-| Argument | Type | Required |
-|---|---|---|
-| `FILE1` | positional | yes |
-| `FILE2` | positional | yes |
 
 ---
 
 ## Scripting
 
-### `unity-bridge script`
+### `script`
 
 Execute arbitrary C# expressions in Unity Editor.
 
-| Argument | Short | Type | Required | Description |
-|---|---|---|---|---|
-| `EXPRESSION` |  | positional | yes* | C# expression to evaluate |
-| `--file` | `-f` | path | no | Read expression from file |
-| `--timeout` |  | int | no (default 30) | Execution timeout |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `EXPRESSION` | positional | yes* | C# expression to evaluate |
+| `--file` | PATH | no | Read expression from file |
+| `--timeout` | INT | 30 | Execution timeout |
 
 *Required unless `--file` is provided.
 
@@ -1271,71 +774,99 @@ Execute arbitrary C# expressions in Unity Editor.
 unity-bridge script "EditorApplication.isPlaying"
 unity-bridge script "Selection.activeGameObject.name"
 unity-bridge script --file setup.cs
+unity-bridge script --file long_task.cs --timeout 120
 ```
 
 ---
 
 ## Diagnostics & Lifecycle
 
-### `unity-bridge status`
+### `status`
 
 Quick alive/dead check. Returns within 100ms. Exit code 0 if healthy, 2 if not.
 
-### `unity-bridge doctor`
+```bash
+unity-bridge status
+```
 
-Full diagnostic suite (9 checks): project structure, bridge installed, version compat, heartbeat, directory permissions, orphaned files, dependencies, Unity process, version.
+### `doctor`
 
-### `unity-bridge version`
+Full diagnostic suite: project structure, bridge installed, version compat,
+heartbeat, directory permissions, orphaned files, dependencies, Unity process, version.
+
+```bash
+unity-bridge doctor
+unity-bridge --human doctor
+```
+
+### `version`
 
 Show CLI version, C# bridge version, Python version, platform.
 
-### `unity-bridge install`
+```bash
+unity-bridge version
+```
+
+### `install`
 
 Install or update the C# bridge files into the Unity project.
 
 | Argument | Type | Description |
-|---|---|---|
-| `--project` | path | Explicit project path |
+|----------|------|-------------|
 | `--check` | flag | Report status without changes |
 | `--force` | flag | Force reinstall |
-### `unity-bridge init`
+
+```bash
+unity-bridge install
+unity-bridge install --check
+unity-bridge install --force
+```
+
+### `init`
 
 Create the `.claude/unity/` directory structure (commands/, responses/).
 
-### `unity-bridge clean`
+```bash
+unity-bridge init
+```
+
+### `clean`
 
 Remove orphaned command/response files.
 
 | Argument | Type | Default | Description |
-|---|---|---|---|
-| `--age` | int | 5 | Minutes threshold |
+|----------|------|---------|-------------|
+| `--age` | INT | 5 | Minutes threshold |
 | `--all` | flag | false | Remove all (alias for --age 0) |
 | `--dry-run` | flag | false | Show what would be deleted |
-### `unity-bridge profiler`
 
-Capture Unity profiler metrics.
-
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `--memory` | flag | false | Include memory statistics |
-| `--rendering` | flag | false | Include rendering statistics |
-| `--cpu` | flag | false | Include CPU statistics |
+```bash
+unity-bridge clean
+unity-bridge clean --dry-run
+unity-bridge clean --age 1
+unity-bridge clean --all
+```
 
 ---
 
 ## Batch & Serve
 
-### `unity-bridge batch`
+### `batch`
 
 Execute multiple commands from a JSON file.
 
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `FILE` | positional (required) |  | JSON file with commands array |
-| `--stop-on-error/--no-stop-on-error` | bool | true | Halt on first failure |
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `FILE` | positional | yes | JSON file with commands array |
+| `--stop-on-error` | flag | true | Halt on first failure |
 | `--parallel` | flag | false | Run read-only commands concurrently |
 
-**File format:**
+```bash
+unity-bridge batch commands.json
+unity-bridge batch commands.json --parallel
+```
+
+**Batch file format:**
 ```json
 {
   "commands": [
@@ -1345,56 +876,619 @@ Execute multiple commands from a JSON file.
   ]
 }
 ```
-### `unity-bridge serve`
 
-Start the MCP server for Claude Code integration. No arguments.
+### `serve`
 
+Start the MCP server for Claude Code integration.
+
+```bash
+unity-bridge serve
+```
+
+---
+
+## Compile Group
+
+Script compilation analysis commands. Note: to trigger compilation and wait,
+use `test compile`. This group is for inspecting assembly/define state.
+
+### `compile assemblies`
+
+List all assemblies in the project.
+
+```bash
+unity-bridge compile assemblies
+```
+
+### `compile defines`
+
+List scripting define symbols for an assembly.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `ASSEMBLY_NAME` | positional | yes | Assembly name |
+
+```bash
+unity-bridge compile defines Assembly-CSharp
+```
+
+### `compile which`
+
+Find which assembly a script belongs to.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `SCRIPT_PATH` | positional | yes | Script asset path |
+
+```bash
+unity-bridge compile which Assets/Scripts/Player.cs
+```
+
+### `compile optimization`
+
+Get or set the compilation optimization level.
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--set` | TEXT | none | Set level: `none`, `debug`, or `release` |
+
+```bash
+unity-bridge compile optimization
+unity-bridge compile optimization --set debug
+unity-bridge compile optimization --set release
+```
+
+---
+
+## Undo Group
+
+### `undo perform`
+
+Undo the last recorded action.
+
+```bash
+unity-bridge undo perform
+```
+
+### `undo redo`
+
+Redo the last undone action.
+
+```bash
+unity-bridge undo redo
+```
+
+### `undo history`
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--limit` | INT | none | Max number of entries |
+
+```bash
+unity-bridge undo history
+unity-bridge undo history --limit 10
+```
+
+### `undo clear`
+
+Clear the entire undo stack.
+
+```bash
+unity-bridge undo clear
+```
+
+### `undo group-name`
+
+Get the name of the current undo group.
+
+```bash
+unity-bridge undo group-name
+```
+
+### `undo collapse`
+
+Collapse undo operations into a single group.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `GROUP_INDEX` | positional | yes | Group index to collapse |
+| `--name` | TEXT | no | Name for the collapsed group |
+
+```bash
+unity-bridge undo collapse 0
+unity-bridge undo collapse 0 --name "Batch edit"
+```
+
+---
+
+## Settings Group
+
+### `settings get`
+
+Get editor settings. Optionally pass a specific key.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `KEY` | positional | no | Specific setting key (omit for all) |
+
+```bash
+unity-bridge settings get
+unity-bridge settings get "EditorSettings.serializationMode"
+```
+
+### `settings set`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `KEY` | positional | yes | Setting key |
+| `VALUE` | positional | yes | Setting value |
+
+```bash
+unity-bridge settings set "EditorSettings.serializationMode" "ForceText"
+```
+
+### `settings defines`
+
+Manage scripting define symbols.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `ACTION` | positional | yes | `list`, `add`, or `remove` |
+| `--symbol` | TEXT | no | Symbol name (required for add/remove) |
+| `--platform` | TEXT | no | Target platform |
+
+```bash
+unity-bridge settings defines list
+unity-bridge settings defines add --symbol ENABLE_LOGGING
+unity-bridge settings defines remove --symbol ENABLE_LOGGING
+```
+
+---
+
+## Profile Group
+
+### `profile list`
+
+List available quality profiles.
+
+```bash
+unity-bridge profile list
+```
+
+### `profile active`
+
+Get the currently active quality profile.
+
+```bash
+unity-bridge profile active
+```
+
+### `profile set`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PROFILE_PATH` | positional | yes | Profile asset path |
+
+```bash
+unity-bridge profile set "Assets/Settings/HighQuality.asset"
+```
+
+### `profile info`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PROFILE_PATH` | positional | yes | Profile asset path |
+
+```bash
+unity-bridge profile info "Assets/Settings/HighQuality.asset"
+```
+
+---
+
+## Package Group
+
+### `package list`
+
+List installed packages.
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--offline` | flag | false | Use cached data only |
+| `--include-indirect` | flag | false | Include transitive dependencies |
+| `--source` | TEXT | none | Filter by source |
+
+```bash
+unity-bridge package list
+unity-bridge package list --include-indirect
+unity-bridge package list --offline
+```
+
+### `package search`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `QUERY` | positional | yes | Search query |
+| `--all` | flag | false | Show all results |
+
+```bash
+unity-bridge package search "input system"
+unity-bridge package search cinemachine --all
+```
+
+### `package add`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `IDENTIFIER` | positional | yes | Package identifier (e.g., com.unity.inputsystem) |
+
+```bash
+unity-bridge package add com.unity.inputsystem
+unity-bridge package add com.unity.cinemachine@3.0.0
+```
+
+### `package remove`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Package name |
+
+```bash
+unity-bridge package remove com.unity.inputsystem
+```
+
+### `package info`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Package name |
+
+```bash
+unity-bridge package info com.unity.inputsystem
+```
+
+### `package embed`
+
+Embed a package into the project for local editing.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Package name |
+
+```bash
+unity-bridge package embed com.unity.inputsystem
+```
+
+### `package resolve`
+
+Force package resolution.
+
+```bash
+unity-bridge package resolve
+```
+
+---
+
+## Lightmap Group
+
+### `lightmap bake`
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--run-async/--no-run-async` | flag | false | Run bake asynchronously |
+| `--timeout` | FLOAT | none | Timeout in seconds |
+
+```bash
+unity-bridge lightmap bake
+unity-bridge lightmap bake --run-async
+unity-bridge lightmap bake --timeout 600
+```
+
+### `lightmap cancel`
+
+Cancel an in-progress lightmap bake.
+
+```bash
+unity-bridge lightmap cancel
+```
+
+### `lightmap clear`
+
+Clear baked lightmap data.
+
+```bash
+unity-bridge lightmap clear
+```
+
+### `lightmap status`
+
+Get the current lightmap bake status.
+
+```bash
+unity-bridge lightmap status
+```
+
+### `lightmap settings`
+
+Get current lightmap settings.
+
+```bash
+unity-bridge lightmap settings
+```
+
+---
+
+## Shader Group
+
+### `shader list`
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `--errors-only` | flag | false | Only show shaders with errors |
+
+```bash
+unity-bridge shader list
+unity-bridge shader list --errors-only
+```
+
+### `shader info`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Shader name |
+
+```bash
+unity-bridge shader info "Standard"
+unity-bridge shader info "Universal Render Pipeline/Lit"
+```
+
+### `shader errors`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Shader name |
+
+```bash
+unity-bridge shader errors "Custom/MyShader"
+```
+
+### `shader properties`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Shader name |
+
+```bash
+unity-bridge shader properties "Standard"
+```
+
+### `shader find-by-property`
+
+Find shaders that have a specific property.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PROPERTY_NAME` | positional | yes | Property name to search for |
+
+```bash
+unity-bridge shader find-by-property _MainTex
+unity-bridge shader find-by-property _Color
+```
+
+### `shader keywords`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Shader name |
+| `--global` | flag | false | Show global keywords |
+| `--local` | flag | false | Show local keywords |
+
+```bash
+unity-bridge shader keywords "Standard"
+unity-bridge shader keywords "Standard" --global
+unity-bridge shader keywords "Standard" --local
+```
+
+---
+
+## Scene Extensions Group
+
+### `scene-ext setup save`
+
+Save the current scene setup (loaded scenes, active scene) under a name.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Setup name |
+
+```bash
+unity-bridge scene-ext setup save "development"
+```
+
+### `scene-ext setup restore`
+
+Restore a previously saved scene setup.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Setup name |
+
+```bash
+unity-bridge scene-ext setup restore "development"
+```
+
+### `scene-ext setup list`
+
+List all saved scene setups.
+
+```bash
+unity-bridge scene-ext setup list
+```
+
+### `scene-ext play-start`
+
+Configure the play mode start scene.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `--set` | PATH | no | Scene path to use as play start |
+| `--clear` | flag | no | Clear the play start scene |
+
+```bash
+unity-bridge scene-ext play-start --set Assets/Scenes/Main.unity
+unity-bridge scene-ext play-start --clear
+```
+
+### `scene-ext cross-refs`
+
+Find cross-scene references.
+
+```bash
+unity-bridge scene-ext cross-refs
+```
+
+### `scene-ext list-loaded`
+
+List all currently loaded scenes.
+
+```bash
+unity-bridge scene-ext list-loaded
+```
+
+### `scene-ext preview-create`
+
+Create a preview scene.
+
+```bash
+unity-bridge scene-ext preview-create
+```
+
+### `scene-ext preview-close`
+
+Close a preview scene.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `HANDLE` | positional | yes | Preview scene handle |
+
+```bash
+unity-bridge scene-ext preview-close 12345
+```
+
+---
+
+## Import Settings Group
+
+### `import-settings get`
+
+Get import settings for an asset.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Asset path |
+
+```bash
+unity-bridge import-settings get Assets/Textures/icon.png
+unity-bridge import-settings get Assets/Models/character.fbx
+```
+
+### `import-settings set`
+
+Set import settings on an asset. Use `-s` / `--setting` (repeatable) for each setting.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Asset path |
+| `--setting` / `-s` | TEXT (repeatable) | yes | `KEY:VALUE` pairs |
+
+```bash
+unity-bridge import-settings set Assets/Textures/icon.png -s "maxTextureSize:512"
+unity-bridge import-settings set Assets/Textures/icon.png -s "maxTextureSize:512" -s "filterMode:Bilinear"
+```
+
+### `import-settings reimport`
+
+Force reimport an asset.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PATH` | positional | yes | Asset path |
+| `--force` | flag | no | Force reimport even if unchanged |
+
+```bash
+unity-bridge import-settings reimport Assets/Textures/icon.png
+unity-bridge import-settings reimport Assets/Textures/icon.png --force
+```
+
+### `import-settings bulk-set`
+
+Apply import settings to all matching assets in a folder.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `FOLDER` | positional | yes | Folder path |
+| `--setting` / `-s` | TEXT (repeatable) | yes | `KEY:VALUE` pairs |
+| `--filter` | TEXT | no | File filter pattern |
+
+```bash
+unity-bridge import-settings bulk-set Assets/Textures -s "maxTextureSize:256"
+unity-bridge import-settings bulk-set Assets/Textures -s "maxTextureSize:256" --filter "*.png"
+```
+
+### `import-settings template-save`
+
+Save current import settings as a reusable template.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Template name |
+| `PATH` | positional | yes | Source asset to capture settings from |
+
+```bash
+unity-bridge import-settings template-save "mobile-texture" Assets/Textures/icon.png
+```
+
+### `import-settings template-apply`
+
+Apply a saved template to an asset.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `NAME` | positional | yes | Template name |
+| `PATH` | positional | yes | Target asset path |
+
+```bash
+unity-bridge import-settings template-apply "mobile-texture" Assets/Textures/bg.png
+```
 
 ---
 
 ## Bridge Command Types
 
-For batch files and advanced use. Maps bridge command types to CLI equivalents.
+For batch files and advanced use, these are the bridge command type strings and
+their CLI equivalents:
 
-| Command Type | Default Timeout | CLI Equivalent |
-|---|---|---|
-| `run-tests` | 300s | `test run` |
-| `compile` | 120s | `test compile` |
-| `list-tests` | 30s | `test list` |
-| `query-hierarchy` | 10s | `hierarchy` |
-| `get-component-data` | 10s | `component get` |
-| `set-component-data` | 30s | `component set` |
-| `add-component` | 30s | `component add` |
-| `gameobject-utility` | 15s | `hierarchy missing-scripts/static-flags/set-layer/set-tag` |
-| `validate-prefab` | 30s | `prefab validate` |
-| `prefab-operation` | 30s | `prefab instantiate/destroy` |
-| `prefab-override` | 30s | `prefab overrides/status/find-instances/unpack` |
-| `scene-operation` | 30s | `scene load/save/create` |
-| `scene-setup-operation` | 30s | `scene-ext setup/play-start/cross-refs/list-loaded/preview` |
-| `playmode-control` | 10s | `playmode` |
-| `read-console` | 10s | `console read` |
-| `clear-console` | 5s | `console clear` |
-| `capture-screenshot` | 30s | `screenshot` |
-| `profiler-sample` | 30s | `profiler` |
-| `material-operation` | 30s | `material` |
-| `asset-operation` | 60s | `asset` |
-| `asset-extended-operation` | 60s | `asset-ext` |
-| `build-operation` | 600s | `build` |
-| `build-profile-operation` | 30s | `profile` |
-| `animator-operation` | 30s | `animator` |
-| `player-settings-operation` | 15s | `settings` |
-| `package-operation` | 60s | `package` |
-| `compilation-pipeline` | 15s | `compile` |
-| `undo-operation` | 5s | `undo` |
-| `shader-inspection` | 15s | `shader` |
-| `lightmap-operation` | 30s | `lightmap` |
-| `import-settings-operation` | 60s | `import-settings` |
-| `get-selection` | 5s | `selection` |
-| `refresh-assets` | 15s | `refresh` |
-| `focus-object` | 5s | `focus` |
-| `execute-menu-item` | 30s | `menu` |
-| `execute-script` | 30s | `script` |
-| `health-check` | 5s | `status` |
-
-**Parallel-safe commands** (can run concurrently in batch `--parallel` mode):
-`query-hierarchy`, `get-component-data`, `get-selection`, `read-console`, `validate-prefab`, `health-check`, `list-tests`, `shader-inspection`
+| Command Type | CLI Equivalent |
+|---|---|
+| `run-tests` | `test run` |
+| `compile` | `test compile` |
+| `query-hierarchy` | `hierarchy` |
+| `get-component-data` | `component get` |
+| `set-component-data` | `component set` |
+| `add-component` | `component add` |
+| `validate-prefab` | `prefab validate` |
+| `prefab-operation` | `prefab instantiate/destroy/...` |
+| `scene-operation` | `scene load/save/create` |
+| `playmode-control` | `playmode` |
+| `read-console` | `console read` |
+| `clear-console` | `console clear` |
+| `capture-screenshot` | `screenshot` |
+| `profiler-sample` | `profiler` |
+| `material-operation` | `material` |
+| `asset-operation` | `asset` |
+| `build-operation` | `build` |
+| `animator-operation` | `animator` |
+| `get-selection` | `selection` |
+| `refresh-assets` | `refresh` |
+| `focus-object` | `focus` |
+| `execute-menu-item` | `menu` |
+| `execute-script` | `script` |
