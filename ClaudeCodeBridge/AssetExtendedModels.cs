@@ -26,6 +26,11 @@ namespace BWS.Editor.ClaudeCodeBridge
         public bool includeDependencies = true;
         public bool interactive = false;
         public string packagePath;         // For import-package
+        public int renderTextureWidth;     // For RenderTexture creation
+        public int renderTextureHeight;    // For RenderTexture creation
+        public int renderTextureDepth;     // For RenderTexture creation
+        public string initialContent;      // For text-based asset creation
+        public string reserializeMode;     // For reserialize: "assets", "metadata", or null
     }
 
     /// <summary>

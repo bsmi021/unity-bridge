@@ -231,11 +231,13 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             mode = default;
             var lower = name.ToLower();
-            foreach (var cm in SceneView.GetBuiltinCameraModes())
+
+            // Enumerate DrawCameraMode values and use the static singular method
+            foreach (DrawCameraMode drawMode in Enum.GetValues(typeof(DrawCameraMode)))
             {
-                if (cm.drawMode.ToString().ToLower() == lower)
+                if (drawMode.ToString().ToLower() == lower)
                 {
-                    mode = cm;
+                    mode = SceneView.GetBuiltinCameraMode(drawMode);
                     return true;
                 }
             }
