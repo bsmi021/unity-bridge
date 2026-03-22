@@ -204,7 +204,6 @@ namespace BWS.Editor.ClaudeCodeBridge
                     presetPath = path,
                     targetType = preset.GetTargetFullTypeName(),
                 });
-                }
             }
 
             var result = new PresetOperationResult
