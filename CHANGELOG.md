@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Restructured `unity-bridge-cli` skill from 611-line monolith to progressive disclosure pattern (301-line SKILL.md + 7 domain reference files)
+- Added `allowed-tools` frontmatter to restrict skill to CLI commands and file reading
+- Added decision tree and quick-scan sections to SKILL.md for faster command discovery
+- Updated skill description with Phase 6 trigger words (navmesh, terrain, tilemap, addressables, etc.)
+- Created domain reference files: scene-commands, component-commands, asset-commands, build-commands, settings-commands, specialized-commands, tools-commands
+- Added Phase 6 commands (not yet registered in CLI) to reference files: navmesh, animation, terrain, tilemap, addressables, reflection-probes, occlusion, time, graphics, environment, audio, scene-view, game-view, profiler controls, clipboard, presets, scene-templates, script-info, deep-serialize, window, input-system, execution-order, assembly-lock, find-references, component copy/paste/reset, material keywords
+
 ### Added
 - Phase 4 Misc: 8 expanded capabilities covering remaining miscellaneous gaps
 - Expanded `CreateAssetByType`: PhysicsMaterial, PhysicsMaterial2D, AnimationClip, RenderTexture, TextAsset, Shader, asmdef, asmref, custom ScriptableObject subtypes
