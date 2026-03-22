@@ -54,9 +54,25 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string applicationIdentifier;
         public bool defaultIsFullScreen;
         public bool runInBackground;
+        public int defaultScreenWidth;
+        public int defaultScreenHeight;
+        public string fullScreenMode;
+        public string colorSpace;
+        public bool gpuSkinning;
         public string apiCompatibilityLevel;
         public string scriptingBackend;
+        public bool allowUnsafeCode;
+        public string il2CppCompilerConfiguration;
+        public bool showSplashScreen;
+        public bool incrementalGC;
+        public string androidMinSdkVersion;
+        public string androidTargetSdkVersion;
         public string targetArchitecture;
+        public string cameraUsageDescription;
+        public string locationUsageDescription;
+        public string iOSTargetDevice;
+        public int webGLMemorySize;
+        public string webGLCompressionFormat;
     }
 
     #endregion

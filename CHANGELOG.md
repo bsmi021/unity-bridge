@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Added missing fields to `AssetExtendedOperationParams` model (`renderTextureWidth`, `renderTextureHeight`, `renderTextureDepth`, `initialContent`, `reserializeMode`)
+- Added missing `using System.Collections.Generic` to `AssetExtendedHelpers.cs`
+- Added 16 missing fields to `PlayerSettingsData` model to match `PlayerSettingsHelpers.BuildSettingsSnapshot()`
+- Added missing `using UnityEditor.Build` to `PlayerSettingsHelpers.cs` for `NamedBuildTarget`
+- Replaced non-existent `SceneView.GetBuiltinCameraModes()` with `SceneView.GetBuiltinCameraMode(DrawCameraMode)` in `SceneViewCommandHandler.cs`
+
 ### Changed
 - Restructured `unity-bridge-cli` skill from 611-line monolith to progressive disclosure pattern (301-line SKILL.md + 7 domain reference files)
 - Added `allowed-tools` frontmatter to restrict skill to CLI commands and file reading
