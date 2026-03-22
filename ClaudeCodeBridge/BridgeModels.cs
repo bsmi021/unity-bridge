@@ -452,10 +452,37 @@ namespace BWS.Editor.ClaudeCodeBridge
     [Serializable]
     public class BuildOperationParams
     {
-        public string operation; // "build", "get-settings", "validate", "get-target"
+        public string operation; // "build", "get-settings", "validate", "get-target", "switch-platform", "list-platforms"
         public string target; // "StandaloneWindows64", "Android", etc.
         public string outputPath; // Build output path
         public bool development = false; // Development build flag
+        public bool autoRunPlayer = false;
+        public bool connectProfiler = false;
+        public bool allowDebugging = false;
+        public bool cleanBuildCache = false;
+        public bool detailedBuildReport = false;
+        public bool buildScriptsOnly = false;
+        public string compress; // "lz4", "lz4hc", or null
+        public string scenes; // Comma-separated scene paths
+        public string subtarget; // "Server", "Player"
+    }
+
+    [Serializable]
+    public class PlatformListResult
+    {
+        public string operation;
+        public string activePlatform;
+        public bool success;
+        public string message;
+        public List<PlatformInfo> platforms = new List<PlatformInfo>();
+    }
+
+    [Serializable]
+    public class PlatformInfo
+    {
+        public string name;
+        public bool isSupported;
+        public bool isActive;
     }
 
     /// <summary>

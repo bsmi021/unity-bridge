@@ -189,24 +189,21 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private BridgeResponse HandleListDefaults(BridgeCommand command)
         {
-            var defaults = Preset.GetAllDefaultTypes();
+            // Find all Preset assets in the project
+            var guids = AssetDatabase.FindAssets("t:Preset");
             var items = new List<PresetDefaultInfo>();
 
-            foreach (var dt in defaults)
+            foreach (var guid in guids)
             {
-                var defaultPresets = dt.presetInstances;
-                if (defaultPresets == null || defaultPresets.Length == 0)
-                    continue;
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var preset = AssetDatabase.LoadAssetAtPath<Preset>(path);
+                if (preset == null) continue;
 
-                foreach (var preset in defaultPresets)
+                items.Add(new PresetDefaultInfo
                 {
-                    if (preset == null) continue;
-                    var path = AssetDatabase.GetAssetPath(preset);
-                    items.Add(new PresetDefaultInfo
-                    {
-                        presetPath = path,
-                        targetType = preset.GetTargetFullTypeName(),
-                    });
+                    presetPath = path,
+                    targetType = preset.GetTargetFullTypeName(),
+                });
                 }
             }
 
