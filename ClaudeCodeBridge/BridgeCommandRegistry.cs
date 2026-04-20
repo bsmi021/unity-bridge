@@ -71,6 +71,52 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new ComponentToggleCommandHandler());
             registerHandler(new ConsoleLogCommandHandler());
 
+            // Phase 4 expansion: Build, Platform, Pipeline
+            registerHandler(new ScriptExecutionOrderCommandHandler());
+            registerHandler(new AssemblyReloadLockCommandHandler());
+            registerHandler(new FindReferencesCommandHandler());
+
+            // Phase 4 expansion: Specialized Workflow Gaps
+            registerHandler(new NavMeshCommandHandler());
+            registerHandler(new AnimationClipCommandHandler());
+            registerHandler(new TerrainCommandHandler());
+            registerHandler(new ReflectionProbeCommandHandler());
+            registerHandler(new OcclusionCullingCommandHandler());
+
+            // Phase 6a: Settings expansion
+            registerHandler(new TimeSettingsCommandHandler());
+            registerHandler(new GraphicsSettingsCommandHandler());
+            registerHandler(new EnvironmentSettingsCommandHandler());
+            registerHandler(new AudioSettingsCommandHandler());
+
+            // Phase 6b: Scene / Material / Component / Inspector gaps
+            registerHandler(new ComponentCopyCommandHandler());
+            registerHandler(new ComponentResetCommandHandler());
+            registerHandler(new SceneViewCommandHandler());
+            registerHandler(new GameViewCommandHandler());
+            registerHandler(new ProfilerControlCommandHandler());
+
+            // Phase 6c: Addressables & Tilemap
+            registerHandler(new AddressablesCommandHandler());
+            registerHandler(new TilemapCommandHandler());
+
+            // Phase 6d: Input System authoring
+            registerHandler(new InputSystemCommandHandler());
+
+            // Phase 6e: Misc authoring tools
+            registerHandler(new ClipboardCommandHandler());
+            registerHandler(new PresetCommandHandler());
+            registerHandler(new SceneTemplateCommandHandler());
+            registerHandler(new MonoScriptCommandHandler());
+            registerHandler(new DeepSerializeCommandHandler());
+            registerHandler(new WindowCommandHandler());
+
+            // Core handlers registered previously as "disabled pending Unity import"
+            // (m3 from gap-analysis-report) — now enabled.
+            registerHandler(new CaptureScreenshotCommandHandler());
+            registerHandler(new PlayModeControlCommandHandler());
+            registerHandler(new AssetOperationCommandHandler());
+
             // Original handlers (split into partial classes during LOC refactor)
             registerHandler(new AnimatorOperationCommandHandler());
             registerHandler(new MaterialOperationCommandHandler());
