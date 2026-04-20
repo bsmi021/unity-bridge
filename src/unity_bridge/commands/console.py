@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import signal
 import sys
-import time
 from typing import Annotated
 
 import typer
@@ -98,9 +97,6 @@ async def console_watch(
         poll_interval: Seconds between polls.
         timeout: Per-poll timeout in seconds.
     """
-    from unity_bridge.core.output import print_result, OutputFormatter
-
-    formatter = OutputFormatter(format="json", color=True)
     seen_count = 0
 
     while True:

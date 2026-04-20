@@ -582,6 +582,29 @@ unity-bridge snapshot save after.json --depth 5
 unity-bridge snapshot diff before.json after.json
 ```
 
+### Extended Command Groups (Phase 4-6)
+
+Beyond the core groups above, the CLI exposes ~40 additional command groups covering the rest of the Unity Editor surface. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
+
+**Selection & editor state:** `select`, `prefs`, `editor-config`, `window`
+**Transform & object manipulation:** `transform`, `property`, `hierarchy-ext`, `component-ext`
+**Physics / quality / rendering:** `physics`, `quality`, `graphics-settings`, `environment-settings`, `reflection-probe`, `occlusion`
+**Project settings (domain-specific):** `time-settings`, `audio-settings`, `input-system`, `tags`, `layers`, `sorting-layers`
+**Build pipeline:** `build-scenes`, `script-execution-order`, `assembly-lock`
+**Scene & asset tooling:** `scene-view`, `game-view`, `scene-template`, `clipboard`, `preset`, `deep-serialize`, `script-info`, `find-references`, `addressables`
+**Graphics & geometry:** `navmesh`, `animation`, `terrain`, `tilemap`
+**Component lifecycle extensions:** `component-copy`, `component-reset`, `component-toggle`, `remove-component`
+**Profiling & diagnostics:** `profiler`, `console-log`
+
+```bash
+# Example: list all groups
+unity-bridge --help
+
+# Example: explore a specific group
+unity-bridge navmesh --help
+unity-bridge preset --help
+```
+
 ## Environment Variables
 
 | Variable | Purpose |
@@ -644,7 +667,7 @@ unity-bridge/
 ├── src/unity_bridge/
 │   ├── app.py               # Typer entry point, AppState, global flags
 │   ├── core/                # Shared modules (bridge, config, health, cache, retry, output)
-│   ├── commands/            # 27 command modules (one per domain)
+│   ├── commands/            # ~60 command modules (one per domain)
 │   └── mcp/                 # MCP server layer (server, tools, schemas)
 ├── ClaudeCodeBridge/        # C# Editor scripts installed into Unity
 ├── tests/                   # pytest suite (unit + integration)

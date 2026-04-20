@@ -7,7 +7,6 @@ Following TDD Red-Green-Refactor methodology.
 
 import pytest
 import json
-import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any

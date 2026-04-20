@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
 
@@ -113,10 +111,8 @@ class TestCommandSerialization:
             with patch.object(bridge, "_health_monitor", None):
                 await bridge.send_command("test-cmd", {"key": "value"}, timeout=5.0)
 
-        # Find the written command file
-        cmd_files = list(bridge.commands_path.glob("*-test-cmd.json"))
-        # File may have been deleted after response — check was written via mock
-        # The important thing is no exception was raised.
+        # The important thing is no exception was raised; file may have been
+        # deleted after the mocked response.
 
     async def test_command_type_in_filename(self, fake_project: Path) -> None:
         bridge = DirectBridge(fake_project)

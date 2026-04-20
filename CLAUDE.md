@@ -76,7 +76,7 @@ unity-bridge/
 │   │   ├── protocol.py        # Timeout defaults, parallel-safe commands
 │   │   ├── project.py         # Unity project auto-detection
 │   │   └── output.py          # OutputFormatter (json/pretty/human)
-│   ├── commands/              # 33+ command modules (one per domain)
+│   ├── commands/              # ~60 command modules (one per domain)
 │   │   ├── hierarchy.py       # hierarchy + component groups
 │   │   ├── workflow.py        # workflow + snapshot groups
 │   │   ├── settings.py        # Phase 1: PlayerSettings
@@ -89,7 +89,9 @@ unity-bridge/
 │   │   ├── shader.py          # Phase 3: shader inspection
 │   │   ├── scene_setup.py     # Phase 3: multi-scene setups
 │   │   ├── import_settings.py # Phase 3: asset import templates
-│   │   └── ...                # animator, asset, batch, build, console, etc.
+│   │   ├── navmesh.py         # Phase 4-ext: NavMesh bake/query
+│   │   ├── preset.py          # Phase 6: Unity Preset asset API
+│   │   └── ...                # animator, asset, batch, build, console, addressables, terrain, tilemap, profiler, etc.
 │   └── mcp/                   # MCP server layer
 │       ├── server.py          # MCP server using shared core functions
 │       ├── tools.py           # Tool definitions + dispatch map (48 MCP tools)
@@ -97,7 +99,7 @@ unity-bridge/
 │       ├── schemas_ext.py     # Schemas for Phase 1+2 tools (11 tools)
 │       ├── schemas_phase3.py  # Schemas for Phase 3 tools (4 tools)
 │       └── schemas_phase4.py  # Schemas for Phase 4 tools (9 tools)
-├── ClaudeCodeBridge/          # C# scripts installed into Unity Editor (60+ files)
+├── ClaudeCodeBridge/          # C# scripts installed into Unity Editor (100+ files)
 │   ├── ClaudeUnityBridge.cs   # Main bridge loop (EditorApplication.update)
 │   ├── BridgeCommandRegistry.cs # Command handler registration
 │   ├── BridgeModels.cs        # Core request/response models
@@ -151,6 +153,9 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 **Phase 2:** compile, undo (+ prefab overrides/gameobject-utility subcommands)
 **Phase 3:** import-settings, lightmap, scene-ext, shader
 **Phase 4:** select, prefs, build-scenes, transform, property, physics, quality, tags, layers, sorting-layers, editor-config
+**Phase 4 expansion:** navmesh, animation-clip, terrain, reflection-probe, occlusion, script-execution-order, assembly-reload-lock, find-references
+**Phase 5 (quick wins):** remove-component, component-toggle, console-log
+**Phase 6 / 6b:** component-copy, component-reset, scene-view, game-view, profiler-control, preset, clipboard, deep-serialize, scene-template, tilemap, input-system, audio-settings, environment-settings, graphics-settings, time-settings, window, script-info, addressables
 
 ## C# Bridge Installation
 
@@ -209,13 +214,15 @@ def do_thing_cli(ctx: typer.Context, ...) -> None:
 
 ### MCP Schema Split
 
-Schemas are split across 4 files to stay under the 500 LOC limit:
-- `schemas.py` — 24 core tool schemas (original tools)
-- `schemas_ext.py` — 11 schemas: 9 Phase 1+2 tools + `batch` + `help`
-- `schemas_phase3.py` — 4 Phase 3 tool schemas (lightmap, shader, scene-extended, import-settings)
-- `schemas_phase4.py` — 9 Phase 4 tool schemas (selection, prefs, build-scenes, transform, property, physics, quality, tags-layers, editor-config)
+Schemas are split across multiple files to stay under the 500 LOC limit:
+- `schemas.py` / `schemas_ext.py` — original + Phase 1+2 core tools (all declare `timeout`)
+- `schemas_phase3.py` — Phase 3 (lightmap, shader, scene-extended, import-settings)
+- `schemas_phase4.py` / `schemas_phase4_ext.py` / `schemas_phase4_misc.py` — Phase 4 core + specialized workflow gaps (navmesh, animation-clip, terrain, reflection-probe, occlusion)
+- `schemas_phase5.py` — Quick wins (remove-component, component-toggle, console-log)
+- `schemas_phase6.py` / `schemas_phase6b.py` — Component/Scene/Inspector gaps (component-copy, component-reset, scene-view, game-view, profiler-control)
+- `schemas_pipeline.py` — Build/platform/pipeline (script-execution-order, assembly-reload-lock, find-references)
 
-Total: 48 MCP tools defined in `mcp/tools.py` TOOL_DEFINITIONS list, 44 mapped to bridge commands via TOOL_COMMAND_MAP (4 are client-side: `unity_bridge_config`, `unity_health_check`, `unity_batch`, `unity_help`).
+Tool definitions live in `mcp/tools.py` (`TOOL_COMMAND_MAP` + `TOOL_DEFINITIONS`) plus `mcp/tools_ext.py` (Phase 4 expansion via `get_tool_definitions()`). Client-side-only tools: `unity_bridge_config`, `unity_health_check`, `unity_batch`, `unity_help`.
 
 ## Testing
 

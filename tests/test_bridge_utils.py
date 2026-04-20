@@ -6,16 +6,12 @@ and orphaned file cleanup.
 Following TDD Red-Green-Refactor methodology.
 """
 
-import pytest
 import json
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 import sys
 import os
-import tempfile
-import shutil
 
 # Add scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
@@ -24,8 +20,6 @@ from bridge_utils import (
     _check_heartbeat,
     test_unity_bridge_ready,
     clear_orphaned_bridge_files,
-    get_commands_path,
-    get_responses_path,
 )
 
 

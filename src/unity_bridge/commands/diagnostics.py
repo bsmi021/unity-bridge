@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import importlib
 import os
-import platform
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass

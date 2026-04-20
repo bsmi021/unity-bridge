@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from unittest.mock import AsyncMock
 
@@ -12,7 +11,6 @@ from unity_bridge.core.retry import (
     RetryConfig,
     is_retryable_error,
     retry_async,
-    RETRYABLE_ERROR_PATTERNS,
 )
 
 

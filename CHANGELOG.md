@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Added `timeout` property to 21 core MCP schemas in `schemas.py` (previously only `run_tests`, `build_operation`, `compile_scripts` declared it) so LLM clients can discover per-tool timeout overrides
+- Cleared all ruff lint errors across `src/` and `tests/` (unused imports, dead variables, lambda-to-def)
+- Deleted stale root-level tests `tests/test_response_cache.py` and `tests/test_retry_handler.py` — superseded by `tests/unit/test_cache.py` and `tests/unit/test_retry.py` with correct module imports
 - Added missing fields to `AssetExtendedOperationParams` model (`renderTextureWidth`, `renderTextureHeight`, `renderTextureDepth`, `initialContent`, `reserializeMode`)
 - Added missing `using System.Collections.Generic` to `AssetExtendedHelpers.cs`
 - Added 16 missing fields to `PlayerSettingsData` model to match `PlayerSettingsHelpers.BuildSettingsSnapshot()`
@@ -15,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced non-existent `SceneView.GetBuiltinCameraModes()` with `SceneView.GetBuiltinCameraMode(DrawCameraMode)` in `SceneViewCommandHandler.cs`
 
 ### Changed
+- Gitignored per-session artifacts (`.summaries/`, `logs/`, `.claude/settings.local.json`) so local state no longer shows up as untracked in `git status`
+- Refreshed `CLAUDE.md` and `README.md` with current module counts, Phase 4-6 command groups, and the expanded MCP schema file layout
 - Restructured `unity-bridge-cli` skill from 611-line monolith to progressive disclosure pattern (301-line SKILL.md + 7 domain reference files)
 - Added `allowed-tools` frontmatter to restrict skill to CLI commands and file reading
 - Added decision tree and quick-scan sections to SKILL.md for faster command discovery
