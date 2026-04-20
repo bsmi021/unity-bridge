@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from unity_bridge.core.bridge import CommandResult
 

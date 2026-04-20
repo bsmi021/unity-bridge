@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
 
-import pytest
 
 from unity_bridge.core.cache import CacheEntry, ResponseCache, get_cache
 

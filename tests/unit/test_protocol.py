@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from unity_bridge.core.protocol import (
     TIMEOUT_DEFAULTS,

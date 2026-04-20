@@ -9,7 +9,6 @@ Following TDD Red-Green-Refactor methodology.
 import pytest
 import asyncio
 from pathlib import Path
-from typing import Dict, Any
 
 
 # Import modules - will fail initially (RED phase)

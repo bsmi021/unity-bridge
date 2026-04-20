@@ -112,7 +112,10 @@ class TestFormatterMethods:
 
     def test_success_with_human_formatter(self) -> None:
         fmt = OutputFormatter(format="human")
-        custom_fn = lambda data, color: f"Found {data['count']} items"
+
+        def custom_fn(data, color):
+            return f"Found {data['count']} items"
+
         output = fmt.success({"count": 3}, human_formatter=custom_fn)
         assert "3" in output
 

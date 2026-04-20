@@ -7,7 +7,6 @@ to work from WSL2/Linux.
 
 import pytest
 import json
-import re
 from pathlib import Path
 import sys
 
@@ -62,7 +61,6 @@ class TestInvokeCommandWithoutDirectBridge:
     async def test_returns_error_without_direct_bridge(self):
         """invoke_unity_command returns error when DirectBridge unavailable."""
         # Import with DirectBridge forced unavailable
-        import importlib
         import unity_bridge_mcp_server as server_module
 
         original = server_module._DIRECT_BRIDGE_AVAILABLE

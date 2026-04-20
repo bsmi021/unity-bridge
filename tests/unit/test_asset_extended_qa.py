@@ -62,6 +62,7 @@ class TestValidOperations:
             "folder-list",
             "export",
             "import-package",
+            "reserialize",
         }
         assert VALID_OPERATIONS == expected
 
@@ -80,6 +81,7 @@ class TestValidOperations:
             "folder-create",
             "export",
             "import-package",
+            "reserialize",
         }
         assert MUTATING_OPERATIONS == expected_mutating
 

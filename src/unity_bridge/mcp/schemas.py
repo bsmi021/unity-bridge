@@ -51,6 +51,10 @@ def query_hierarchy() -> dict[str, Any]:
                 "type": "string",
                 "description": "Optional root GameObject path to start from",
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
     }
 
@@ -65,6 +69,10 @@ def get_component_data() -> dict[str, Any]:
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Optional field names to retrieve",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
         "required": ["gameObjectPath", "componentType"],
@@ -89,6 +97,10 @@ def set_component_data() -> dict[str, Any]:
                 },
                 "description": "List of field updates with JSON-encoded values",
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["gameObjectPath", "componentType", "fieldUpdates"],
     }
@@ -102,6 +114,10 @@ def add_component() -> dict[str, Any]:
             "componentType": {
                 "type": "string",
                 "description": "Fully qualified component type to add",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
         "required": ["gameObjectPath", "componentType"],
@@ -117,6 +133,10 @@ def validate_prefab() -> dict[str, Any]:
                 "type": "boolean",
                 "description": "Check for missing or null references",
                 "default": True,
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
         "required": ["prefabPath"],
@@ -137,6 +157,10 @@ def scene_operation() -> dict[str, Any]:
                 "type": "boolean",
                 "description": "Save current scene before loading new one",
                 "default": False,
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
         "required": ["operation"],
@@ -163,6 +187,10 @@ def prefab_operation() -> dict[str, Any]:
                 },
                 "description": "Position for instantiated prefab",
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["operation"],
     }
@@ -176,6 +204,10 @@ def playmode_control() -> dict[str, Any]:
                 "type": "string",
                 "enum": ["play", "pause", "stop"],
                 "description": "Play mode operation",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
         "required": ["operation"],
@@ -215,6 +247,10 @@ def read_console() -> dict[str, Any]:
                 "description": "Max characters for message text (0=unlimited)",
                 "default": 500,
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
     }
 
@@ -234,6 +270,10 @@ def capture_screenshot() -> dict[str, Any]:
                 "description": "Screenshot resolution",
             },
             "outputPath": {"type": "string", "description": "Screenshot output path"},
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["outputPath"],
     }
@@ -258,6 +298,10 @@ def profiler_sample() -> dict[str, Any]:
                 "description": "Include CPU timing statistics",
                 "default": False,
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
     }
 
@@ -280,6 +324,10 @@ def material_operation() -> dict[str, Any]:
                 },
                 "description": "Material properties to modify",
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["operation", "materialPath"],
     }
@@ -297,6 +345,10 @@ def asset_operation() -> dict[str, Any]:
             "assetPath": {"type": "string", "description": "Asset path or search directory"},
             "assetType": {"type": "string", "description": "Asset type filter"},
             "searchPattern": {"type": "string", "description": "Search pattern for finding assets"},
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["operation"],
     }
@@ -351,6 +403,10 @@ def animator_operation() -> dict[str, Any]:
             "parameterName": {"type": "string", "description": "Animator parameter name"},
             "parameterValue": {"description": "Parameter value (type depends on parameter type)"},
             "layerIndex": {"type": "integer", "description": "Animator layer index", "default": 0},
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["operation", "gameObjectPath"],
     }
@@ -367,13 +423,22 @@ def bridge_config() -> dict[str, Any]:
                 "description": "Configuration operation",
             },
             "log_level": {"type": "string", "enum": _levels, "description": "Logging level to set"},
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["operation"],
     }
 
 
 def clear_console() -> dict[str, Any]:
-    return {"type": "object", "properties": {}, "required": []}
+    return {"type": "object", "properties": {
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
+        }, "required": []}
 
 
 def get_selection() -> dict[str, Any]:
@@ -390,6 +455,10 @@ def get_selection() -> dict[str, Any]:
                 "description": "Include child objects in selection",
                 "default": False,
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
     }
 
@@ -402,6 +471,10 @@ def refresh_assets() -> dict[str, Any]:
                 "type": "boolean",
                 "description": "Force reimport even if assets appear unchanged",
                 "default": False,
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
     }
@@ -417,6 +490,10 @@ def focus_object() -> dict[str, Any]:
                 "description": "Frame the object (zoom to fit)",
                 "default": True,
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+            },
         },
         "required": ["gameObjectPath"],
     }
@@ -430,6 +507,10 @@ def health_check() -> dict[str, Any]:
                 "type": "boolean",
                 "description": "Wait for Unity to become healthy (up to 30s)",
                 "default": False,
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
     }
@@ -465,6 +546,10 @@ def execute_menu_item() -> dict[str, Any]:
                 "type": "boolean",
                 "description": "Check if menu item exists without executing",
                 "default": False,
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
             },
         },
         "required": ["menuPath"],
