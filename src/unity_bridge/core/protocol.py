@@ -91,6 +91,11 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "deep-serialize": 10,
     "window-management": 5,
     "input-system": 15,
+    # Phase 7a: Query & Report
+    "sync-solution": 30,
+    "cloud-services": 10,
+    "physics2d-config": 10,
+    "search-query": 30,
 }
 
 # Commands that are safe for parallel execution in batch mode.
@@ -113,6 +118,8 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "deep-serialize",  # get operation is read-only
     "window-management",  # list operation is read-only
     "input-system",  # list-actions/get-action-map/export are read-only
+    "cloud-services",  # all ops are read-only
+    "search-query",  # query/providers are read-only
 }
 
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.

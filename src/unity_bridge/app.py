@@ -236,6 +236,12 @@ def _register_optional_commands() -> None:
     _try_register_group("unity_bridge.commands.tags_layers", "sorting_layers_app", "sorting-layers")
     _try_register_group("unity_bridge.commands.editor_config", "editor_config_app", "editor-config")
 
+    # Phase 7a: Query & Report
+    _try_register_command("unity_bridge.commands.sync_solution", "sync_solution_cli", "sync-solution")
+    _try_register_group("unity_bridge.commands.cloud_services", "cloud_app", "cloud")
+    _try_register_group("unity_bridge.commands.physics2d", "physics2d_app", "physics2d")
+    _try_register_group("unity_bridge.commands.search", "search_app", "search")
+
 
 def _try_register_command(module_path: str, attr_name: str, command_name: str) -> None:
     """Import *attr_name* from *module_path* and register as a top-level command."""
