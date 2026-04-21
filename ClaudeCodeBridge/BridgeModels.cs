@@ -88,8 +88,12 @@ namespace BWS.Editor.ClaudeCodeBridge
         public int passed;
         public int failed;
         public int skipped;
+        public int inconclusive;
         public double durationSeconds;
+        public string resultState;       // e.g. "Passed", "Failed"
+        public string testSuite;         // root fixture full name
         public List<TestFailureInfo> failures = new List<TestFailureInfo>();
+        public List<TestCaseInfo> testCases = new List<TestCaseInfo>();
     }
 
     [Serializable]
@@ -98,6 +102,19 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string testName;
         public string errorMessage;
         public string stackTrace;
+    }
+
+    /// <summary>
+    /// Per-test summary for the NUnit-style result breakdown.
+    /// </summary>
+    [Serializable]
+    public class TestCaseInfo
+    {
+        public string fullName;
+        public string status;            // Passed / Failed / Skipped / Inconclusive
+        public double durationSeconds;
+        public string assembly;
+        public string categories;        // semicolon-separated
     }
 
     #region Query Hierarchy Command
@@ -499,6 +516,48 @@ namespace BWS.Editor.ClaudeCodeBridge
         public List<string> warnings = new List<string>();
         public bool success;
         public string message;
+
+        // Structured BuildReport fields (Phase 7a-2) — exposed so callers
+        // don't need to re-parse the raw Editor.log. Populated on completed
+        // builds; zero/empty for validate / in-progress responses.
+        public BuildReportSummary summary;
+        public List<BuildReportStep> buildSteps = new List<BuildReportStep>();
+        public List<BuildReportAsset> largestAssets = new List<BuildReportAsset>();
+        public int errorCount;
+        public int warningCount;
+    }
+
+    [Serializable]
+    public class BuildReportSummary
+    {
+        public string result;                // Succeeded / Failed / Cancelled / Unknown
+        public string platform;
+        public string platformGroup;
+        public long totalSizeBytes;
+        public double totalSizeMb;
+        public double totalTimeSeconds;
+        public string buildStartedAt;
+        public string buildEndedAt;
+        public string outputPath;
+        public string buildGuid;
+    }
+
+    [Serializable]
+    public class BuildReportStep
+    {
+        public string name;
+        public double durationSeconds;
+        public int depth;
+        public int messageCount;
+    }
+
+    [Serializable]
+    public class BuildReportAsset
+    {
+        public string assetPath;
+        public long sizeBytes;
+        public double sizeMb;
+        public string kind;      // source asset / scene / script / shader / etc.
     }
 
     #endregion

@@ -217,6 +217,10 @@ namespace BWS.Editor.ClaudeCodeBridge
                     message = $"Build {report.summary.result} in {duration:F2}s. Size: {report.summary.totalSize / (1024.0 * 1024.0):F2} MB"
                 };
 
+                // Phase 7a-2: populate structured summary, steps, largest
+                // assets, and error/warning counts from the BuildReport.
+                BuildReportHelpers.PopulateFromReport(result, report);
+
                 // Add scenes
                 foreach (var step in report.steps)
                 {

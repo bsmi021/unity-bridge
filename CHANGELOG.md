@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase 7a-2: Structured test + build reports** — closes the "we ran it but the agent has to re-parse the log" gap:
+  - `run-tests` response now includes `inconclusive`, `resultState`, `testSuite`, plus a `testCases` array (full name, status, duration, assembly, categories) alongside the existing `failures` array. NUnit semantics, no log scraping required.
+  - `build-operation` response now includes a structured `summary` (result, platform, total size bytes/MB, total time, start/end timestamps, output path, build GUID), the top 50 slowest `buildSteps` with duration and depth, the top 25 `largestAssets` (path, size, kind), and aggregated `errorCount`/`warningCount`.
+  - `unity_bridge.commands.reports` with `extract_test_report()` and `extract_build_report()` helpers that normalize the C# payload into snake_case Python dicts.
+  - New `BuildReportHelpers.cs` (C#) populates the structured fields from `UnityEditor.Build.Reporting.BuildReport` — packed-asset breakdown uses a try/catch so platforms that don't support `report.packedAssets` degrade gracefully.
+  - 10 new unit tests (`tests/unit/test_reports.py`).
 - **Phase 7a: Query & Report** — 4 new command groups + MCP tools:
   - `sync-solution` — regenerate `.sln`/`.csproj` via modern `Unity.CodeEditor.CodeEditor.CurrentEditor.SyncAll()` with a legacy `UnityEditor.SyncVS.SyncSolution` fallback. Fixes "IDE doesn't see my new script" in CI.
   - `cloud` — Unity Gaming Services lookups: `cloud project-id`, `cloud environments`, `cloud active-environment`. Reads `CloudProjectSettings` plus the Services Core package (via reflection so the bridge compiles without the package).
