@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Phase 7a: Query & Report** — 4 new command groups + MCP tools:
+  - `sync-solution` — regenerate `.sln`/`.csproj` via modern `Unity.CodeEditor.CodeEditor.CurrentEditor.SyncAll()` with a legacy `UnityEditor.SyncVS.SyncSolution` fallback. Fixes "IDE doesn't see my new script" in CI.
+  - `cloud` — Unity Gaming Services lookups: `cloud project-id`, `cloud environments`, `cloud active-environment`. Reads `CloudProjectSettings` plus the Services Core package (via reflection so the bridge compiles without the package).
+  - `physics2d` — Physics2D settings and 32x32 2D layer collision matrix: `physics2d get`, `physics2d set`, `physics2d matrix`, `physics2d set-collision`. Symmetric with the existing 3D `physics` group.
+  - `search` — Unity Search (Quick Search) integration: `search query "t:Material"`, `search providers`. Reflection-based wrapper around `UnityEditor.Search.SearchService.Request`; single handler subsumes a large class of "find X" workflows.
+- `schemas_phase7.py` with MCP input schemas for the Phase 7a tools
+- 4 new C# handlers (`SyncSolutionCommandHandler`, `CloudServicesCommandHandler`, `Physics2DConfigCommandHandler`, `SearchQueryCommandHandler`), all registered in `BridgeCommandRegistry.cs`
+- `cloud-services` and `search-query` declared parallel-safe (read-only)
+- 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
+
 ### Fixed
 - **Registered 29 orphaned C# command handlers in `BridgeCommandRegistry.cs`** — Phase 4 expansion (`script-execution-order`, `assembly-reload-lock`, `find-references`, `navmesh-operation`, `animation-clip`, `terrain-operation`, `reflection-probe`, `occlusion-culling`), Phase 6a-6e (`time-settings`, `graphics-settings`, `environment-settings`, `audio-settings`, `component-copy`, `component-reset`, `scene-view`, `game-view`, `profiler-control`, `addressables`, `tilemap-operation`, `input-system`, `clipboard`, `preset-operation`, `scene-template`, `script-info`, `deep-serialize`, `window-management`), and the previously-disabled `capture-screenshot`, `playmode-control`, `asset-operation`. The C# handler files and the Python/MCP layers already existed; the registry had never been updated to wire them in. Unit tests pass because they mock the bridge — live Unity previously returned "Unknown command type" for every Phase 4-ext / Phase 6 command.
 - Added `timeout` property to 21 core MCP schemas in `schemas.py` (previously only `run_tests`, `build_operation`, `compile_scripts` declared it) so LLM clients can discover per-tool timeout overrides

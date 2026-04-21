@@ -111,6 +111,12 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new DeepSerializeCommandHandler());
             registerHandler(new WindowCommandHandler());
 
+            // Phase 7a: Query & Report
+            registerHandler(new SyncSolutionCommandHandler());
+            registerHandler(new CloudServicesCommandHandler());
+            registerHandler(new Physics2DConfigCommandHandler());
+            registerHandler(new SearchQueryCommandHandler());
+
             // Core handlers registered previously as "disabled pending Unity import"
             // (m3 from gap-analysis-report) — now enabled.
             registerHandler(new CaptureScreenshotCommandHandler());

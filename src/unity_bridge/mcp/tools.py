@@ -18,6 +18,7 @@ from unity_bridge.mcp import (
     schemas_phase4,
     schemas_phase5,
     schemas_phase6b,
+    schemas_phase7,
     schemas_pipeline,
 )
 
@@ -84,6 +85,11 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_scene_view": "scene-view",
     "unity_game_view": "game-view",
     "unity_profiler_control": "profiler-control",
+    # Phase 7a: Query & Report
+    "unity_sync_solution": "sync-solution",
+    "unity_cloud_services": "cloud-services",
+    "unity_physics2d_config": "physics2d-config",
+    "unity_search_query": "search-query",
 }
 
 # ---------------------------------------------------------------------------
@@ -455,5 +461,42 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "get detailed memory statistics."
         ),
         "inputSchema": schemas_phase6b.profiler_control(),
+    },
+    # Phase 7a: Query & Report
+    {
+        "name": "unity_sync_solution",
+        "description": (
+            "Regenerate .sln / .csproj files so IDEs pick up new scripts "
+            "and .asmdef changes. Tries modern CodeEditor API, falls back "
+            "to legacy UnityEditor.SyncVS."
+        ),
+        "inputSchema": schemas_phase7.sync_solution(),
+    },
+    {
+        "name": "unity_cloud_services",
+        "description": (
+            "Unity Gaming Services lookups: project/organization/user IDs "
+            "and linked environment (requires com.unity.services.core for "
+            "environment data)."
+        ),
+        "inputSchema": schemas_phase7.cloud_services(),
+    },
+    {
+        "name": "unity_physics2d_config",
+        "description": (
+            "Physics2D settings and the 32x32 2D layer collision matrix: "
+            "get/set gravity, iterations, velocity threshold, contact "
+            "offset, queries-hit-triggers, per-layer collision toggles."
+        ),
+        "inputSchema": schemas_phase7.physics2d_config(),
+    },
+    {
+        "name": "unity_search_query",
+        "description": (
+            "Execute a Unity Search (Quick Search) query across assets, "
+            "scenes, menus, and packages. Single handler that subsumes "
+            "many ad-hoc 'find X' workflows."
+        ),
+        "inputSchema": schemas_phase7.search_query(),
     },
 ]
