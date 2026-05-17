@@ -130,28 +130,58 @@ namespace BWS.Editor.ClaudeCodeBridge
         }
 
         /// <summary>
-        /// Parse Unity test results from TestRunner API.
+        /// Parse Unity test results from TestRunner API into an NUnit-style
+        /// summary, including per-test breakdown so callers don't have to
+        /// re-parse the raw log.
         /// </summary>
         private static RunTestsResult ParseTestResults(ITestResultAdaptor testResults)
         {
             var result = new RunTestsResult();
             var allResults = CollectAllResults(testResults).ToList();
+            var cases = allResults.Where(r => r.Test.IsSuite == false).ToList();
 
-            result.total = allResults.Count(r => r.Test.IsSuite == false);
-            result.passed = allResults.Count(r => r.Test.IsSuite == false && r.TestStatus == TestStatus.Passed);
-            result.failed = allResults.Count(r => r.Test.IsSuite == false && r.TestStatus == TestStatus.Failed);
-            result.skipped = allResults.Count(r => r.Test.IsSuite == false && r.TestStatus == TestStatus.Skipped);
+            result.total = cases.Count;
+            result.passed = cases.Count(r => r.TestStatus == TestStatus.Passed);
+            result.failed = cases.Count(r => r.TestStatus == TestStatus.Failed);
+            result.skipped = cases.Count(r => r.TestStatus == TestStatus.Skipped);
+            result.inconclusive = cases.Count(r => r.TestStatus == TestStatus.Inconclusive);
+            result.resultState = testResults.ResultState ?? testResults.TestStatus.ToString();
+            result.testSuite = testResults.Test?.FullName;
 
-            // Collect failures
-            foreach (var testResult in allResults.Where(r => r.Test.IsSuite == false && r.TestStatus == TestStatus.Failed))
+            foreach (var c in cases)
             {
-                var failure = new TestFailureInfo
+                string assembly = null;
+                string categories = null;
+                try
                 {
-                    testName = testResult.Test.FullName,
-                    errorMessage = testResult.Message ?? "No message",
-                    stackTrace = testResult.StackTrace ?? ""
-                };
-                result.failures.Add(failure);
+                    assembly = c.Test?.TypeInfo?.Assembly?.GetName()?.Name;
+                }
+                catch { }
+                try
+                {
+                    if (c.Test?.Categories != null && c.Test.Categories.Length > 0)
+                        categories = string.Join(";", c.Test.Categories);
+                }
+                catch { }
+
+                result.testCases.Add(new TestCaseInfo
+                {
+                    fullName = c.Test?.FullName,
+                    status = c.TestStatus.ToString(),
+                    durationSeconds = c.Duration,
+                    assembly = assembly,
+                    categories = categories,
+                });
+
+                if (c.TestStatus == TestStatus.Failed)
+                {
+                    result.failures.Add(new TestFailureInfo
+                    {
+                        testName = c.Test?.FullName,
+                        errorMessage = c.Message ?? "No message",
+                        stackTrace = c.StackTrace ?? ""
+                    });
+                }
             }
 
             return result;
