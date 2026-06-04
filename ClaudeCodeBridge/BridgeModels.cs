@@ -441,6 +441,7 @@ namespace BWS.Editor.ClaudeCodeBridge
     public class PlayModeControlParams
     {
         public string operation; // "play", "pause", "stop", "step", "status"
+        public string action; // Legacy alias for operation
         public string targetScene; // Optional: load scene before playing
     }
 

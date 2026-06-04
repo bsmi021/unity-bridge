@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
 
 ### Fixed
+- Restored `unity-bridge playmode stop` by sending canonical `operation` payloads and accepting legacy `action` aliases in the C# bridge handler.
 - **Registered 29 orphaned C# command handlers in `BridgeCommandRegistry.cs`** — Phase 4 expansion (`script-execution-order`, `assembly-reload-lock`, `find-references`, `navmesh-operation`, `animation-clip`, `terrain-operation`, `reflection-probe`, `occlusion-culling`), Phase 6a-6e (`time-settings`, `graphics-settings`, `environment-settings`, `audio-settings`, `component-copy`, `component-reset`, `scene-view`, `game-view`, `profiler-control`, `addressables`, `tilemap-operation`, `input-system`, `clipboard`, `preset-operation`, `scene-template`, `script-info`, `deep-serialize`, `window-management`), and the previously-disabled `capture-screenshot`, `playmode-control`, `asset-operation`. The C# handler files and the Python/MCP layers already existed; the registry had never been updated to wire them in. Unit tests pass because they mock the bridge — live Unity previously returned "Unknown command type" for every Phase 4-ext / Phase 6 command.
 - Added `timeout` property to 21 core MCP schemas in `schemas.py` (previously only `run_tests`, `build_operation`, `compile_scripts` declared it) so LLM clients can discover per-tool timeout overrides
 - Cleared all ruff lint errors across `src/` and `tests/` (unused imports, dead variables, lambda-to-def)
