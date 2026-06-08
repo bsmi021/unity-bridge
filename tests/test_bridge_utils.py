@@ -1,5 +1,5 @@
 """
-Unit tests for bridge_utils.py module.
+Unit tests for bridge utility behavior.
 
 Tests Unity Bridge utility functions including heartbeat-based Unity detection
 and orphaned file cleanup.
@@ -10,17 +10,10 @@ import json
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import sys
 import os
 
-# Add scripts directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-
-from bridge_utils import (
-    _check_heartbeat,
-    test_unity_bridge_ready,
-    clear_orphaned_bridge_files,
-)
+from unity_bridge.commands.lifecycle import clean
+from unity_bridge.core.health import HealthMonitor
 
 
 class TestCheckHeartbeat:
@@ -86,7 +79,7 @@ class TestCheckHeartbeat:
 
         result = _check_heartbeat(str(tmp_path))
         assert result["alive"] is False
-        assert "missing timestamp" in result["error"]
+        assert "Invalid heartbeat timestamp" in result["error"]
 
 
 class TestUnityBridgeReady:
@@ -104,11 +97,11 @@ class TestUnityBridgeReady:
         (heartbeat_dir / "commands").mkdir()
         (heartbeat_dir / "responses").mkdir()
 
-        assert test_unity_bridge_ready(str(tmp_path)) is True
+        assert _unity_bridge_ready(str(tmp_path)) is True
 
     def test_not_ready_without_heartbeat(self, tmp_path):
         """Returns False when no heartbeat file exists."""
-        assert test_unity_bridge_ready(str(tmp_path)) is False
+        assert _unity_bridge_ready(str(tmp_path)) is False
 
     def test_not_ready_with_stale_heartbeat(self, tmp_path):
         """Returns False when heartbeat is stale."""
@@ -119,7 +112,7 @@ class TestUnityBridgeReady:
             "timestamp": old_time.isoformat()
         }))
 
-        assert test_unity_bridge_ready(str(tmp_path)) is False
+        assert _unity_bridge_ready(str(tmp_path)) is False
 
 
 class TestClearOrphanedBridgeFiles:
@@ -137,9 +130,7 @@ class TestClearOrphanedBridgeFiles:
         old_mtime = time.time() - 600
         os.utime(old_file, (old_mtime, old_mtime))
 
-        deleted = clear_orphaned_bridge_files(
-            older_than_minutes=5, project_root=str(tmp_path)
-        )
+        deleted = clear_orphaned_bridge_files(older_than_minutes=5, project_root=str(tmp_path))
         assert deleted >= 1
         assert not old_file.exists()
 
@@ -151,9 +142,7 @@ class TestClearOrphanedBridgeFiles:
         recent_file = commands_dir / "recent-command.json"
         recent_file.write_text("{}")
 
-        deleted = clear_orphaned_bridge_files(
-            older_than_minutes=5, project_root=str(tmp_path)
-        )
+        deleted = clear_orphaned_bridge_files(older_than_minutes=5, project_root=str(tmp_path))
         assert deleted == 0
         assert recent_file.exists()
 
@@ -161,3 +150,37 @@ class TestClearOrphanedBridgeFiles:
         """Returns 0 when directories don't exist."""
         deleted = clear_orphaned_bridge_files(project_root=str(tmp_path))
         assert deleted == 0
+
+
+def _check_heartbeat(project_root: str, max_age_seconds: float = 15.0) -> dict:
+    monitor = HealthMonitor(Path(project_root))
+    original_max_age = monitor.MAX_HEARTBEAT_AGE_SECONDS
+    monitor.MAX_HEARTBEAT_AGE_SECONDS = max_age_seconds
+    status = monitor.check_health()
+    monitor.MAX_HEARTBEAT_AGE_SECONDS = original_max_age
+    return {
+        "alive": status.healthy,
+        "age_seconds": status.heartbeat_age_seconds if status.heartbeat_age_seconds else None,
+        "error": status.reason,
+    }
+
+
+def _unity_bridge_ready(project_root: str) -> bool:
+    root = Path(project_root)
+    unity_dir = root / ".claude" / "unity"
+    status = HealthMonitor(root).check_health()
+    return (
+        status.healthy
+        and (unity_dir / "commands").is_dir()
+        and (unity_dir / "responses").is_dir()
+    )
+
+
+def clear_orphaned_bridge_files(
+    older_than_minutes: int = 5,
+    project_root: str = ".",
+) -> int:
+    result = __import__("asyncio").run(
+        clean(Path(project_root), age_minutes=older_than_minutes)
+    )
+    return int(result.data["deleted"]) if result.data else 0

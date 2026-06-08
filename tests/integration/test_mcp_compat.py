@@ -1,30 +1,13 @@
-"""Integration tests for MCP tool definition compatibility.
-
-Ensures the MCP tool names and schemas remain stable across refactoring.
-These tests import from the MCP server module and verify that all
-expected tool definitions are present.
-
-Marked with @pytest.mark.integration.
-"""
+"""Integration tests for MCP tool definition compatibility."""
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
+
+from unity_bridge.mcp.tools import TOOL_COMMAND_MAP, TOOL_DEFINITIONS
 
 pytestmark = pytest.mark.integration
 
-# Ensure project root is importable
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-
-# ---------------------------------------------------------------------------
-# Expected MCP tool names — these MUST NOT change for backward compat
-# ---------------------------------------------------------------------------
 
 EXPECTED_TOOL_NAMES = {
     "unity_run_tests",
@@ -55,10 +38,6 @@ EXPECTED_TOOL_NAMES = {
     "unity_help",
 }
 
-# ---------------------------------------------------------------------------
-# Tool name -> bridge command type mapping (from unity_bridge_mcp_server.py)
-# ---------------------------------------------------------------------------
-
 EXPECTED_TOOL_MAP = {
     "unity_run_tests": "run-tests",
     "unity_query_hierarchy": "query-hierarchy",
@@ -84,98 +63,92 @@ EXPECTED_TOOL_MAP = {
     "unity_execute_menu_item": "execute-menu-item",
 }
 
+EXPECTED_CURRENT_SURFACE = {
+    "unity_navmesh",
+    "unity_animation_clip",
+    "unity_terrain",
+    "unity_reflection_probe",
+    "unity_occlusion_culling",
+    "unity_addressables",
+    "unity_tilemap",
+    "unity_clipboard",
+    "unity_preset",
+    "unity_scene_template",
+    "unity_script_info",
+    "unity_deep_serialize",
+    "unity_window_management",
+    "unity_input_system",
+    "unity_time_settings",
+    "unity_graphics_settings",
+    "unity_environment_settings",
+    "unity_audio_settings",
+    "unity_component_copy",
+    "unity_component_reset",
+    "unity_scene_view",
+    "unity_game_view",
+    "unity_profiler_control",
+    "unity_sync_solution",
+    "unity_cloud_services",
+    "unity_physics2d_config",
+    "unity_search_query",
+}
 
-# ---------------------------------------------------------------------------
-# Helper: extract tool definitions from the MCP server source
-# ---------------------------------------------------------------------------
+CLIENT_SIDE_TOOLS = {
+    "unity_bridge_config",
+    "unity_health_check",
+    "unity_operation_status",
+    "unity_batch",
+    "unity_help",
+}
+
+SPECIAL_HANDLER_TOOLS = {
+    "unity_create_primitive",
+    "unity_gameobject_set_active",
+}
 
 
-def _get_mcp_server_source() -> str:
-    """Read the MCP server source file."""
-    server_path = _PROJECT_ROOT / "unity_bridge_mcp_server.py"
-    if not server_path.exists():
-        pytest.skip("unity_bridge_mcp_server.py not found")
-    return server_path.read_text(encoding="utf-8")
-
-
-def _extract_tool_names_from_source(source: str) -> set[str]:
-    """Parse tool names from name= parameters in the MCP server."""
-    import re
-    return set(re.findall(r'name="(unity_\w+)"', source))
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+def _tool_names() -> set[str]:
+    return {tool["name"] for tool in TOOL_DEFINITIONS}
 
 
 class TestMCPToolNames:
-
     def test_all_expected_tools_defined(self) -> None:
-        source = _get_mcp_server_source()
-        actual_names = _extract_tool_names_from_source(source)
-        missing = EXPECTED_TOOL_NAMES - actual_names
+        missing = EXPECTED_TOOL_NAMES - _tool_names()
         assert not missing, f"Missing MCP tool definitions: {missing}"
 
     def test_minimum_tool_count(self) -> None:
-        source = _get_mcp_server_source()
-        actual_names = _extract_tool_names_from_source(source)
-        assert len(actual_names) >= 22, (
-            f"Expected 22+ MCP tools, found {len(actual_names)}"
-        )
+        assert len(_tool_names()) >= 65
 
     def test_no_tool_name_changes(self) -> None:
         """Verify none of the original tool names have been renamed."""
-        source = _get_mcp_server_source()
-        actual_names = _extract_tool_names_from_source(source)
-        for name in EXPECTED_TOOL_NAMES:
-            assert name in actual_names, (
-                f"Tool '{name}' appears to have been renamed or removed"
-            )
+        assert EXPECTED_TOOL_NAMES <= _tool_names()
+
+    def test_current_surface_tools_defined(self) -> None:
+        assert EXPECTED_CURRENT_SURFACE <= _tool_names()
 
 
 class TestMCPToolMap:
-
     def test_tool_map_present(self) -> None:
         """The tool_map dict mapping tool names to bridge commands exists."""
-        source = _get_mcp_server_source()
-        assert "tool_map" in source
+        assert TOOL_COMMAND_MAP
 
     def test_known_mappings_intact(self) -> None:
         """Verify known tool->command mappings haven't changed."""
-        source = _get_mcp_server_source()
         for tool_name, cmd_type in EXPECTED_TOOL_MAP.items():
-            # Check that the mapping string exists in source
-            assert f'"{tool_name}": "{cmd_type}"' in source or \
-                f"'{tool_name}': '{cmd_type}'" in source, (
-                    f"Mapping {tool_name} -> {cmd_type} not found in source"
-                )
+            assert TOOL_COMMAND_MAP.get(tool_name) == cmd_type
+
+    def test_every_bridge_tool_is_mapped_or_explicitly_handled(self) -> None:
+        mapped_or_handled = set(TOOL_COMMAND_MAP) | CLIENT_SIDE_TOOLS | SPECIAL_HANDLER_TOOLS
+        assert _tool_names() - mapped_or_handled == set()
 
 
 class TestMCPToolSchemas:
-
     def test_tools_have_descriptions(self) -> None:
         """Each tool definition should include a description."""
-        source = _get_mcp_server_source()
-        # Each Tool() call should have a description parameter
-        import re
-        tool_blocks = re.findall(
-            r'Tool\(\s*name="unity_\w+".*?\)', source, re.DOTALL
-        )
-        for block in tool_blocks:
-            assert "description=" in block, (
-                f"Tool block missing description: {block[:80]}..."
-            )
+        for tool in TOOL_DEFINITIONS:
+            assert tool["description"]
 
     def test_tools_have_input_schemas(self) -> None:
         """Each tool should define its inputSchema."""
-        source = _get_mcp_server_source()
-        import re
-        tool_blocks = re.findall(
-            r'Tool\(\s*name="unity_\w+".*?\)', source, re.DOTALL
-        )
-        # Most tools should have inputSchema (a few like health_check may not)
-        schemas_count = sum(1 for b in tool_blocks if "inputSchema" in b)
-        assert schemas_count >= 15, (
-            f"Expected 15+ tools with inputSchema, found {schemas_count}"
-        )
+        for tool in TOOL_DEFINITIONS:
+            assert tool["inputSchema"]["type"] == "object"

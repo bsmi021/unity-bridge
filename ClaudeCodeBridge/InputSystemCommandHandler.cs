@@ -16,6 +16,7 @@ namespace BWS.Editor.ClaudeCodeBridge
     /// 2. "get-action-map" - Get details of a specific action map
     /// 3. "export" - Export InputActionAsset as JSON
     /// 4. "import" - Import JSON into an InputActionAsset
+    /// 5. Authoring operations: create asset, add maps/actions/bindings/control schemes
     /// </summary>
     public class InputSystemCommandHandler : ICommandHandler
     {
@@ -50,10 +51,19 @@ namespace BWS.Editor.ClaudeCodeBridge
                         return HandleExport(command, parameters);
                     case "import":
                         return HandleImport(command, parameters);
+                    case "create-asset":
+                    case "add-action-map":
+                    case "add-action":
+                    case "add-binding":
+                    case "add-control-scheme":
+                    case "list-control-schemes":
+                        return InputSystemAuthoringHelpers.Handle(command, parameters);
                     default:
                         return BridgeResponse.Error(command.commandId, command.commandType,
                             $"Unknown operation: {parameters.operation}. " +
-                            "Supported: list-actions, get-action-map, export, import");
+                            "Supported: list-actions, get-action-map, export, import, " +
+                            "create-asset, add-action-map, add-action, add-binding, " +
+                            "add-control-scheme, list-control-schemes");
                 }
             }
             catch (Exception ex)
@@ -185,7 +195,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             // InputActionAsset files are just JSON — write directly
-            File.WriteAllText(parameters.assetPath, json);
+            File.WriteAllText(ToFullPath(parameters.assetPath), json);
             AssetDatabase.ImportAsset(parameters.assetPath);
             AssetDatabase.SaveAssets();
 
@@ -257,6 +267,13 @@ namespace BWS.Editor.ClaudeCodeBridge
             // Fallback to EditorJsonUtility
             return EditorJsonUtility.ToJson(asset, true);
         }
+
+        private static string ToFullPath(string assetPath)
+        {
+            if (Path.IsPathRooted(assetPath)) return assetPath;
+            var projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            return Path.Combine(projectRoot, assetPath.Replace('/', Path.DirectorySeparatorChar));
+        }
     }
 
     #region Input System Models
@@ -269,6 +286,18 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string outputPath;     // For export
         public string inputPath;      // For import: read JSON from file
         public string json;           // For import: inline JSON
+        public string actionMap;
+        public string actionName;
+        public string actionType;
+        public string bindingPath;
+        public string interactions;
+        public string processors;
+        public string groups;
+        public string expectedControlType;
+        public string controlScheme;
+        public string bindingGroup;
+        public List<string> devicePaths = new List<string>();
+        public bool overwrite;
     }
 
     [Serializable]
@@ -276,8 +305,14 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public bool success;
         public string operation;
+        public string assetPath;
+        public string actionMap;
+        public string actionName;
+        public string bindingPath;
+        public string controlScheme;
         public string json;
         public string outputPath;
+        public List<string> controlSchemes = new List<string>();
         public List<InputActionAssetInfo> assets = new List<InputActionAssetInfo>();
         public string message;
     }

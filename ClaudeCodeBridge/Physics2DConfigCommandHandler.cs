@@ -61,7 +61,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 defaultContactOffset = Physics2D.defaultContactOffset,
                 velocityIterations = Physics2D.velocityIterations,
                 positionIterations = Physics2D.positionIterations,
-                velocityThreshold = Physics2D.velocityThreshold,
+                velocityThreshold = Physics2D.bounceThreshold,
                 maxLinearCorrection = Physics2D.maxLinearCorrection,
                 maxAngularCorrection = Physics2D.maxAngularCorrection,
                 maxTranslationSpeed = Physics2D.maxTranslationSpeed,
@@ -71,7 +71,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 timeToSleep = Physics2D.timeToSleep,
                 linearSleepTolerance = Physics2D.linearSleepTolerance,
                 angularSleepTolerance = Physics2D.angularSleepTolerance,
-                defaultMaterial = Physics2D.defaultMaterial?.name,
+                defaultMaterial = GetDefaultMaterialName(),
                 queriesHitTriggers = Physics2D.queriesHitTriggers,
                 queriesStartInColliders = Physics2D.queriesStartInColliders,
                 callbacksOnDisable = Physics2D.callbacksOnDisable,
@@ -83,6 +83,20 @@ namespace BWS.Editor.ClaudeCodeBridge
             return BridgeResponse.Success(
                 command.commandId, command.commandType,
                 JsonUtility.ToJson(data));
+        }
+
+        private static string GetDefaultMaterialName()
+        {
+            var settings = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/Physics2DSettings.asset");
+            if (settings == null || settings.Length == 0 || settings[0] == null)
+                return null;
+
+            var serializedSettings = new SerializedObject(settings[0]);
+            var material = serializedSettings.FindProperty("m_DefaultMaterial");
+            if (material == null || material.objectReferenceValue == null)
+                return null;
+
+            return material.objectReferenceValue.name;
         }
 
         private BridgeResponse HandleSet(BridgeCommand command, Physics2DConfigParams p)
@@ -106,7 +120,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
             if (p.setVelocityThreshold)
             {
-                Physics2D.velocityThreshold = p.velocityThreshold;
+                Physics2D.bounceThreshold = p.velocityThreshold;
                 changes.Add($"velocityThreshold={p.velocityThreshold}");
             }
             if (p.setDefaultContactOffset)

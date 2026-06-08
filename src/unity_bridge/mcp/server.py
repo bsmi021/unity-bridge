@@ -17,9 +17,11 @@ from typing import Any
 
 from unity_bridge.commands.batch import batch_execute
 from unity_bridge.commands.diagnostics import status as diagnostics_status
+from unity_bridge.commands.operation import operation_status
 from unity_bridge.core.bridge import DirectBridge
 from unity_bridge.core.cache import get_cache
 from unity_bridge.core.config import BridgeConfig, load_config_file, save_config_file
+from unity_bridge.core.health import HealthMonitor
 from unity_bridge.core.project import detect_unity_project
 from unity_bridge.core.protocol import get_timeout
 from unity_bridge.core.retry import RetryConfig
@@ -225,14 +227,18 @@ async def _handle_health_check(
     project_root: Path,
 ) -> dict[str, Any]:
     """Handle unity_health_check tool via shared diagnostics.status()."""
-    wait = arguments.get("waitForHealthy", False)
-    if wait:
-        # wait_for_healthy is MCP-specific; not in the shared status() path
-        from unity_bridge.core.health import HealthMonitor
-
+    wait_timeout = float(arguments.get("timeout", 30.0))
+    if arguments.get("waitForReady", False):
         try:
             monitor = HealthMonitor(project_root)
-            health = monitor.wait_for_healthy(timeout_seconds=30.0)
+            health = monitor.wait_for_ready(timeout_seconds=wait_timeout)
+            return {"success": True, "health": health.to_dict()}
+        except Exception as exc:
+            return {"success": True, "health": {"healthy": False, "reason": str(exc)}}
+    if arguments.get("waitForHealthy", False):
+        try:
+            monitor = HealthMonitor(project_root)
+            health = monitor.wait_for_healthy(timeout_seconds=wait_timeout)
             return {"success": True, "health": health.to_dict()}
         except Exception as exc:
             return {"success": True, "health": {"healthy": False, "reason": str(exc)}}
@@ -240,6 +246,16 @@ async def _handle_health_check(
     result = await diagnostics_status(project_root)
     result_dict = result.to_dict()
     return {"success": result_dict["success"], "health": result_dict.get("data", {})}
+
+
+async def _handle_operation_status(
+    arguments: dict[str, Any],
+    project_root: Path,
+) -> dict[str, Any]:
+    """Handle unity_operation_status without sending a Unity command."""
+    command_id = str(arguments.get("commandId", ""))
+    result = await operation_status(project_root, command_id)
+    return result.to_dict()
 
 
 async def _handle_batch(
@@ -373,6 +389,8 @@ async def _dispatch(
         return await _handle_help(arguments)
     if name == "unity_health_check":
         return await _handle_health_check(arguments, project_root)
+    if name == "unity_operation_status":
+        return await _handle_operation_status(arguments, project_root)
     if name == "unity_batch":
         return await _handle_batch(arguments, project_root)
 

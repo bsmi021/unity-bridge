@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using UnityEditor;
+using UnityEditor.Compilation;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
@@ -41,13 +42,20 @@ namespace BWS.Editor.ClaudeCodeBridge
     [InitializeOnLoad]
     public class HeartbeatGenerator
     {
-        // Heartbeat write interval in seconds
-        private const float HEARTBEAT_INTERVAL = 5.0f;
+        // Heartbeat write intervals in seconds
+        private const float IDLE_HEARTBEAT_INTERVAL = 5.0f;
+        private const float BUSY_HEARTBEAT_INTERVAL = 1.0f;
 
         private static float _lastHeartbeatTime = 0f;
         private static string _heartbeatPath;
         private static long _startTime;
         private static int _commandsProcessed = 0;
+        private static string _lastReloadTimestamp;
+        private static bool _isReloadingAssemblies = false;
+        private static string _lastBusyReason;
+        private static string _lastBusyTimestamp;
+
+        public static int DomainGeneration { get; private set; }
 
         /// <summary>
         /// Static constructor - runs when editor loads.
@@ -59,6 +67,10 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 // Record start time for uptime calculation
                 _startTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                DomainGeneration = SessionState.GetInt("UnityBridge.DomainGeneration", 0) + 1;
+                SessionState.SetInt("UnityBridge.DomainGeneration", DomainGeneration);
+                _lastReloadTimestamp = DateTime.UtcNow.ToString("o");
+                SessionState.SetString("UnityBridge.LastReloadTimestamp", _lastReloadTimestamp);
 
                 // Find bridge directory (.claude/unity/)
                 var projectRoot = Directory.GetParent(Application.dataPath).FullName;
@@ -70,6 +82,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 // Register for editor updates (called every frame)
                 EditorApplication.update += OnEditorUpdate;
+                RegisterBusyTracking();
 
                 // Write initial heartbeat immediately
                 WriteHeartbeat();
@@ -91,9 +104,12 @@ namespace BWS.Editor.ClaudeCodeBridge
             try
             {
                 float currentTime = (float)EditorApplication.timeSinceStartup;
+                float interval = IsEditorBusy()
+                    ? BUSY_HEARTBEAT_INTERVAL
+                    : IDLE_HEARTBEAT_INTERVAL;
 
                 // Write heartbeat if interval elapsed
-                if (currentTime - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
+                if (currentTime - _lastHeartbeatTime >= interval)
                 {
                     WriteHeartbeat();
                     _lastHeartbeatTime = currentTime;
@@ -118,6 +134,47 @@ namespace BWS.Editor.ClaudeCodeBridge
             _commandsProcessed++;
         }
 
+        private static void RegisterBusyTracking()
+        {
+            CompilationPipeline.compilationStarted += _ => MarkBusy("compiling");
+            CompilationPipeline.compilationFinished += _ => MarkBusy("compiling");
+            AssemblyReloadEvents.beforeAssemblyReload += () =>
+            {
+                _isReloadingAssemblies = true;
+                MarkBusy("reloading_assemblies");
+                WriteHeartbeat();
+            };
+            AssemblyReloadEvents.afterAssemblyReload += () =>
+            {
+                _isReloadingAssemblies = false;
+                MarkBusy("reloading_assemblies");
+                WriteHeartbeat();
+            };
+        }
+
+        private static bool IsEditorBusy()
+        {
+            return EditorApplication.isCompiling
+                || EditorApplication.isUpdating
+                || _isReloadingAssemblies
+                || EditorApplication.isPlayingOrWillChangePlaymode;
+        }
+
+        private static string GetCurrentBusyReason()
+        {
+            if (EditorApplication.isCompiling) return "compiling";
+            if (EditorApplication.isUpdating) return "updating";
+            if (_isReloadingAssemblies) return "reloading_assemblies";
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return "playmode_transition";
+            return null;
+        }
+
+        private static void MarkBusy(string reason)
+        {
+            _lastBusyReason = reason;
+            _lastBusyTimestamp = DateTime.UtcNow.ToString("o");
+        }
+
         /// <summary>
         /// Writes the current heartbeat to the heartbeat file.
         /// Uses atomic writes to prevent corruption.
@@ -126,12 +183,26 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             try
             {
+                string busyReason = GetCurrentBusyReason();
+                if (!string.IsNullOrEmpty(busyReason))
+                {
+                    MarkBusy(busyReason);
+                }
+
                 // Build heartbeat data
                 var heartbeat = new Heartbeat
                 {
                     timestamp = DateTime.UtcNow.ToString("o"),
                     unityVersion = Application.unityVersion,
                     isCompiling = EditorApplication.isCompiling,
+                    isUpdating = EditorApplication.isUpdating,
+                    isReloadingAssemblies = _isReloadingAssemblies,
+                    isPlayingOrWillChangePlaymode = EditorApplication.isPlayingOrWillChangePlaymode,
+                    busyReason = busyReason,
+                    lastBusyReason = _lastBusyReason,
+                    lastBusyTimestamp = _lastBusyTimestamp,
+                    domainGeneration = DomainGeneration,
+                    lastReloadTimestamp = _lastReloadTimestamp,
                     isPlaying = EditorApplication.isPlaying,
                     isPaused = EditorApplication.isPaused,
                     activeScene = EditorSceneManager.GetActiveScene().name,
@@ -178,6 +249,30 @@ namespace BWS.Editor.ClaudeCodeBridge
 
             // Whether Unity is currently compiling scripts
             public bool isCompiling;
+
+            // Whether AssetDatabase refresh/import is active
+            public bool isUpdating;
+
+            // Whether Unity is in an assembly reload window
+            public bool isReloadingAssemblies;
+
+            // Whether play mode is entering or exiting
+            public bool isPlayingOrWillChangePlaymode;
+
+            // Current editor busy reason, null when command-ready
+            public string busyReason;
+
+            // Last observed editor busy reason
+            public string lastBusyReason;
+
+            // ISO 8601 timestamp for the last observed editor busy state
+            public string lastBusyTimestamp;
+
+            // Monotonic domain generation for this editor session
+            public int domainGeneration;
+
+            // ISO 8601 timestamp for the last bridge domain load
+            public string lastReloadTimestamp;
 
             // Whether editor is in play mode
             public bool isPlaying;

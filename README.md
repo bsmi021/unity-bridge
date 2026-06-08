@@ -59,7 +59,13 @@ unity-bridge status                           # Quick alive/dead bridge check
 unity-bridge doctor                           # Run full 9-check diagnostic suite
 unity-bridge profiler [--memory] [--rendering] [--cpu]  # Capture profiler metrics
 unity-bridge version                          # Show CLI, bridge, and Python versions
+unity-bridge operation status COMMAND_ID      # Inspect persisted command lifecycle state
 ```
+
+`status` reports both heartbeat liveness (`healthy`) and editor command readiness
+(`ready`). During compile, AssetDatabase refresh, assembly reload, or play-mode
+transition windows, Unity can be healthy but not ready; bridge commands wait for
+readiness before writing command files.
 
 ```bash
 # Example: full health check with human-readable output
@@ -71,7 +77,7 @@ unity-bridge doctor --human
 ```
 unity-bridge install [--check] [--force]      # Install/update C# bridge files
 unity-bridge init                             # Create .claude/unity/ directory structure
-unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response files
+unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response and old terminal operation files
 ```
 
 ```bash
@@ -337,6 +343,11 @@ unity-bridge profile list                      # List all build profiles
 unity-bridge profile active                    # Get the active profile
 unity-bridge profile set PATH                  # Set the active profile
 unity-bridge profile info PATH                 # Get profile details
+unity-bridge profile scenes PATH               # Get profile scenes
+unity-bridge profile set-scenes PATH --scene Assets/Scenes/Main.unity
+unity-bridge profile defines PATH              # Get profile scripting defines
+unity-bridge profile set-defines PATH --define DEVELOPMENT_BUILD
+unity-bridge profile build PATH --output Builds/Windows/Game.exe
 ```
 
 ```bash
@@ -582,19 +593,20 @@ unity-bridge snapshot save after.json --depth 5
 unity-bridge snapshot diff before.json after.json
 ```
 
-### Extended Command Groups (Phase 4-6)
+### Extended Command Groups (Phase 4-Unity 6.4)
 
-Beyond the core groups above, the CLI exposes ~40 additional command groups covering the rest of the Unity Editor surface. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
+Beyond the core groups above, the CLI exposes 64 command groups covering the rest of the Unity Editor surface. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
 
-**Selection & editor state:** `select`, `prefs`, `editor-config`, `window`
-**Transform & object manipulation:** `transform`, `property`, `hierarchy-ext`, `component-ext`
-**Physics / quality / rendering:** `physics`, `quality`, `graphics-settings`, `environment-settings`, `reflection-probe`, `occlusion`
-**Project settings (domain-specific):** `time-settings`, `audio-settings`, `input-system`, `tags`, `layers`, `sorting-layers`
-**Build pipeline:** `build-scenes`, `script-execution-order`, `assembly-lock`
-**Scene & asset tooling:** `scene-view`, `game-view`, `scene-template`, `clipboard`, `preset`, `deep-serialize`, `script-info`, `find-references`, `addressables`
-**Graphics & geometry:** `navmesh`, `animation`, `terrain`, `tilemap`
-**Component lifecycle extensions:** `component-copy`, `component-reset`, `component-toggle`, `remove-component`
-**Profiling & diagnostics:** `profiler`, `console-log`
+**Selection & editor state:** `select`, `prefs`, `editor-config`, `window`, `scene-state`
+**Transform & object manipulation:** `transform`, `property`, `hierarchy`, `component`, `object-identity`
+**Physics / quality / rendering:** `physics`, `quality`, `graphics-settings`, `environment-settings`, `render-pipeline`, `graphics-state`, `reflection-probe`, `occlusion`
+**Project settings (domain-specific):** `time-settings`, `audio-settings`, `input-system`, `ui-toolkit`, `tags`, `layers`, `sorting-layers`
+**Build pipeline:** `build-scenes`, `script-execution-order`, `assembly-lock`, `assembly-unlock`, `assembly-status`, `sync-solution`
+**Scene & asset tooling:** `scene-view`, `game-view`, `scene-template`, `clipboard`, `preset`, `deep-serialize`, `script-info`, `find-references`, `addressables`, `search`, `project-auditor`, `graph-toolkit`
+**Built-in package inspection:** `entities`, `adaptive-performance`, `multiplayer-playmode`
+**Graphics & geometry:** `navmesh`, `animation`, `animation-clip`, `terrain`, `tilemap`
+**Component lifecycle extensions:** `component copy`, `component paste`, `component reset`, `component-toggle`, `remove-component`
+**Profiling & diagnostics:** `profiler`, `profiler-control`, `console-log`, `cloud`, `physics2d`
 
 ```bash
 # Example: list all groups
@@ -612,6 +624,8 @@ unity-bridge preset --help
 | `UNITY_BRIDGE_PROJECT` | Override project root path |
 | `UNITY_BRIDGE_LOG_LEVEL` | Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL, OFF) |
 | `UNITY_BRIDGE_TIMEOUT` | Default timeout in seconds |
+| `UNITY_BRIDGE_EDITOR_READY_TIMEOUT` | Max seconds to wait for Unity Editor command readiness before reporting `editor_busy` |
+| `UNITY_BRIDGE_IN_FLIGHT_BUSY_GRACE` | Hard max seconds to keep an in-flight response wait alive while Unity reports busy/reloading |
 | `UNITY_BRIDGE_CONFIG` | Path to config JSON file |
 | `NO_COLOR` | Disable coloured output (any value) |
 
@@ -631,9 +645,11 @@ Config file search order:
 
 The Python CLI writes JSON command files to `<project>/.claude/unity/commands/`. A C# Editor script (`ClaudeUnityBridge.cs`) running via `EditorApplication.update` picks them up, executes them inside Unity, and writes JSON responses to `<project>/.claude/unity/responses/`. Each command is identified by a unique UUID. This file-based IPC works across WSL2/Windows boundaries via `/mnt/c/` path mapping.
 
+Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` or the `unity_operation_status` MCP tool can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations.
+
 ### Dual Interface
 
-The CLI and MCP server share 100% of core logic. Each command module exposes async core functions that return a `CommandResult`. The CLI wraps these with `asyncio.run()`, while MCP handlers `await` them directly. This means every command available in the CLI is also available as an MCP tool.
+The CLI and MCP server share 100% of bridge command logic. Each command module exposes async core functions that return a `CommandResult`. The CLI wraps these with `asyncio.run()`, while MCP handlers `await` them directly. The MCP surface currently exposes 94 tools, including client-side helpers such as health/config/batch/help/operation-status.
 
 ### Project Auto-Detection
 
@@ -666,8 +682,8 @@ ruff format src/ tests/      # Format
 unity-bridge/
 ├── src/unity_bridge/
 │   ├── app.py               # Typer entry point, AppState, global flags
-│   ├── core/                # Shared modules (bridge, config, health, cache, retry, output)
-│   ├── commands/            # ~60 command modules (one per domain)
+│   ├── core/                # Shared modules (bridge, config, health, operation, cache, retry, output)
+│   ├── commands/            # 77 command modules (one per domain)
 │   └── mcp/                 # MCP server layer (server, tools, schemas)
 ├── ClaudeCodeBridge/        # C# Editor scripts installed into Unity
 ├── tests/                   # pytest suite (unit + integration)
@@ -682,7 +698,7 @@ unity-bridge/
 | 1 | Command failure (Unity error, tests failed) |
 | 2 | Bridge unavailable (Unity not running, heartbeat stale) |
 | 3 | Invalid input |
-| 4 | Timeout |
+| 4 | Timeout or editor busy/reloading |
 | 5 | Internal error |
 | 130 | Interrupted (Ctrl+C) |
 

@@ -34,6 +34,7 @@ diagnostics/
 
 # Session artifacts (per-user)
 .summaries/
+.tiger-teams/
 logs/
 .claude/settings.local.json
 tests/test_output.log

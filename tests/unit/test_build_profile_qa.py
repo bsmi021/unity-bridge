@@ -50,7 +50,17 @@ def _extract_kwarg(call_args: Any, key: str) -> Any:
 
 class TestValidActions:
     def test_all_spec_operations_present(self) -> None:
-        expected = {"list", "get-active", "set-active", "get-info"}
+        expected = {
+            "list",
+            "get-active",
+            "set-active",
+            "get-info",
+            "get-scenes",
+            "set-scenes",
+            "get-defines",
+            "set-defines",
+            "build",
+        }
         assert VALID_ACTIONS == expected
 
     def test_is_frozenset(self) -> None:
@@ -217,7 +227,7 @@ class TestMcpSchema:
 
         schema = build_profile()
         assert "timeout" in schema["properties"]
-        assert schema["properties"]["timeout"]["default"] == 30
+        assert schema["properties"]["timeout"]["default"] == 300
 
     def test_schema_operation_enum_complete(self) -> None:
         from unity_bridge.mcp.schemas_ext import build_profile

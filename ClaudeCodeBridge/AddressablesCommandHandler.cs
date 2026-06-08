@@ -80,12 +80,25 @@ namespace BWS.Editor.ClaudeCodeBridge
                     return ExecuteMarkAddressable(command, p, settingsType);
                 case "set-address":
                     return ExecuteSetAddress(command, p, settingsType);
+                case "list-profiles":
+                    return AddressablesAdvancedHelpers.ExecuteListProfiles(command, settingsType);
+                case "set-active-profile":
+                    return AddressablesAdvancedHelpers.ExecuteSetActiveProfile(command, p, settingsType);
+                case "list-labels":
+                    return AddressablesAdvancedHelpers.ExecuteListLabels(command, settingsType);
+                case "set-label":
+                    return AddressablesAdvancedHelpers.ExecuteSetLabel(command, p, settingsType);
+                case "list-schemas":
+                    return AddressablesAdvancedHelpers.ExecuteListSchemas(command, settingsType);
+                case "analyze":
+                    return AddressablesAdvancedHelpers.ExecuteAnalyze(command, p, settingsType);
                 default:
                     return BridgeResponse.Error(
                         command.commandId, command.commandType,
                         $"Unknown addressables operation: {p.operation}. "
                         + "Supported: list-groups, build, clean-cache, "
-                        + "mark-addressable, set-address");
+                        + "mark-addressable, set-address, list-profiles, "
+                        + "set-active-profile, list-labels, set-label, list-schemas, analyze");
             }
         }
 
@@ -302,6 +315,13 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string assetPath;
         public string address;
         public string groupName;
+        public string profileId;
+        public string profileName;
+        public string label;
+        public bool enable = true;
+        public bool force;
+        public string analyzeRule;
+        public string outputPath;
     }
 
     [Serializable]

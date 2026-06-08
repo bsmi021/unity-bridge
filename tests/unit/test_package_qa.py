@@ -6,6 +6,7 @@ Covers: M1 (Resolve void), parameter exclusion, camelCase naming, MCP schema.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -16,6 +17,8 @@ from unity_bridge.commands.package import (
     package_operation,
 )
 from unity_bridge.core.bridge import CommandResult
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 # ---------------------------------------------------------------------------
@@ -386,3 +389,12 @@ class TestMcpSchema:
 
         names = [t["name"] for t in TOOL_DEFINITIONS]
         assert "unity_package_operation" in names
+
+
+class TestCSharpPackageHandler:
+    def test_source_filter_is_applied_after_package_list_completes(self) -> None:
+        source = (ROOT / "ClaudeCodeBridge" / "PackageManagerCommandHandler.cs").read_text()
+
+        assert 'RegisterPending(command, request, "list", source)' in source
+        assert "MatchesSourceFilter(pkg, pending.Context)" in source
+        assert "NormalizeSourceFilter(parameters.source)" in source

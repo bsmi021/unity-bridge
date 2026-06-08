@@ -211,17 +211,54 @@ def build_profile() -> dict[str, Any]:
         "properties": {
             "operation": {
                 "type": "string",
-                "enum": ["list", "get-active", "set-active", "get-info"],
+                "enum": [
+                    "list",
+                    "get-active",
+                    "set-active",
+                    "get-info",
+                    "get-scenes",
+                    "set-scenes",
+                    "get-defines",
+                    "set-defines",
+                    "build",
+                ],
                 "description": "Build profile operation to perform",
             },
             "profilePath": {
                 "type": "string",
-                "description": "Asset path to build profile (for set-active, get-info)",
+                "description": "Asset path to build profile",
+            },
+            "outputPath": {
+                "type": "string",
+                "description": "Build output path for build operation",
+            },
+            "scenes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Enabled scene paths for set-scenes",
+            },
+            "disabledScenes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Disabled scene paths for set-scenes",
+            },
+            "scriptingDefines": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Scripting defines for set-defines",
+            },
+            "development": {
+                "type": "boolean",
+                "description": "Development build flag",
+            },
+            "autoRunPlayer": {
+                "type": "boolean",
+                "description": "Auto-run player after build",
             },
             "timeout": {
                 "type": "integer",
                 "description": "Command timeout in seconds",
-                "default": 30,
+                "default": 300,
             },
         },
         "required": ["operation"],

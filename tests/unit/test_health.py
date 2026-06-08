@@ -18,10 +18,10 @@ from unity_bridge.core.health import HealthMonitor, HealthStatus
 
 
 class TestHealthStatus:
-
     def test_healthy_defaults(self) -> None:
         status = HealthStatus(healthy=True)
         assert status.healthy is True
+        assert status.ready is True
         assert status.reason is None
         assert status.heartbeat_age_seconds == 0.0
 
@@ -35,12 +35,23 @@ class TestHealthStatus:
             healthy=True,
             unity_version="6000.0.23f1",
             is_compiling=True,
+            is_updating=True,
+            busy_reason="compiling",
+            editor_busy_age_seconds=3.5,
+            domain_generation=4,
+            last_reload_timestamp="2026-06-08T12:00:00Z",
             heartbeat_age_seconds=1.234,
         )
         d = status.to_dict()
         assert d["healthy"] is True
+        assert d["ready"] is False
         assert d["unityVersion"] == "6000.0.23f1"
         assert d["isCompiling"] is True
+        assert d["isUpdating"] is True
+        assert d["busyReason"] == "compiling"
+        assert d["editorBusyAgeSeconds"] == 3.5
+        assert d["domainGeneration"] == 4
+        assert d["lastReloadTimestamp"] == "2026-06-08T12:00:00Z"
         assert d["heartbeatAgeSeconds"] == 1.23  # rounded to 2 dp
 
 
@@ -50,7 +61,6 @@ class TestHealthStatus:
 
 
 class TestCheckHealth:
-
     def test_fresh_heartbeat_is_healthy(self, tmp_path: Path) -> None:
         hb_path = tmp_path / ".claude" / "unity" / "heartbeat.json"
         hb_path.parent.mkdir(parents=True)
@@ -123,7 +133,63 @@ class TestCheckHealth:
         monitor = HealthMonitor(tmp_path)
         status = monitor.check_health()
         assert status.healthy is True
+        assert status.ready is False
         assert status.is_compiling is True
+        assert status.busy_reason == "compiling"
+
+    def test_updating_state_is_healthy_but_not_ready(self, tmp_path: Path) -> None:
+        hb_path = tmp_path / ".claude" / "unity" / "heartbeat.json"
+        hb_path.parent.mkdir(parents=True)
+        hb = {
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "isCompiling": False,
+            "isUpdating": True,
+        }
+        hb_path.write_text(json.dumps(hb), encoding="utf-8")
+
+        monitor = HealthMonitor(tmp_path)
+        status = monitor.check_health()
+        assert status.healthy is True
+        assert status.ready is False
+        assert status.is_updating is True
+        assert status.busy_reason == "updating"
+
+    def test_busy_timestamp_sets_busy_age(self, tmp_path: Path) -> None:
+        hb_path = tmp_path / ".claude" / "unity" / "heartbeat.json"
+        hb_path.parent.mkdir(parents=True)
+        busy_ts = (datetime.now(timezone.utc) - timedelta(seconds=4)).isoformat()
+        hb = {
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "isCompiling": True,
+            "lastBusyReason": "compilation",
+            "lastBusyTimestamp": busy_ts,
+        }
+        hb_path.write_text(json.dumps(hb), encoding="utf-8")
+
+        monitor = HealthMonitor(tmp_path)
+        status = monitor.check_health()
+        assert status.busy_reason == "compiling"
+        assert status.editor_busy_age_seconds is not None
+        assert status.editor_busy_age_seconds >= 3.0
+
+    def test_domain_generation_and_reload_timestamp_propagate(self, tmp_path: Path) -> None:
+        hb_path = tmp_path / ".claude" / "unity" / "heartbeat.json"
+        hb_path.parent.mkdir(parents=True)
+        hb = {
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "domainGeneration": 12,
+            "lastReloadTimestamp": "2026-06-08T12:00:00Z",
+            "busyReason": "assembly_reload",
+        }
+        hb_path.write_text(json.dumps(hb), encoding="utf-8")
+
+        monitor = HealthMonitor(tmp_path)
+        status = monitor.check_health()
+
+        assert status.domain_generation == 12
+        assert status.last_reload_timestamp == "2026-06-08T12:00:00Z"
+        assert status.busy_reason == "reloading_assemblies"
+        assert status.ready is False
 
     def test_max_heartbeat_age_constant(self) -> None:
         assert HealthMonitor.MAX_HEARTBEAT_AGE_SECONDS == 15.0
@@ -139,7 +205,6 @@ class TestCheckHealth:
 
 
 class TestWaitForHealthy:
-
     def test_returns_immediately_if_healthy(self, tmp_path: Path) -> None:
         hb_path = tmp_path / ".claude" / "unity" / "heartbeat.json"
         hb_path.parent.mkdir(parents=True)
@@ -189,3 +254,40 @@ class TestWaitForHealthy:
             status = monitor.wait_for_healthy(timeout_seconds=5.0, poll_interval=0.05)
 
         assert status.healthy is True
+
+
+# ---------------------------------------------------------------------------
+# HealthMonitor.wait_for_ready
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForReady:
+    def test_waits_through_busy_heartbeat_until_ready(self, tmp_path: Path) -> None:
+        monitor = HealthMonitor(tmp_path)
+        statuses = [
+            HealthStatus(healthy=True, is_compiling=True, ready=False, busy_reason="compiling"),
+            HealthStatus(healthy=True, is_updating=True, ready=False, busy_reason="updating"),
+            HealthStatus(healthy=True, ready=True),
+        ]
+
+        with patch.object(monitor, "check_health", side_effect=statuses):
+            status = monitor.wait_for_ready(timeout_seconds=1.0, poll_interval=0.01)
+
+        assert status.healthy is True
+        assert status.ready is True
+
+    def test_timeout_returns_last_busy_status(self, tmp_path: Path) -> None:
+        monitor = HealthMonitor(tmp_path)
+        busy = HealthStatus(
+            healthy=True,
+            ready=False,
+            is_compiling=True,
+            busy_reason="compiling",
+        )
+
+        with patch.object(monitor, "check_health", return_value=busy):
+            status = monitor.wait_for_ready(timeout_seconds=0.03, poll_interval=0.01)
+
+        assert status.healthy is True
+        assert status.ready is False
+        assert status.busy_reason == "compiling"

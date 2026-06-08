@@ -37,6 +37,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         private FileSystemWatcher _commandWatcher;
         private PlayModeStateChange _lastPlayModeState = PlayModeStateChange.EnteredEditMode;
         private bool _isInitialized = false;
+        private bool _recoveryScanned = false;
 
         static ClaudeUnityBridge()
         {
@@ -76,6 +77,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             Directory.CreateDirectory(COMMANDS_PATH);
             Directory.CreateDirectory(RESPONSES_PATH);
             Directory.CreateDirectory(DIAGNOSTICS_PATH);
+            BridgeOperationLedger.EnsureInitialized();
 
             if (_commandHandlers.Count == 0)
             {
@@ -83,6 +85,11 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             SetupFileWatcher();
+            if (!_recoveryScanned)
+            {
+                BridgeOperationLedger.RecoverAfterReload();
+                _recoveryScanned = true;
+            }
             _isInitialized = true;
             BridgeLogger.LogInfo($"Initialized with {_commandHandlers.Count} command handlers");
         }
@@ -275,6 +282,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     WriteResponse(BridgeResponse.Error(
                         string.IsNullOrEmpty(commandId) ? $"filename-{fileBaseName}" : commandId,
                         string.IsNullOrEmpty(commandType) ? "unknown" : commandType, reason));
+                    SafeDelete(commandFilePath);
                     return;
                 }
                 var command = JsonUtility.FromJson<BridgeCommand>(commandJson);
@@ -296,13 +304,22 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 BridgeLogger.LogDebug($"Processing command: {commandType} (ID: {commandId})");
 
+                if (BridgeOperationLedger.IsTerminalWithResponse(commandId))
+                {
+                    SafeDelete(commandFilePath);
+                    BridgeLogger.LogDebug($"Skipped terminal command file: {commandId}");
+                    return;
+                }
+
                 if (!_commandHandlers.TryGetValue(commandType, out var handler))
                 {
                     WriteDiagnostic("unknown-command", $"No handler for '{commandType}'", commandFilePath, null);
                     WriteResponse(BridgeResponse.Error(commandId, commandType, $"Unknown command type: {commandType}"));
+                    SafeDelete(commandFilePath);
                     return;
                 }
 
+                BridgeOperationLedger.MarkAccepted(command, commandFilePath);
                 var response = handler.Execute(command);
                 WriteResponse(response);
                 HeartbeatGenerator.IncrementCommandCount();
@@ -317,6 +334,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 WriteResponse(BridgeResponse.Error(
                     commandId ?? fbId ?? $"filename-{fileBaseName}",
                     commandType ?? fbType ?? "unknown", ex.ToString()));
+                SafeDelete(commandFilePath);
             }
         }
 
@@ -457,7 +475,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                 var responseJson = JsonUtility.ToJson(response, true);
                 var filePath = Path.Combine(RESPONSES_PATH,
                     $"{response.commandId}-{response.commandType}.json");
-                File.WriteAllText(filePath, responseJson);
+                BridgeOperationLedger.WriteAtomic(filePath, responseJson);
+                BridgeOperationLedger.MarkResponse(response);
                 BridgeLogger.LogDebug($"Wrote response: {Path.GetFileName(filePath)}");
             }
             catch (Exception ex)

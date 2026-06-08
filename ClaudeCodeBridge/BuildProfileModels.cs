@@ -8,13 +8,19 @@ namespace BWS.Editor.ClaudeCodeBridge
 
     /// <summary>
     /// Parameters for the build-profile-operation command.
-    /// Supports list, get-active, set-active, get-info operations.
+    /// Supports list, get-active, set-active, get-info, scene/define mutation, and build operations.
     /// </summary>
     [Serializable]
     public class BuildProfileOperationParams
     {
-        public string operation; // "list", "get-active", "set-active", "get-info"
+        public string operation;
         public string profilePath; // Asset path to build profile
+        public string outputPath;
+        public List<string> scenes;
+        public List<string> disabledScenes;
+        public List<string> scriptingDefines;
+        public bool development;
+        public bool autoRunPlayer;
     }
 
     /// <summary>
@@ -26,9 +32,18 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string operation;
         public List<BuildProfileInfo> profiles = new List<BuildProfileInfo>();
         public BuildProfileInfo profile; // Single profile result
+        public string profilePath;
+        public string outputPath;
+        public List<BuildProfileSceneInfo> scenes = new List<BuildProfileSceneInfo>();
+        public List<string> scriptingDefines = new List<string>();
         public int totalCount;
         public bool success;
         public string message;
+        public BuildReportSummary summary;
+        public List<BuildReportStep> buildSteps = new List<BuildReportStep>();
+        public List<BuildReportAsset> largestAssets = new List<BuildReportAsset>();
+        public int errorCount;
+        public int warningCount;
     }
 
     /// <summary>
@@ -42,11 +57,20 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string platform;
         public bool isActive;
         public List<string> scenes = new List<string>();
+        public List<BuildProfileSceneInfo> sceneEntries = new List<BuildProfileSceneInfo>();
         public string scriptingDefines;
+        public List<string> scriptingDefineEntries = new List<string>();
         public string buildTarget;
         public string subtarget;
         public string il2CppCodeGeneration;
         public string managedStrippingLevel;
+    }
+
+    [Serializable]
+    public class BuildProfileSceneInfo
+    {
+        public string path;
+        public bool enabled;
     }
 
     #endregion

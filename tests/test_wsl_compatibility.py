@@ -16,7 +16,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def _get_project_root() -> Path:
     """Get the unity-plugin project root."""
-    return Path(__file__).parent.parent.parent
+    return Path(__file__).parent.parent
+
+
+def _read_if_exists(path: Path) -> str:
+    if not path.exists():
+        pytest.skip(f"{path.name} not present in this checkout")
+    return path.read_text(encoding="utf-8")
 
 
 class TestNoPowerShellReferences:
@@ -24,8 +30,8 @@ class TestNoPowerShellReferences:
 
     def test_no_powershell_in_mcp_server(self):
         """MCP server source should not reference PowerShell."""
-        server_path = Path(__file__).parent.parent / "unity_bridge_mcp_server.py"
-        content = server_path.read_text()
+        server_path = _get_project_root() / "src" / "unity_bridge" / "mcp" / "server.py"
+        content = server_path.read_text(encoding="utf-8")
         # Allow 'powershell' only in comments or strings that explicitly
         # document removal
         assert "powershell.exe" not in content.lower()
@@ -33,44 +39,43 @@ class TestNoPowerShellReferences:
 
     def test_no_ps1_references_in_mcp_server(self):
         """MCP server should not reference .ps1 scripts."""
-        server_path = Path(__file__).parent.parent / "unity_bridge_mcp_server.py"
-        content = server_path.read_text()
+        server_path = _get_project_root() / "src" / "unity_bridge" / "mcp" / "server.py"
+        content = server_path.read_text(encoding="utf-8")
         assert ".ps1" not in content
 
-    def test_no_psutil_in_bridge_utils(self):
-        """bridge_utils.py should not import psutil."""
-        utils_path = (
-            Path(__file__).parent.parent / "scripts" / "bridge_utils.py"
-        )
-        content = utils_path.read_text()
-        assert "import psutil" not in content
+    def test_no_psutil_in_core_bridge_modules(self):
+        """Core bridge modules should not import psutil."""
+        root = _get_project_root() / "src" / "unity_bridge"
+        for module_path in [root / "core" / "bridge.py", root / "core" / "health.py"]:
+            content = module_path.read_text(encoding="utf-8")
+            assert "import psutil" not in content
 
     def test_mcp_json_uses_unity_bridge_cli(self):
         """mcp.json should use unity-bridge CLI command."""
         mcp_path = _get_project_root() / "mcp.json"
-        config = json.loads(mcp_path.read_text())
+        config = json.loads(_read_if_exists(mcp_path))
         unity_bridge = config["mcpServers"]["unity-bridge"]
         assert unity_bridge["command"] == "unity-bridge"
         assert unity_bridge["args"] == ["serve"]
 
 
 class TestInvokeCommandWithoutDirectBridge:
-    """Test invoke_unity_command returns clean error without DirectBridge."""
+    """Test current MCP dispatch handles unknown tools cleanly."""
 
     @pytest.mark.asyncio
-    async def test_returns_error_without_direct_bridge(self):
-        """invoke_unity_command returns error when DirectBridge unavailable."""
-        # Import with DirectBridge forced unavailable
-        import unity_bridge_mcp_server as server_module
+    async def test_unknown_tool_returns_error(self):
+        """Unknown MCP tool calls should return structured errors."""
+        from unity_bridge.mcp.server import _dispatch
 
-        original = server_module._DIRECT_BRIDGE_AVAILABLE
-        try:
-            server_module._DIRECT_BRIDGE_AVAILABLE = False
-            result = await server_module.invoke_unity_command("health-check")
-            assert result["success"] is False
-            assert "DirectBridge not available" in result["error"]
-        finally:
-            server_module._DIRECT_BRIDGE_AVAILABLE = original
+        result = await _dispatch(
+            "unity_missing_tool",
+            {},
+            _get_project_root(),
+            _get_project_root() / "unity_bridge_config.json",
+        )
+
+        assert result["success"] is False
+        assert "Unknown tool" in result["error"]
 
 
 class TestJsonLineEndings:
@@ -79,7 +84,7 @@ class TestJsonLineEndings:
     def test_mcp_json_parseable(self):
         """mcp.json can be parsed regardless of line endings."""
         mcp_path = _get_project_root() / "mcp.json"
-        content = mcp_path.read_text()
+        content = _read_if_exists(mcp_path)
         parsed = json.loads(content)
         assert "mcpServers" in parsed
 
@@ -88,7 +93,7 @@ class TestJsonLineEndings:
         settings_path = (
             _get_project_root() / ".claude" / "settings.local.json"
         )
-        content = settings_path.read_text()
+        content = _read_if_exists(settings_path)
         parsed = json.loads(content)
         assert "permissions" in parsed
 
