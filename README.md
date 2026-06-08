@@ -34,6 +34,8 @@ unity-bridge hierarchy --depth 3
 
 The `install` command copies the C# bridge scripts into `Assets/Scripts/Editor/ClaudeCodeBridge/` inside your Unity project. The bridge runs as an Editor script via `EditorApplication.update` and requires no manual setup beyond installation.
 
+Packaged installs include the C# bridge scripts and the `unity-bridge-cli` skill bundle, so `unity-bridge install` works from both editable source installs and normal `pip install .` / wheel installs.
+
 ## Global CLI Flags
 
 All commands accept these flags:

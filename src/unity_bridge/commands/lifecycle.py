@@ -30,12 +30,16 @@ _SKILL_NAME = "unity-bridge-cli"
 
 
 def _get_bridge_source_dir() -> Path | None:
-    """Locate the ClaudeCodeBridge/ source directory relative to the repo root."""
+    """Locate ClaudeCodeBridge/ from source checkout or installed package."""
     # Walk up from this file: commands/ -> unity_bridge/ -> src/ -> repo_root
     repo_root = Path(__file__).resolve().parent.parent.parent.parent
     source_dir = repo_root / "ClaudeCodeBridge"
     if source_dir.is_dir() and (source_dir / "ClaudeUnityBridge.cs").is_file():
         return source_dir
+
+    bundled_dir = Path(__file__).resolve().parent.parent / "_bundled_bridge" / "ClaudeCodeBridge"
+    if bundled_dir.is_dir() and (bundled_dir / "ClaudeUnityBridge.cs").is_file():
+        return bundled_dir
     return None
 
 

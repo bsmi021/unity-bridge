@@ -232,6 +232,20 @@ def _create_fake_skill_source(tmp_path: Path) -> Path:
 
 
 class TestInstall:
+    def test_bridge_source_falls_back_to_installed_bundle(self, tmp_path: Path) -> None:
+        lifecycle = _import_lifecycle()
+        module_file = tmp_path / "site-packages" / "unity_bridge" / "commands" / "lifecycle.py"
+        bundled = (
+            tmp_path / "site-packages" / "unity_bridge" / "_bundled_bridge" / "ClaudeCodeBridge"
+        )
+        bundled.mkdir(parents=True)
+        (bundled / "ClaudeUnityBridge.cs").write_text("// bundled bridge", encoding="utf-8")
+
+        with patch.object(lifecycle, "__file__", str(module_file)):
+            source = lifecycle._get_bridge_source_dir()
+
+        assert source == bundled
+
     async def test_install_copies_files(self, fake_project: Path, tmp_path: Path) -> None:
         lifecycle = _import_lifecycle()
         source = _create_fake_bridge_source(tmp_path)

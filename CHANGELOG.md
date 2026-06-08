@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
 
 ### Fixed
+- Packaged command-line installs now bundle `ClaudeCodeBridge/`, so `unity-bridge install` deploys the current C# bridge scripts from normal wheel installs as well as editable source installs.
 - Restored `unity-bridge playmode stop` by sending canonical `operation` payloads and accepting legacy `action` aliases in the C# bridge handler.
 - Applied the advertised `package list --source` filter in the C# Package Manager handler, including source validation and filtered list responses.
 - Wired Input System authoring overwrite flags through the Python CLI/core helpers and allowed control schemes to be created without optional binding-group/device details, matching the MCP schema.
