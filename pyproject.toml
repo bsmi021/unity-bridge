@@ -51,7 +51,10 @@ unity-bridge = "unity_bridge.app:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/unity_bridge"]
-force-include = { ".agents/skills/unity-bridge-cli" = "unity_bridge/_bundled_skills/unity-bridge-cli" }
+
+[tool.hatch.build.targets.wheel.force-include]
+".agents/skills/unity-bridge-cli" = "unity_bridge/_bundled_skills/unity-bridge-cli"
+"ClaudeCodeBridge" = "unity_bridge/_bundled_bridge/ClaudeCodeBridge"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
