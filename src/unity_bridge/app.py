@@ -187,6 +187,7 @@ def _register_optional_commands() -> None:
     _try_register_command("unity_bridge.commands.diagnostics", "status_cli", "status")
     _try_register_command("unity_bridge.commands.diagnostics", "doctor_cli", "doctor")
     _try_register_command("unity_bridge.commands.diagnostics", "profiler_cli", "profiler")
+    _try_register_group("unity_bridge.commands.operation", "operation_app", "operation")
     _try_register_command("unity_bridge.commands.lifecycle", "install_cli", "install")
     _try_register_command("unity_bridge.commands.lifecycle", "init_cli", "init")
     _try_register_command("unity_bridge.commands.lifecycle", "clean_cli", "clean")
@@ -216,12 +217,13 @@ def _register_optional_commands() -> None:
     _try_register_group(
         "unity_bridge.commands.import_settings", "import_settings_app", "import-settings"
     )
+    _register_phase4_expansion_commands()
+    _register_phase6_commands()
+    _register_pipeline_commands()
 
     # Phase 5: Quick Wins — register module to attach commands to existing apps
-    try:
-        import unity_bridge.commands.hierarchy_ext  # noqa: F401
-    except ImportError:
-        pass
+    _try_import_module("unity_bridge.commands.hierarchy_ext")
+    _try_import_module("unity_bridge.commands.component_ext")
 
     # Phase 4: Critical Gaps
     _try_register_group("unity_bridge.commands.select", "select_app", "select")
@@ -241,6 +243,120 @@ def _register_optional_commands() -> None:
     _try_register_group("unity_bridge.commands.cloud_services", "cloud_app", "cloud")
     _try_register_group("unity_bridge.commands.physics2d", "physics2d_app", "physics2d")
     _try_register_group("unity_bridge.commands.search", "search_app", "search")
+    _try_register_group(
+        "unity_bridge.commands.object_identity",
+        "object_identity_app",
+        "object-identity",
+    )
+    _try_register_group(
+        "unity_bridge.commands.project_auditor",
+        "project_auditor_app",
+        "project-auditor",
+    )
+    _try_register_group("unity_bridge.commands.ui_toolkit", "ui_toolkit_app", "ui-toolkit")
+    _try_register_group(
+        "unity_bridge.commands.render_pipeline",
+        "render_pipeline_app",
+        "render-pipeline",
+    )
+    _try_register_group(
+        "unity_bridge.commands.graphics_state",
+        "graphics_state_app",
+        "graphics-state",
+    )
+    _try_register_group("unity_bridge.commands.graph_toolkit", "graph_toolkit_app", "graph-toolkit")
+    _try_register_group("unity_bridge.commands.scene_state", "scene_state_app", "scene-state")
+    _try_register_group("unity_bridge.commands.entities", "entities_app", "entities")
+    _try_register_group(
+        "unity_bridge.commands.adaptive_performance",
+        "adaptive_performance_app",
+        "adaptive-performance",
+    )
+    _try_register_group(
+        "unity_bridge.commands.multiplayer_playmode",
+        "multiplayer_playmode_app",
+        "multiplayer-playmode",
+    )
+
+
+def _register_phase4_expansion_commands() -> None:
+    """Register specialized Phase 4 command groups."""
+    _try_register_group("unity_bridge.commands.navmesh", "navmesh_app", "navmesh")
+    _try_register_group("unity_bridge.commands.animation", "animation_app", "animation-clip")
+    _try_register_group("unity_bridge.commands.animation", "animation_app", "animation")
+    _try_register_group("unity_bridge.commands.terrain", "terrain_app", "terrain")
+    _try_register_group(
+        "unity_bridge.commands.reflection_probes",
+        "reflection_probes_app",
+        "reflection-probe",
+    )
+    _try_register_group("unity_bridge.commands.occlusion", "occlusion_app", "occlusion")
+
+
+def _register_phase6_commands() -> None:
+    """Register Phase 6 settings, scene, asset, and editor command groups."""
+    _try_register_group("unity_bridge.commands.time_settings", "time_app", "time-settings")
+    _try_register_group(
+        "unity_bridge.commands.graphics_settings", "graphics_app", "graphics-settings"
+    )
+    _try_register_group(
+        "unity_bridge.commands.environment_settings",
+        "environment_app",
+        "environment-settings",
+    )
+    _try_register_group("unity_bridge.commands.audio_settings", "audio_app", "audio-settings")
+    _try_register_group("unity_bridge.commands.scene_view", "scene_view_app", "scene-view")
+    _try_register_group("unity_bridge.commands.game_view", "game_view_app", "game-view")
+    _try_register_group("unity_bridge.commands.profiler", "profiler_app", "profiler-control")
+    _try_register_group("unity_bridge.commands.addressables", "addressables_app", "addressables")
+    _try_register_group("unity_bridge.commands.tilemap", "tilemap_app", "tilemap")
+    _try_register_group("unity_bridge.commands.input_system", "input_system_app", "input-system")
+    _try_register_group("unity_bridge.commands.clipboard", "clipboard_app", "clipboard")
+    _try_register_group("unity_bridge.commands.preset", "preset_app", "preset")
+    _try_register_group(
+        "unity_bridge.commands.scene_template", "scene_template_app", "scene-template"
+    )
+    _try_register_group("unity_bridge.commands.script_info", "script_info_app", "script-info")
+    _try_register_group(
+        "unity_bridge.commands.deep_serialize", "deep_serialize_app", "deep-serialize"
+    )
+    _try_register_group("unity_bridge.commands.window", "window_app", "window")
+    _try_register_group("unity_bridge.commands.window", "window_app", "window-management")
+
+
+def _register_pipeline_commands() -> None:
+    """Register build/platform/pipeline helper commands."""
+    _try_register_group(
+        "unity_bridge.commands.execution_order",
+        "execution_order_app",
+        "script-execution-order",
+    )
+    _try_register_command("unity_bridge.commands.assembly_lock", "assembly_lock_cli", "assembly-lock")
+    _try_register_command(
+        "unity_bridge.commands.assembly_lock",
+        "assembly_unlock_cli",
+        "assembly-unlock",
+    )
+    _try_register_command(
+        "unity_bridge.commands.assembly_lock",
+        "assembly_lock_status_cli",
+        "assembly-status",
+    )
+    _try_register_command(
+        "unity_bridge.commands.find_references",
+        "find_references_cli",
+        "find-references",
+    )
+
+
+def _try_import_module(module_path: str) -> None:
+    """Import a module for registration side effects if it exists."""
+    try:
+        from importlib import import_module
+
+        import_module(module_path)
+    except ImportError:
+        pass
 
 
 def _try_register_command(module_path: str, attr_name: str, command_name: str) -> None:

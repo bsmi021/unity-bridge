@@ -109,6 +109,105 @@ async def addressables_set_address(
     )
 
 
+async def addressables_list_profiles(
+    bridge: DirectBridge,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """List Addressables profiles."""
+    return await bridge.send_command_with_retry(
+        command_type="addressables",
+        parameters={"operation": "list-profiles"},
+        timeout=timeout,
+    )
+
+
+async def addressables_set_active_profile(
+    bridge: DirectBridge,
+    *,
+    profile_id: str | None = None,
+    profile_name: str | None = None,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Set the active Addressables profile by ID or name."""
+    params: dict[str, object] = {"operation": "set-active-profile"}
+    if profile_id:
+        params["profileId"] = profile_id
+    if profile_name:
+        params["profileName"] = profile_name
+    return await bridge.send_command_with_retry(
+        command_type="addressables",
+        parameters=params,
+        timeout=timeout,
+    )
+
+
+async def addressables_list_labels(
+    bridge: DirectBridge,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """List Addressables labels."""
+    return await bridge.send_command_with_retry(
+        command_type="addressables",
+        parameters={"operation": "list-labels"},
+        timeout=timeout,
+    )
+
+
+async def addressables_set_label(
+    bridge: DirectBridge,
+    asset_path: str,
+    *,
+    label: str,
+    enable: bool = True,
+    force: bool = False,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """Add or remove an Addressables label on an asset entry."""
+    return await bridge.send_command_with_retry(
+        command_type="addressables",
+        parameters={
+            "operation": "set-label",
+            "assetPath": asset_path,
+            "label": label,
+            "enable": enable,
+            "force": force,
+        },
+        timeout=timeout,
+    )
+
+
+async def addressables_list_schemas(
+    bridge: DirectBridge,
+    timeout: float = 15.0,
+) -> CommandResult:
+    """List Addressables group schemas."""
+    return await bridge.send_command_with_retry(
+        command_type="addressables",
+        parameters={"operation": "list-schemas"},
+        timeout=timeout,
+    )
+
+
+async def addressables_analyze(
+    bridge: DirectBridge,
+    *,
+    analyze_rule: str | None = None,
+    output_path: str | None = None,
+    timeout: float = 300.0,
+) -> CommandResult:
+    """Run or inspect Addressables Analyze rules."""
+    params: dict[str, object] = {"operation": "analyze"}
+    if analyze_rule:
+        params["analyzeRule"] = analyze_rule
+    if output_path:
+        params["outputPath"] = output_path
+    return await bridge.send_command_with_retry(
+        command_type="addressables",
+        parameters=params,
+        timeout=timeout,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Typer CLI wrappers
 # ---------------------------------------------------------------------------
@@ -170,4 +269,97 @@ def addressables_set_address_cli(
 
     state = ctx.obj
     result = asyncio.run(addressables_set_address(state.bridge, asset_path, address))
+    print_result(result, state.formatter)
+
+
+@addressables_app.command("profiles")
+def addressables_profiles_cli(ctx: typer.Context) -> None:
+    """List Addressables profiles."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(addressables_list_profiles(state.bridge))
+    print_result(result, state.formatter)
+
+
+@addressables_app.command("set-profile")
+def addressables_set_profile_cli(
+    ctx: typer.Context,
+    profile_id: Annotated[str | None, typer.Option("--id")] = None,
+    profile_name: Annotated[str | None, typer.Option("--name")] = None,
+) -> None:
+    """Set active Addressables profile."""
+    from unity_bridge.core.output import print_result
+
+    if not profile_id and not profile_name:
+        raise typer.BadParameter("Provide --id or --name.")
+
+    state = ctx.obj
+    result = asyncio.run(
+        addressables_set_active_profile(
+            state.bridge,
+            profile_id=profile_id,
+            profile_name=profile_name,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@addressables_app.command("labels")
+def addressables_labels_cli(ctx: typer.Context) -> None:
+    """List Addressables labels."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(addressables_list_labels(state.bridge))
+    print_result(result, state.formatter)
+
+
+@addressables_app.command("set-label")
+def addressables_set_label_cli(
+    ctx: typer.Context,
+    asset_path: Annotated[str, typer.Argument(help="Asset path.")],
+    label: Annotated[str, typer.Argument(help="Label name.")],
+    enable: Annotated[bool, typer.Option("--enable/--disable")] = True,
+    force: Annotated[bool, typer.Option("--force")] = False,
+) -> None:
+    """Add or remove a label on an addressable entry."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        addressables_set_label(
+            state.bridge,
+            asset_path,
+            label=label,
+            enable=enable,
+            force=force,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@addressables_app.command("schemas")
+def addressables_schemas_cli(ctx: typer.Context) -> None:
+    """List Addressables group schemas."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(addressables_list_schemas(state.bridge))
+    print_result(result, state.formatter)
+
+
+@addressables_app.command("analyze")
+def addressables_analyze_cli(
+    ctx: typer.Context,
+    rule: Annotated[str | None, typer.Option("--rule")] = None,
+    output: Annotated[str | None, typer.Option("--output")] = None,
+) -> None:
+    """Run or inspect Addressables Analyze rules."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        addressables_analyze(state.bridge, analyze_rule=rule, output_path=output)
+    )
     print_result(result, state.formatter)

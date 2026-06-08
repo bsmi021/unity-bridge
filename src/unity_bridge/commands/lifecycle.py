@@ -21,6 +21,7 @@ logger = logging.getLogger("unity_bridge.lifecycle")
 
 # File patterns to copy from the C# bridge source directory.
 _BRIDGE_FILE_GLOBS = ("*.cs", "*.cs.meta", "*.md", "*.md.meta")
+_SKILL_NAME = "unity-bridge-cli"
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +36,19 @@ def _get_bridge_source_dir() -> Path | None:
     source_dir = repo_root / "ClaudeCodeBridge"
     if source_dir.is_dir() and (source_dir / "ClaudeUnityBridge.cs").is_file():
         return source_dir
+    return None
+
+
+def _get_skill_source_dir() -> Path | None:
+    """Locate the bundled unity-bridge-cli skill directory."""
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent
+    source_dir = repo_root / ".agents" / "skills" / _SKILL_NAME
+    if (source_dir / "SKILL.md").is_file():
+        return source_dir
+
+    bundled_dir = Path(__file__).resolve().parent.parent / "_bundled_skills" / _SKILL_NAME
+    if (bundled_dir / "SKILL.md").is_file():
+        return bundled_dir
     return None
 
 
@@ -79,9 +93,65 @@ def _copy_bridge_files(source_dir: Path, target_dir: Path) -> dict[str, str]:
     return checksums
 
 
+def _get_skill_target_dir(project_root: Path) -> Path:
+    """Return the project-local installation path for the bridge skill."""
+    return Path(project_root) / ".agents" / "skills" / _SKILL_NAME
+
+
+def _copy_skill_files(source_dir: Path, target_dir: Path, project_root: Path) -> dict[str, str]:
+    """Replace the project-local skill with the bundled skill files."""
+    _validate_skill_target(target_dir, project_root)
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    checksums: dict[str, str] = {}
+    for src_file in source_dir.rglob("*"):
+        if not src_file.is_file():
+            continue
+        relative = src_file.relative_to(source_dir)
+        dest = target_dir / relative
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_file, dest)
+        checksums[relative.as_posix()] = _compute_file_checksum(dest)
+    return checksums
+
+
+def _validate_skill_target(target_dir: Path, project_root: Path) -> None:
+    """Ensure recursive replacement is scoped to the intended project skill path."""
+    expected = _get_skill_target_dir(project_root).resolve()
+    actual = target_dir.resolve()
+    if actual != expected:
+        raise ValueError(f"Refusing to replace unexpected skill target: {target_dir}")
+
+
+def _is_skill_up_to_date(source_dir: Path, target_dir: Path) -> bool:
+    """Return True when the target skill mirrors the source skill files."""
+    if not (target_dir / "SKILL.md").is_file():
+        return False
+
+    source_files = {
+        path.relative_to(source_dir).as_posix(): path
+        for path in source_dir.rglob("*")
+        if path.is_file()
+    }
+    target_files = {
+        path.relative_to(target_dir).as_posix(): path
+        for path in target_dir.rglob("*")
+        if path.is_file()
+    }
+    if set(source_files) != set(target_files):
+        return False
+    return all(
+        _compute_file_checksum(source) == _compute_file_checksum(target_files[name])
+        for name, source in source_files.items()
+    )
+
+
 def _get_bridge_version() -> str:
     """Return the current bridge version (matches the package version)."""
     from unity_bridge import __version__
+
     return __version__
 
 
@@ -110,9 +180,11 @@ async def install(
         return CommandResult(success=False, error="Unity project not found.")
 
     target_dir = get_bridge_paths(root).editor_bridge_dir
+    skill_target_dir = _get_skill_target_dir(root)
+    skill_source_dir = _get_skill_source_dir()
 
     if check:
-        return _check_install_status(target_dir, bridge_version)
+        return _check_install_status(target_dir, bridge_version, root, skill_source_dir)
 
     source_dir = _get_bridge_source_dir()
     if source_dir is None:
@@ -120,12 +192,24 @@ async def install(
             success=False,
             error="ClaudeCodeBridge source directory not found.",
         )
+    if skill_source_dir is None:
+        return CommandResult(
+            success=False,
+            error="unity-bridge-cli skill source directory not found.",
+        )
 
     existing = _load_manifest(target_dir)
-    if not force and existing and existing.get("version") == bridge_version:
+    bridge_up_to_date = existing and existing.get("version") == bridge_version
+    skill_had_existing = (skill_target_dir / "SKILL.md").is_file()
+    skill_up_to_date = _is_skill_up_to_date(skill_source_dir, skill_target_dir)
+    if not force and bridge_up_to_date and skill_up_to_date:
         return CommandResult(
             success=True,
-            data={"action": "up_to_date", "version": bridge_version},
+            data={
+                "action": "up_to_date",
+                "version": bridge_version,
+                "skill": _skill_result("up_to_date", skill_target_dir, 0),
+            },
         )
 
     if force:
@@ -133,10 +217,19 @@ async def install(
         if manifest_path.is_file():
             manifest_path.unlink(missing_ok=True)
 
-    checksums = _copy_bridge_files(source_dir, target_dir)
-    _save_manifest(target_dir, bridge_version, checksums)
+    checksums: dict[str, str] = {}
+    if force or not bridge_up_to_date:
+        checksums = _copy_bridge_files(source_dir, target_dir)
+        _save_manifest(target_dir, bridge_version, checksums)
 
-    action = "update" if existing else "install"
+    skill_checksums: dict[str, str] = {}
+    if force or not skill_up_to_date:
+        skill_checksums = _copy_skill_files(skill_source_dir, skill_target_dir, root)
+
+    action = _install_action(existing is not None, bool(checksums), bool(skill_checksums))
+    skill_action = "up_to_date"
+    if skill_checksums:
+        skill_action = "update" if skill_had_existing else "install"
     return CommandResult(
         success=True,
         data={
@@ -144,17 +237,45 @@ async def install(
             "version": bridge_version,
             "files_copied": len(checksums),
             "target_dir": str(target_dir),
+            "skill": _skill_result(skill_action, skill_target_dir, len(skill_checksums)),
         },
     )
 
 
-def _check_install_status(target_dir: Path, bridge_version: str) -> CommandResult:
+def _install_action(had_existing: bool, copied_bridge: bool, copied_skill: bool) -> str:
+    """Resolve the user-facing aggregate install action."""
+    if not copied_bridge and not copied_skill:
+        return "up_to_date"
+    return "update" if had_existing else "install"
+
+
+def _skill_result(action: str, target_dir: Path, files_copied: int) -> dict[str, object]:
+    """Return normalized skill install data."""
+    return {
+        "name": _SKILL_NAME,
+        "action": action,
+        "files_copied": files_copied,
+        "target_dir": str(target_dir),
+    }
+
+
+def _check_install_status(
+    target_dir: Path,
+    bridge_version: str,
+    project_root: Path,
+    skill_source_dir: Path | None,
+) -> CommandResult:
     """Check installation status without making changes."""
     key_file = target_dir / "ClaudeUnityBridge.cs"
+    skill_status = _check_skill_status(project_root, skill_source_dir)
     if not key_file.is_file():
         return CommandResult(
             success=True,
-            data={"installed": False, "available_version": bridge_version},
+            data={
+                "installed": False,
+                "available_version": bridge_version,
+                "skill": skill_status,
+            },
         )
 
     manifest = _load_manifest(target_dir)
@@ -168,8 +289,31 @@ def _check_install_status(target_dir: Path, bridge_version: str) -> CommandResul
             "installed_version": installed_version,
             "available_version": bridge_version,
             "status": status,
+            "skill": skill_status,
         },
     )
+
+
+def _check_skill_status(project_root: Path, skill_source_dir: Path | None) -> dict[str, object]:
+    """Check project-local skill installation status without mutating files."""
+    target_dir = _get_skill_target_dir(project_root)
+    installed = (target_dir / "SKILL.md").is_file()
+    if skill_source_dir is None:
+        status = "source_missing" if installed else "not_installed"
+    elif not installed:
+        status = "not_installed"
+    else:
+        status = (
+            "up_to_date"
+            if _is_skill_up_to_date(skill_source_dir, target_dir)
+            else "update_available"
+        )
+    return {
+        "name": _SKILL_NAME,
+        "installed": installed,
+        "status": status,
+        "target_dir": str(target_dir),
+    }
 
 
 async def init(project_root: Path) -> CommandResult:
@@ -202,7 +346,7 @@ async def clean(
     all_files: bool = False,
     dry_run: bool = False,
 ) -> CommandResult:
-    """Remove orphaned command/response files.
+    """Remove orphaned command/response files and old terminal operation records.
 
     Args:
         project_root: Unity project root directory.
@@ -211,8 +355,10 @@ async def clean(
         dry_run: If True, list files that would be deleted without deleting.
     """
     from unity_bridge.core.project import get_bridge_paths
+    from unity_bridge.core.operation import OperationStore
 
     paths = get_bridge_paths(project_root)
+    operation_store = OperationStore(project_root)
     effective_age = 0 if all_files else age_minutes
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=effective_age)
 
@@ -235,6 +381,13 @@ async def clean(
                         skipped.append(str(f))
             else:
                 skipped.append(str(f))
+
+    operation_deleted, operation_skipped = operation_store.cleanup_terminal(
+        older_than=cutoff,
+        dry_run=dry_run,
+    )
+    deleted.extend(operation_deleted)
+    skipped.extend(operation_skipped)
 
     return CommandResult(
         success=True,
@@ -326,7 +479,7 @@ def clean_cli(
         typer.Option("--dry-run", help="Show what would be deleted."),
     ] = False,
 ) -> None:
-    """Remove orphaned command/response files."""
+    """Remove orphaned command/response files and old terminal operation records."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj

@@ -43,7 +43,7 @@ async def playmode_control(
 
     return await bridge.send_command_with_retry(
         command_type="playmode-control",
-        parameters={"action": normalised},
+        parameters={"operation": normalised},
         timeout=timeout,
     )
 

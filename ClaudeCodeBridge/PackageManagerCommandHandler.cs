@@ -97,8 +97,15 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private BridgeResponse StartListRequest(BridgeCommand command, PackageOperationParams parameters)
         {
+            string source = NormalizeSourceFilter(parameters.source);
+            if (!IsSupportedSourceFilter(source))
+            {
+                return BridgeResponse.Error(command.commandId, CommandType,
+                    "source must be one of: registry, git, embedded, local");
+            }
+
             var request = Client.List(parameters.offlineMode, parameters.includeIndirectDependencies);
-            RegisterPending(command, request, "list");
+            RegisterPending(command, request, "list", source);
             return BridgeResponse.Running(command.commandId, CommandType,
                 "{\"operation\":\"list\",\"success\":true,\"message\":\"Listing packages...\"}");
         }
@@ -332,10 +339,32 @@ namespace BWS.Editor.ClaudeCodeBridge
             var listRequest = (ListRequest)pending.Request;
             foreach (var pkg in listRequest.Result)
             {
-                result.packages.Add(ConvertPackageInfo(pkg));
+                if (MatchesSourceFilter(pkg, pending.Context))
+                    result.packages.Add(ConvertPackageInfo(pkg));
             }
             result.totalCount = result.packages.Count;
-            result.message = $"Listed {result.totalCount} packages";
+            result.message = string.IsNullOrEmpty(pending.Context)
+                ? $"Listed {result.totalCount} packages"
+                : $"Listed {result.totalCount} packages with source '{pending.Context}'";
+        }
+
+        private static string NormalizeSourceFilter(string source)
+        {
+            return string.IsNullOrWhiteSpace(source) ? null : source.Trim().ToLowerInvariant();
+        }
+
+        private static bool IsSupportedSourceFilter(string source)
+        {
+            if (string.IsNullOrEmpty(source)) return true;
+            return source == "registry" || source == "git"
+                || source == "embedded" || source == "local";
+        }
+
+        private static bool MatchesSourceFilter(
+            UnityEditor.PackageManager.PackageInfo package, string source)
+        {
+            return string.IsNullOrEmpty(source)
+                || package.source.ToString().ToLowerInvariant() == source;
         }
 
         private static void BuildSearchResult(PendingPackageRequest pending, PackageOperationResult result)

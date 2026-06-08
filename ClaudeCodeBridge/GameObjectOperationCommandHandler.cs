@@ -364,7 +364,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 case "directional-light": return CreateLight(LightType.Directional);
                 case "point-light": return CreateLight(LightType.Point);
                 case "spot-light": return CreateLight(LightType.Spot);
-                case "area-light": return CreateLight(LightType.Area);
+                case "area-light": return CreateLight(LightType.Rectangle);
                 case "camera": return CreateCamera();
                 case "particle-system": return CreateParticleSystem();
                 default: return null;

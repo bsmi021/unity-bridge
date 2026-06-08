@@ -9,6 +9,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.health import HealthStatus
+from unity_bridge.core.operation import (
+    STATE_ABANDONED,
+    STATE_ACCEPTED,
+    STATE_QUEUED,
+    STATE_RECOVERING,
+    STATE_RUNNING,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +115,9 @@ class TestCommandSerialization:
         # We won't wait for a response — just verify the file is written
         # by patching _wait_for_response to return immediately.
         immediate = CommandResult(success=True, data={"ok": True}, command_id="x")
-        with patch.object(bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate):
+        with patch.object(
+            bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate
+        ):
             with patch.object(bridge, "_health_monitor", None):
                 await bridge.send_command("test-cmd", {"key": "value"}, timeout=5.0)
 
@@ -117,7 +127,9 @@ class TestCommandSerialization:
     async def test_command_type_in_filename(self, fake_project: Path) -> None:
         bridge = DirectBridge(fake_project)
         immediate = CommandResult(success=True, command_id="x")
-        with patch.object(bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate):
+        with patch.object(
+            bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate
+        ):
             with patch.object(bridge, "_health_monitor", None):
                 await bridge.send_command("query-hierarchy", timeout=1.0)
 
@@ -133,7 +145,9 @@ class TestCommandSerialization:
 
         immediate = CommandResult(success=True, command_id="x")
         with patch.object(bridge, "_write_command_file", side_effect=capture_write):
-            with patch.object(bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate):
+            with patch.object(
+                bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate
+            ):
                 with patch.object(bridge, "_health_monitor", None):
                     await bridge.send_command(
                         "set-component-data",
@@ -156,7 +170,9 @@ class TestCommandSerialization:
 
         immediate = CommandResult(success=True, command_id="x")
         with patch.object(bridge, "_write_command_file", side_effect=capture):
-            with patch.object(bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate):
+            with patch.object(
+                bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate
+            ):
                 with patch.object(bridge, "_health_monitor", None):
                     await bridge.send_command("test-cmd")
 
@@ -164,6 +180,34 @@ class TestCommandSerialization:
         assert "commandId" in cmd
         assert len(cmd["commandId"]) == 36  # UUID format
         assert "timestamp" in cmd
+
+    async def test_send_command_creates_queued_operation_record(
+        self,
+        fake_project: Path,
+    ) -> None:
+        bridge = DirectBridge(fake_project)
+        captured_command_id: str | None = None
+
+        async def capture(command: dict, path: Path) -> None:
+            nonlocal captured_command_id
+            captured_command_id = command["commandId"]
+            path.write_text(json.dumps(command), encoding="utf-8")
+
+        immediate = CommandResult(success=True, command_id="x")
+        with patch.object(bridge, "_write_command_file", side_effect=capture):
+            with patch.object(
+                bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate
+            ):
+                with patch.object(bridge, "_health_monitor", None):
+                    await bridge.send_command("query-hierarchy", {"depth": 2})
+
+        assert captured_command_id is not None
+        record = bridge._operation_store.load(captured_command_id)
+        assert record is not None
+        assert record.state == STATE_QUEUED
+        assert record.command_type == "query-hierarchy"
+        assert record.retry_policy == "read_only"
+        assert bridge._operation_store.events_path(captured_command_id).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +232,73 @@ class TestResponseParsing:
         result = DirectBridge._parse_data_json(resp)
         assert result == "not-json"
 
+    async def test_running_response_transitions_operation(
+        self,
+        fake_project: Path,
+    ) -> None:
+        bridge = DirectBridge(fake_project)
+        command_id = "cmd-running"
+        response_file = bridge.responses_path / "cmd-running-query-hierarchy.json"
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=bridge.commands_path / "cmd-running-query-hierarchy.json",
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+        response_file.write_text(
+            json.dumps(
+                {
+                    "status": "running",
+                    "commandId": command_id,
+                    "commandType": "query-hierarchy",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = await bridge._try_read_response(response_file, command_id, elapsed=0.1)
+
+        assert result is None
+        record = bridge._operation_store.load(command_id)
+        assert record is not None
+        assert record.state == STATE_RUNNING
+
+    async def test_repeated_running_response_does_not_spam_events(
+        self,
+        fake_project: Path,
+    ) -> None:
+        bridge = DirectBridge(fake_project)
+        command_id = "cmd-running"
+        response_file = bridge.responses_path / "cmd-running-query-hierarchy.json"
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=bridge.commands_path / "cmd-running-query-hierarchy.json",
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+        response_file.write_text(
+            json.dumps(
+                {
+                    "status": "running",
+                    "commandId": command_id,
+                    "commandType": "query-hierarchy",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        await bridge._try_read_response(response_file, command_id, elapsed=0.1)
+        await bridge._try_read_response(response_file, command_id, elapsed=0.2)
+
+        events = bridge._operation_store.events_path(command_id).read_text(encoding="utf-8")
+        assert len(events.strip().splitlines()) == 2
+
 
 # ---------------------------------------------------------------------------
 # Unhealthy bridge short-circuits
@@ -201,8 +312,8 @@ class TestHealthGating:
         bridge = DirectBridge(fake_project)
         # Create a mock health monitor that reports unhealthy
         mock_monitor = MagicMock()
-        mock_monitor.check_health.return_value = MagicMock(
-            healthy=False, reason="Stale heartbeat", is_compiling=False
+        mock_monitor.wait_for_ready.return_value = HealthStatus(
+            healthy=False, reason="Stale heartbeat", ready=False
         )
         bridge._health_monitor = mock_monitor
 
@@ -211,6 +322,46 @@ class TestHealthGating:
         assert result.exit_code == 2
         assert "not healthy" in result.error
 
+    async def test_busy_editor_does_not_write_command_file(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project)
+        mock_monitor = MagicMock()
+        mock_monitor.wait_for_ready.return_value = HealthStatus(
+            healthy=True,
+            ready=False,
+            is_compiling=True,
+            busy_reason="compiling",
+        )
+        bridge._health_monitor = mock_monitor
+
+        with patch.object(bridge, "_write_command_file", new_callable=AsyncMock) as write:
+            result = await bridge.send_command("set-component-data", check_health=True)
+
+        assert result.success is False
+        assert result.exit_code == 4
+        assert result.command_id is None
+        assert "busy compiling" in result.error
+        assert "command was not sent" in result.error
+        assert result.data["status"] == "editor_busy"
+        assert result.data["retryable"] is True
+        write.assert_not_called()
+
+    async def test_waits_for_ready_before_sending_command(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project)
+        mock_monitor = MagicMock()
+        mock_monitor.wait_for_ready.return_value = HealthStatus(healthy=True, ready=True)
+        bridge._health_monitor = mock_monitor
+
+        immediate = CommandResult(success=True, command_id="x")
+        with patch.object(bridge, "_write_command_file", new_callable=AsyncMock) as write:
+            with patch.object(
+                bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate
+            ):
+                result = await bridge.send_command("query-hierarchy", check_health=True)
+
+        assert result.success is True
+        mock_monitor.wait_for_ready.assert_called_once()
+        write.assert_called_once()
+
     async def test_skip_health_check(self, fake_project: Path) -> None:
         bridge = DirectBridge(fake_project)
         mock_monitor = MagicMock()
@@ -218,7 +369,9 @@ class TestHealthGating:
         bridge._health_monitor = mock_monitor
 
         immediate = CommandResult(success=True, command_id="x")
-        with patch.object(bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate):
+        with patch.object(
+            bridge, "_wait_for_response", new_callable=AsyncMock, return_value=immediate
+        ):
             result = await bridge.send_command("test", check_health=False)
         assert result.success is True
         mock_monitor.check_health.assert_not_called()
@@ -248,3 +401,67 @@ class TestAtomicWrite:
         await bridge._write_command_file(command, target)
         tmp = target.with_suffix(".json.tmp")
         assert not tmp.exists()
+
+
+class TestResponseWaitState:
+    """Verify response wait updates durable operation state."""
+
+    def test_repeated_generation_change_marks_recovery_once(
+        self,
+        fake_project: Path,
+    ) -> None:
+        bridge = DirectBridge(fake_project)
+        command_id = "cmd-reload"
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=bridge.commands_path / "cmd-reload-query-hierarchy.json",
+            response_path=bridge.responses_path / "cmd-reload-query-hierarchy.json",
+            domain_generation=1,
+            retry_policy="read_only",
+        )
+        bridge._operation_store.transition(command_id, STATE_ACCEPTED, reason="accepted")
+
+        bridge._mark_recovering_after_reload(command_id, "reloading_assemblies")
+        bridge._mark_recovering_after_reload(command_id, "reloading_assemblies")
+
+        record = bridge._operation_store.load(command_id)
+        events = bridge._operation_store.events_path(command_id).read_text(encoding="utf-8")
+        assert record is not None
+        assert record.state == STATE_RECOVERING
+        assert len(events.strip().splitlines()) == 3
+
+    async def test_timeout_before_acceptance_marks_abandoned(
+        self,
+        fake_project: Path,
+    ) -> None:
+        bridge = DirectBridge(fake_project)
+        bridge._health_monitor = None
+        command_id = "cmd-timeout"
+        command_file = bridge.commands_path / "cmd-timeout-query-hierarchy.json"
+        response_file = bridge.responses_path / "cmd-timeout-query-hierarchy.json"
+        command_file.write_text("{}", encoding="utf-8")
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=command_file,
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+
+        result = await bridge._wait_for_response(
+            response_file,
+            command_file,
+            command_id,
+            timeout=0.01,
+        )
+
+        record = bridge._operation_store.load(command_id)
+        assert result.success is False
+        assert result.data["status"] == "command_timeout"
+        assert record is not None
+        assert record.state == STATE_ABANDONED
+        assert not command_file.exists()

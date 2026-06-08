@@ -72,14 +72,11 @@ namespace BWS.Editor.ClaudeCodeBridge
                 if (parameters.includeRendering)
                 {
 #if UNITY_EDITOR
-                    // Use UnityStats for rendering info
+                    // Use UnityStats for rendering info.
                     result.triangles = UnityStats.triangles;
-                    result.drawCalls = UnityStats.batches;
+                    result.drawCalls = UnityStats.drawCalls;
                     result.vertices = UnityStats.vertices;
-                  
-                    
-                    
-                    #endif
+#endif
                 }
 
                 // Frame time
@@ -92,7 +89,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 }
 
                 var resultJson = JsonUtility.ToJson(result);
-                BridgeLogger.LogInfo($"Snapshot captured: {result.totalMemoryMB}MB total, {result.drawCalls} batches");
+                BridgeLogger.LogInfo($"Snapshot captured: {result.totalMemoryMB}MB total, {result.drawCalls} draw calls");
 
                 return BridgeResponse.Success(command.commandId, command.commandType, resultJson);
             }

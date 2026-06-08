@@ -55,15 +55,16 @@ namespace BWS.Editor.ClaudeCodeBridge
                     parameters = new PlayModeControlParams();
 
                 // Validate operation
-                if (string.IsNullOrEmpty(parameters.operation))
+                string operation = ResolveOperation(parameters);
+                if (string.IsNullOrEmpty(operation))
                 {
                     return BridgeResponse.Error(command.commandId, command.commandType, "Operation parameter is required");
                 }
 
-                BridgeLogger.LogDebug($"Executing operation: {parameters.operation}");
+                BridgeLogger.LogDebug($"Executing operation: {operation}");
 
                 // Execute the requested operation
-                switch (parameters.operation.ToLower())
+                switch (operation.ToLowerInvariant())
                 {
                     case "play":
                         return HandlePlay(command, parameters);
@@ -84,7 +85,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                         return BridgeResponse.Error(
                             command.commandId,
                             command.commandType,
-                            $"Unknown operation: {parameters.operation}. Supported operations: play, pause, stop, step, status"
+                            $"Unknown operation: {operation}. Supported operations: play, pause, stop, step, status"
                         );
                 }
             }
@@ -323,6 +324,19 @@ namespace BWS.Editor.ClaudeCodeBridge
         #endregion
 
         #region Helper Methods
+
+        /// <summary>
+        /// Resolve the canonical operation value, accepting the legacy action alias.
+        /// </summary>
+        private static string ResolveOperation(PlayModeControlParams parameters)
+        {
+            string operation = !string.IsNullOrWhiteSpace(parameters.operation)
+                ? parameters.operation
+                : parameters.action;
+            operation = operation?.Trim();
+            parameters.operation = operation;
+            return operation;
+        }
 
         /// <summary>
         /// Create a result object with current play mode state.

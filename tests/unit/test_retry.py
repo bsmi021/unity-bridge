@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from unity_bridge.core.bridge import CommandResult
 from unity_bridge.core.retry import (
     RetryConfig,
     is_retryable_error,
@@ -121,6 +122,20 @@ class TestRetryAsync:
         assert result["success"] is False
         # 1 initial + 2 retries = 3 calls
         assert func.await_count == 3
+
+    async def test_explicit_non_retryable_result_is_not_retried(self) -> None:
+        func = AsyncMock(return_value=CommandResult(
+            success=False,
+            error="Command timed out after 30.0s",
+            data={"status": "command_timeout", "retryable": False},
+            exit_code=1,
+        ))
+        config = RetryConfig(max_retries=3, base_delay=0.01)
+
+        result = await retry_async(func, config=config)
+
+        assert result.success is False
+        assert func.await_count == 1
 
     async def test_retries_on_io_exception(self) -> None:
         call_count = 0

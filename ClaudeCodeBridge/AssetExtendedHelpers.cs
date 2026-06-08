@@ -121,7 +121,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     return new UnityEditor.Animations.AnimatorController();
                 case "physicsmaterial":
                 case "physicmaterial":
-                    return new PhysicMaterial();
+                    return new PhysicsMaterial();
                 case "physicsmaterial2d":
                 case "physicmaterial2d":
                     return new PhysicsMaterial2D();

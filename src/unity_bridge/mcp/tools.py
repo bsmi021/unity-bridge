@@ -1,11 +1,4 @@
-"""MCP tool definitions and dispatch for Unity Bridge.
-
-Each entry in ``TOOL_DEFINITIONS`` mirrors the exact schema from the
-legacy ``unity_bridge_mcp_server.py`` so that existing MCP clients
-continue to work without changes.
-
-Schemas live in ``schemas.py`` to keep both files under the 500 LOC limit.
-"""
+"""MCP tool definitions and dispatch for Unity Bridge."""
 
 from __future__ import annotations
 
@@ -19,12 +12,10 @@ from unity_bridge.mcp import (
     schemas_phase5,
     schemas_phase6b,
     schemas_phase7,
+    schemas_operations,
     schemas_pipeline,
 )
-
-# ---------------------------------------------------------------------------
-# Tool name -> bridge command type mapping
-# ---------------------------------------------------------------------------
+from unity_bridge.mcp.tools_ext import TOOL_COMMAND_MAP_EXT, get_tool_definitions
 
 TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_run_tests": "run-tests",
@@ -91,10 +82,6 @@ TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_physics2d_config": "physics2d-config",
     "unity_search_query": "search-query",
 }
-
-# ---------------------------------------------------------------------------
-# Full tool definitions list
-# ---------------------------------------------------------------------------
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
@@ -209,6 +196,11 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "name": "unity_health_check",
         "description": "Check Unity Bridge health status and diagnostics.",
         "inputSchema": schemas.health_check(),
+    },
+    {
+        "name": "unity_operation_status",
+        "description": "Inspect persisted bridge operation lifecycle state by command ID.",
+        "inputSchema": schemas_operations.operation_status(),
     },
     {
         "name": "unity_compile",
@@ -414,8 +406,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "unity_assembly_reload_lock",
         "description": (
-            "Lock/unlock assembly reloading. "
-            "Prevents domain reload during batch operations."
+            "Lock/unlock assembly reloading. Prevents domain reload during batch operations."
         ),
         "inputSchema": schemas_pipeline.assembly_reload_lock(),
     },
@@ -431,8 +422,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "unity_component_copy",
         "description": (
-            "Copy/paste component values between GameObjects using "
-            "EditorJsonUtility serialization."
+            "Copy/paste component values between GameObjects using EditorJsonUtility serialization."
         ),
         "inputSchema": schemas_phase6b.component_copy(),
     },
@@ -444,8 +434,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "unity_scene_view",
         "description": (
-            "Scene View camera: get/set pivot, rotation, size, "
-            "toggle 2D, change draw mode."
+            "Scene View camera: get/set pivot, rotation, size, toggle 2D, change draw mode."
         ),
         "inputSchema": schemas_phase6b.scene_view(),
     },
@@ -500,3 +489,6 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "inputSchema": schemas_phase7.search_query(),
     },
 ]
+
+TOOL_COMMAND_MAP.update(TOOL_COMMAND_MAP_EXT)
+TOOL_DEFINITIONS.extend(get_tool_definitions())

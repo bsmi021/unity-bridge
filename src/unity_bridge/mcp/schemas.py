@@ -505,7 +505,12 @@ def health_check() -> dict[str, Any]:
         "properties": {
             "waitForHealthy": {
                 "type": "boolean",
-                "description": "Wait for Unity to become healthy (up to 30s)",
+                "description": "Wait for Unity heartbeat liveness",
+                "default": False,
+            },
+            "waitForReady": {
+                "type": "boolean",
+                "description": "Wait for Unity Editor to become ready for commands",
                 "default": False,
             },
             "timeout": {

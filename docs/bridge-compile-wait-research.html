@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unity Bridge Compile Wait Research</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --text: #17202a;
+      --muted: #4d5b6a;
+      --line: #d8dee6;
+      --panel: #f6f8fa;
+      --accent: #215f9a;
+      --warn: #8a5200;
+      --good: #1f6b3a;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: #ffffff;
+      line-height: 1.5;
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+    h1, h2, h3 {
+      line-height: 1.2;
+      margin: 0 0 12px;
+    }
+    h1 {
+      font-size: 30px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 14px;
+      margin-bottom: 20px;
+    }
+    h2 {
+      font-size: 21px;
+      margin-top: 30px;
+    }
+    h3 {
+      font-size: 17px;
+      margin-top: 22px;
+    }
+    p {
+      margin: 0 0 12px;
+    }
+    ul, ol {
+      margin-top: 8px;
+      padding-left: 24px;
+    }
+    li {
+      margin: 6px 0;
+    }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: #eef2f6;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    pre {
+      overflow-x: auto;
+      background: #111827;
+      color: #f8fafc;
+      padding: 16px;
+      border-radius: 6px;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+    }
+    a {
+      color: var(--accent);
+    }
+    .summary {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      padding: 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .callout {
+      background: #fff8ed;
+      border: 1px solid #f0d19b;
+      border-left: 5px solid var(--warn);
+      padding: 14px 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    .recommendation {
+      background: #effaf2;
+      border: 1px solid #b9dec5;
+      border-left: 5px solid var(--good);
+      padding: 14px 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 12px 0 18px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #eef3f8;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: -8px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Unity Bridge Compile Wait Research</h1>
+  <p class="meta">Last updated: 2026-06-06</p>
+
+  <section class="summary">
+    <p><strong>Conclusion:</strong> the bridge should distinguish "Editor is alive but busy compiling, importing, or reloading assemblies" from "bridge is down." The first fix should be client-side: wait for an editor-ready state before writing command files, and return a busy/retryable result when readiness times out. The second fix should enrich the heartbeat so the client can also detect AssetDatabase refresh and assembly reload windows.</p>
+  </section>
+
+  <h2>Observed Failure Mode</h2>
+  <p>The Python client already reads heartbeat health before dispatch. If the heartbeat is stale or missing, it returns a bridge-health error. If the heartbeat says Unity is compiling, it only logs a warning and still writes the command file, then starts the normal command timeout. This means a normal Unity compile, import, or domain reload can look like a failed bridge command.</p>
+  <ul>
+    <li><code>src/unity_bridge/core/bridge.py</code> checks health at dispatch, but only warns on <code>health.is_compiling</code>.</li>
+    <li><code>src/unity_bridge/core/health.py</code> treats a fresh compiling heartbeat as healthy, which is correct for liveness but incomplete for command readiness.</li>
+    <li><code>ClaudeCodeBridge/HeartbeatGenerator.cs</code> writes <code>isCompiling</code>, but not <code>isUpdating</code>, assembly reload state, or a ready flag.</li>
+    <li><code>ClaudeCodeBridge/ClaudeUnityBridge.cs</code> processes command files in <code>EditorApplication.update</code>. That loop cannot be trusted during compile/reload windows.</li>
+  </ul>
+
+  <h2>Unity API Evidence</h2>
+  <ul>
+    <li>Unity exposes <code>EditorApplication.isCompiling</code> as a read-only signal for whether the editor is compiling scripts. Source: <a href="https://docs.unity3d.com/es/2020.2/ScriptReference/EditorApplication-isCompiling.html">Unity Scripting API: EditorApplication.isCompiling</a>.</li>
+    <li>Unity exposes <code>EditorApplication.isUpdating</code> for AssetDatabase refresh/import state. Source: <a href="https://docs.unity3d.com/es/2019.3/ScriptReference/EditorApplication-isUpdating.html">Unity Scripting API: EditorApplication.isUpdating</a>.</li>
+    <li>Unity's AssetDatabase refresh can compile code, reload the C# domain, and restart the refresh loop when imports generate additional work. Source: <a href="https://docs.unity.cn/Manual/AssetDatabaseRefreshing.html">Unity Manual: Refreshing the Asset Database</a>.</li>
+    <li><code>CompilationPipeline.compilationStarted</code> and <code>compilationFinished</code> provide events for compile lifecycle tracking. Source: <a href="https://docs.unity.cn/cn/2021.3/ScriptReference/Compilation.CompilationPipeline-compilationStarted.html">Unity Scripting API: CompilationPipeline.compilationStarted</a>.</li>
+    <li><code>AssetDatabase.Refresh</code> imports changed or added assets and can implicitly trigger asset cleanup. Source: <a href="https://docs.unity3d.com/ja/current/ScriptReference/AssetDatabase.Refresh.html">Unity Scripting API: AssetDatabase.Refresh</a>.</li>
+  </ul>
+
+  <h2>Recommended Model</h2>
+  <div class="recommendation">
+    <p><strong>Add a separate editor readiness state.</strong> "Healthy" should mean the heartbeat proves Unity/bridge liveness. "Ready" should mean the editor is accepting commands: healthy, not compiling, not updating, and not in an assembly reload grace window.</p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>State</th>
+        <th>Meaning</th>
+        <th>Client behavior</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Healthy and ready</td>
+        <td>Heartbeat is fresh and no busy flags are set.</td>
+        <td>Write command and wait for response normally.</td>
+      </tr>
+      <tr>
+        <td>Healthy but compiling/updating</td>
+        <td>Unity is alive, but command scheduling is unreliable.</td>
+        <td>Wait before writing the command. Do not start the command timeout yet.</td>
+      </tr>
+      <tr>
+        <td>Heartbeat stale after busy state</td>
+        <td>Likely assembly reload or editor stall; cannot prove down yet.</td>
+        <td>Classify as <code>editor_busy</code> until a bounded busy grace period expires.</td>
+      </tr>
+      <tr>
+        <td>Heartbeat stale without busy context</td>
+        <td>Bridge may be down or editor frozen.</td>
+        <td>Return the current bridge-unhealthy result.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Implementation Shape</h2>
+  <h3>Phase 1: Python-only wait gate</h3>
+  <ol>
+    <li>Add <code>HealthStatus.ready</code> and <code>HealthStatus.busy_reason</code>. Initially, <code>ready = healthy and not is_compiling</code>.</li>
+    <li>Add <code>HealthMonitor.wait_for_ready(timeout_seconds, poll_interval)</code>. Unlike <code>wait_for_healthy</code>, it should wait through compiling heartbeats.</li>
+    <li>In <code>DirectBridge.send_command()</code>, before creating the command ID and writing the file, wait for ready when <code>check_health</code> is true.</li>
+    <li>Use a separate readiness timeout, not the command response timeout. Suggested default: 180 seconds, configurable by <code>UNITY_BRIDGE_EDITOR_READY_TIMEOUT</code> and a future config field.</li>
+    <li>If readiness expires, return <code>CommandResult(success=False, exit_code=4)</code> with an error such as <code>Unity Editor is busy compiling; command was not sent</code>. This tells an AI client to wait/retry instead of diagnosing a dead bridge.</li>
+  </ol>
+
+  <pre><code>async def _wait_for_editor_ready(self, timeout: float) -> HealthStatus:
+    while within_timeout:
+        health = self._health_monitor.check_health()
+        if health.healthy and not health.is_compiling and not health.is_updating:
+            return health
+        await asyncio.sleep(0.5)
+    return last_health
+</code></pre>
+
+  <h3>Phase 2: Enrich heartbeat</h3>
+  <ol>
+    <li>Add <code>isUpdating = EditorApplication.isUpdating</code> to the heartbeat.</li>
+    <li>Add <code>isPlayingOrWillChangePlaymode</code> if play-mode transitions also cause false timeouts.</li>
+    <li>Add a small editor-side tracker using <code>CompilationPipeline.compilationStarted</code>, <code>CompilationPipeline.compilationFinished</code>, and assembly reload events to persist the last busy reason and timestamp.</li>
+    <li>During busy periods, write heartbeat more frequently if <code>EditorApplication.update</code> is still running. Suggested: 1 second while busy, 5 seconds otherwise.</li>
+  </ol>
+
+  <h3>Phase 3: MCP and CLI guidance</h3>
+  <ol>
+    <li>Expose <code>ready</code>, <code>busyReason</code>, and <code>editorBusyAgeSeconds</code> through <code>status</code> and <code>unity_health_check</code>.</li>
+    <li>Add <code>waitForReady</code> to the MCP health tool. Keep <code>waitForHealthy</code> as liveness-only for compatibility.</li>
+    <li>Return a distinct retryable status for readiness expiration, for example <code>{"success": false, "status": "editor_busy", "retryable": true}</code>.</li>
+  </ol>
+
+  <h2>Important Non-goals</h2>
+  <div class="callout">
+    <p><strong>Do not solve this by locking assembly reloads globally.</strong> Unity documents <code>EditorApplication.LockReloadAssemblies()</code> as a paired lock for specific inconvenient periods. A leaked lock prevents scripts from unloading and would create a worse class of failure.</p>
+  </div>
+  <ul>
+    <li>Do not make every command handler individually sleep while compiling. The client can avoid sending work while the editor cannot process it.</li>
+    <li>Do not reinterpret all stale heartbeats as busy. Only stale heartbeats with recent busy evidence should get a grace period.</li>
+    <li>Do not silently retry mutating commands after a post-send timeout. Retrying mutating commands can duplicate side effects if Unity eventually processed the first command.</li>
+  </ul>
+
+  <h2>Test Plan</h2>
+  <ol>
+    <li>Add unit tests for <code>HealthStatus.ready</code>, <code>is_updating</code>, and <code>busy_reason</code> serialization.</li>
+    <li>Add a <code>wait_for_ready</code> test where the first heartbeat is compiling and the second is ready.</li>
+    <li>Add a <code>DirectBridge.send_command</code> test proving no command file is written while the editor is busy.</li>
+    <li>Add a timeout test proving readiness expiration returns a retryable busy result, not a bridge-down result.</li>
+    <li>Add C# heartbeat tests or static validation for the new heartbeat fields after Phase 2.</li>
+  </ol>
+
+  <h2>Recommended First Patch</h2>
+  <p>Implement Phase 1 first. It is low risk because it changes only client dispatch timing and error classification. It also handles the exact false-negative currently seen by AI clients: a fresh heartbeat saying <code>isCompiling=true</code> should pause dispatch rather than start a command timeout.</p>
+</main>
+</body>
+</html>

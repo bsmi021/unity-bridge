@@ -33,6 +33,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             // Phase 2 handlers
             registerHandler(new CompileCommandHandler());
             registerHandler(new ExecuteMenuItemCommandHandler());
+            registerHandler(new ExecuteScriptCommandHandler());
 
             // Phase 2: Developer Workflow APIs
             registerHandler(new CompilationPipelineCommandHandler());
@@ -116,6 +117,18 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new CloudServicesCommandHandler());
             registerHandler(new Physics2DConfigCommandHandler());
             registerHandler(new SearchQueryCommandHandler());
+
+            // Unity 6.4: Identity & Audit
+            registerHandler(new ObjectIdentityCommandHandler());
+            registerHandler(new ProjectAuditorCommandHandler());
+            registerHandler(new UIToolkitCommandHandler());
+            registerHandler(new RenderPipelineCommandHandler());
+            registerHandler(new GraphicsStateCommandHandler());
+            registerHandler(new GraphToolkitCommandHandler());
+            registerHandler(new SceneStateCommandHandler());
+            registerHandler(new EntitiesCommandHandler());
+            registerHandler(new AdaptivePerformanceCommandHandler());
+            registerHandler(new MultiplayerPlayModeCommandHandler());
 
             // Core handlers registered previously as "disabled pending Unity import"
             // (m3 from gap-analysis-report) — now enabled.

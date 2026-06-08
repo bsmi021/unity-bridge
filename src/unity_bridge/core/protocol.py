@@ -19,9 +19,11 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "refresh-assets": 15,
     "focus-object": 5,
     "health-check": 5,
+    "profiler-sample": 10,
     # Medium operations
     "set-component-data": 30,
     "add-component": 30,
+    "gameobject-operation": 30,
     "scene-operation": 30,
     "prefab-operation": 30,
     "validate-prefab": 30,
@@ -36,7 +38,8 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "asset-extended-operation": 60,
     "package-operation": 60,
     "player-settings-operation": 15,
-    "build-profile-operation": 30,
+    "build-profile-operation": 300,
+    "addressables": 300,
     # Very long operations
     "build-operation": 600,
     # Phase 2: Undo (quick, read-only or instant)
@@ -75,7 +78,15 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "tags-layers": 15,
     # Phase 4: Editor config (quick read/write)
     "editor-config": 10,
+    # Phase 4 extension: specialized workflows
+    "navmesh-operation": 60,
+    "animation-clip": 30,
+    "terrain-operation": 60,
+    "reflection-probe": 300,
+    "occlusion-culling": 300,
+    "tilemap-operation": 30,
     # Phase 5: Quick wins
+    "capture-screenshot": 30,
     "remove-component": 15,
     "component-toggle": 10,
     "console-log": 5,
@@ -90,12 +101,32 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "script-info": 15,
     "deep-serialize": 10,
     "window-management": 5,
-    "input-system": 15,
+    "input-system": 30,
+    # Phase 6: Settings and inspector workflows
+    "time-settings": 5,
+    "graphics-settings": 10,
+    "environment-settings": 10,
+    "audio-settings": 10,
+    "component-copy": 15,
+    "component-reset": 15,
+    "scene-view": 5,
+    "game-view": 5,
+    "profiler-control": 60,
     # Phase 7a: Query & Report
     "sync-solution": 30,
     "cloud-services": 10,
     "physics2d-config": 10,
     "search-query": 30,
+    "object-identity": 10,
+    "project-auditor": 300,
+    "ui-toolkit": 15,
+    "render-pipeline": 15,
+    "graphics-state": 300,
+    "graph-toolkit": 30,
+    "scene-state": 10,
+    "entities": 15,
+    "adaptive-performance": 15,
+    "multiplayer-playmode": 15,
 }
 
 # Commands that are safe for parallel execution in batch mode.
@@ -120,6 +151,11 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "input-system",  # list-actions/get-action-map/export are read-only
     "cloud-services",  # all ops are read-only
     "search-query",  # query/providers are read-only
+    "object-identity",  # get-selection/resolve are reads; ping is editor focus-only
+    "graph-toolkit",  # availability/list/inspect/export are read-only
+    "entities",  # inspection operations are read-only
+    "adaptive-performance",  # inspection operations are read-only
+    "multiplayer-playmode",  # inspection operations are read-only
 }
 
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.

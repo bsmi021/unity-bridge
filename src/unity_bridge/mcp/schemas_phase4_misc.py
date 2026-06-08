@@ -200,7 +200,18 @@ def input_system() -> dict[str, Any]:
         "properties": {
             "operation": {
                 "type": "string",
-                "enum": ["list-actions", "get-action-map", "export", "import"],
+                "enum": [
+                    "list-actions",
+                    "get-action-map",
+                    "export",
+                    "import",
+                    "create-asset",
+                    "add-action-map",
+                    "add-action",
+                    "add-binding",
+                    "add-control-scheme",
+                    "list-control-schemes",
+                ],
                 "description": "Input System operation",
             },
             "assetPath": {
@@ -219,6 +230,25 @@ def input_system() -> dict[str, Any]:
                 "type": "string",
                 "description": "Inline JSON data (for 'import')",
             },
+            "actionMap": {"type": "string", "description": "Action map name"},
+            "actionName": {"type": "string", "description": "Action name"},
+            "actionType": {"type": "string", "description": "InputActionType name"},
+            "bindingPath": {"type": "string", "description": "Input binding path"},
+            "interactions": {"type": "string", "description": "Binding interactions"},
+            "processors": {"type": "string", "description": "Binding processors"},
+            "groups": {"type": "string", "description": "Binding groups"},
+            "expectedControlType": {
+                "type": "string",
+                "description": "Expected control type",
+            },
+            "controlScheme": {"type": "string", "description": "Control scheme name"},
+            "bindingGroup": {"type": "string", "description": "Control scheme binding group"},
+            "devicePaths": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Required device paths",
+            },
+            "overwrite": {"type": "boolean", "default": False},
             "timeout": {
                 "type": "number",
                 "description": "Command timeout in seconds",

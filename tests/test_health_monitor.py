@@ -5,22 +5,14 @@ Tests Unity Bridge health monitoring via heartbeat file.
 Following TDD Red-Green-Refactor methodology.
 """
 
-import pytest
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any
 
+import pytest
 
-# Import will fail initially (RED phase) - that's expected in TDD
-try:
-    from health_monitor import (
-        HealthStatus,
-        HealthMonitor
-    )
-except ImportError:
-    HealthStatus = None
-    HealthMonitor = None
+from unity_bridge.core.health import HealthMonitor, HealthStatus
 
 
 class TestHealthStatus:
@@ -557,10 +549,3 @@ class TestEdgeCases:
 
         assert status.healthy is True
         assert status.uptime_seconds == 86400 * 7
-
-
-# Skip all tests if module not yet implemented (TDD RED phase)
-pytestmark = pytest.mark.skipif(
-    HealthMonitor is None,
-    reason="health_monitor module not yet implemented (TDD RED phase)"
-)

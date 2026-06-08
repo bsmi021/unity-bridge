@@ -6,12 +6,14 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-
 from unity_bridge.core.bridge import CommandResult
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _import_scripting():
     from unity_bridge.commands import scripting
+
     return scripting
 
 
@@ -21,7 +23,6 @@ def _import_scripting():
 
 
 class TestScript:
-
     async def test_builds_correct_parameters(self, mock_bridge: MagicMock) -> None:
         scripting = _import_scripting()
         await scripting.execute_script(mock_bridge, expression="Debug.Log('hi')")
@@ -71,6 +72,14 @@ class TestScript:
         result = await scripting.execute_script(mock_bridge, expression="40+2")
         assert result.success is True
         assert result.data["result"] == "42"
+
+    def test_csharp_handler_exists_and_is_registered(self) -> None:
+        handler = ROOT / "ClaudeCodeBridge" / "ExecuteScriptCommandHandler.cs"
+        registry = ROOT / "ClaudeCodeBridge" / "BridgeCommandRegistry.cs"
+
+        assert handler.is_file()
+        assert "CommandType => \"execute-script\"" in handler.read_text(encoding="utf-8")
+        assert "new ExecuteScriptCommandHandler()" in registry.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

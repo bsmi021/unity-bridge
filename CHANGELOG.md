@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Editor readiness health state distinguishes bridge liveness from command readiness and waits before writing command files.
+- Durable bridge operation state machine with per-command JSON snapshots, JSONL transition logs, Unity domain-generation tracking, atomic C# response writes, reload recovery, stale terminal ledger cleanup, and `operation status` / `unity_operation_status` inspection surfaces.
+- **Unity 6.4 Phase 5: Built-in core packages** — 3 command groups + MCP tools:
+  - `entities` command group + `unity_entities` MCP tool for reflection-safe Unity Entities availability, loaded world listing, default/named world summaries, entity counts, managed system inspection, and bounded archetype/component-type inspection.
+  - `adaptive-performance` command group + `unity_adaptive_performance` MCP tool for Adaptive Performance availability, project settings, loader state, scaler profile discovery, and scaler setting inspection.
+  - `multiplayer-playmode` command group + `unity_multiplayer_playmode` MCP tool for read-only Multiplayer Play Mode package/module availability, current player role, and current player tags.
+- **Unity 6.4 Phase 4: Graphs and deterministic editor state** — 2 new command groups + MCP tools:
+  - `graph-toolkit` command group + `unity_graph_toolkit` MCP tool for Graph Toolkit availability, graph asset discovery, graph inspection, and JSON-friendly graph export using reflection over the built-in Unity 6.4 module.
+  - `scene-state` command group + `unity_scene_state` MCP tool for deterministic Scene View/editor state: snap settings, grid state, gizmo state, active transform tool, pivot settings, visible/locked layer masks, and overlay listing/toggle.
+- **Unity 6.4 Phase 3: Rendering and build** — 2 new command groups + 1 expanded build surface:
+  - `render-pipeline` command group + `unity_render_pipeline` MCP tool for render pipeline asset listing, current/default/quality state inspection, default assignment, quality override assignment, and asset inspection.
+  - `graphics-state` command group + `unity_graphics_state` MCP tool for `GraphicsStateCollection` creation, load info, begin/end trace, trace save, warmup, progressive warmup, and variant clearing.
+  - Extended `build-profile-operation` with `get-scenes`, `set-scenes`, `get-defines`, `set-defines`, and `build`, including structured build report summary, slowest build steps, largest packed assets, and warning/error counts.
+- **Unity 6.4 Phase 2: Authoring systems** — 3 expanded bridge surfaces:
+  - `ui-toolkit` command group + `unity_ui_toolkit` MCP tool for `UIDocument` discovery, UXML/USS inspection, UXML asset creation, `PanelSettings` asset creation, and adding/configuring `UIDocument` components.
+  - Extended `input-system` with authoring operations: create `.inputactions` assets, add action maps, add actions, add bindings, add control schemes, and list control schemes.
+  - Extended `addressables` with profile listing/activation, label listing/mutation, group schema listing, and best-effort Analyze rule discovery/execution with graceful unsupported results.
+- **Unity 6.4 Phase 1: Identity and audit** — 2 new command groups + MCP tools:
+  - `object-identity` resolves selected objects and explicit targets across `EntityId`, `GlobalObjectId`, asset paths, scene hierarchy paths, and legacy instance IDs.
+  - `project-auditor` checks Project Auditor availability, runs audits, saves reports, and summarizes saved reports through reflection so projects without `com.unity.project-auditor` still compile.
+- **Phase 0 surface hardening** — exposes existing late-phase bridge capabilities consistently:
+  - Registered Phase 4 expansion, Phase 6, Phase 6b, and Phase 7 CLI groups in `app.py`.
+  - Exposed Phase 4 extension, Phase 4 misc, Phase 6 settings, Phase 6b, and Phase 7 tools through MCP, bringing the active MCP surface to 83 tool definitions.
+  - Added inventory and surface tests for CLI registration, MCP mapping/timeout coverage, and C# `.meta` file completeness.
+  - Added missing Unity `.meta` files for Phase 7 C# bridge files.
 - **Phase 7a-2: Structured test + build reports** — closes the "we ran it but the agent has to re-parse the log" gap:
   - `run-tests` response now includes `inconclusive`, `resultState`, `testSuite`, plus a `testCases` array (full name, status, duration, assembly, categories) alongside the existing `failures` array. NUnit semantics, no log scraping required.
   - `build-operation` response now includes a structured `summary` (result, platform, total size bytes/MB, total time, start/end timestamps, output path, build GUID), the top 50 slowest `buildSteps` with duration and depth, the top 25 `largestAssets` (path, size, kind), and aggregated `errorCount`/`warningCount`.
@@ -25,6 +50,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
 
 ### Fixed
+- Restored `unity-bridge playmode stop` by sending canonical `operation` payloads and accepting legacy `action` aliases in the C# bridge handler.
+- Applied the advertised `package list --source` filter in the C# Package Manager handler, including source validation and filtered list responses.
+- Wired Input System authoring overwrite flags through the Python CLI/core helpers and allowed control schemes to be created without optional binding-group/device details, matching the MCP schema.
+- Added and registered the missing `execute-script` C# handler so the existing `unity-bridge script` command reaches live Unity instead of failing as an unknown command type.
+- Updated `unity-bridge install` to deploy the bundled `unity-bridge-cli` Codex skill into the target project's `.agents/skills/` directory and report its status in `--check`.
+- Replaced stale MCP compatibility tests that inspected deleted `unity_bridge_mcp_server.py` with tests against the current modular MCP tool registry.
+- Modernized legacy root-level bridge/WSL health tests so the full `tests/` suite collects against the current package layout.
+- Added explicit timeout defaults for late-phase command types that were previously relying on the protocol fallback.
 - **Registered 29 orphaned C# command handlers in `BridgeCommandRegistry.cs`** — Phase 4 expansion (`script-execution-order`, `assembly-reload-lock`, `find-references`, `navmesh-operation`, `animation-clip`, `terrain-operation`, `reflection-probe`, `occlusion-culling`), Phase 6a-6e (`time-settings`, `graphics-settings`, `environment-settings`, `audio-settings`, `component-copy`, `component-reset`, `scene-view`, `game-view`, `profiler-control`, `addressables`, `tilemap-operation`, `input-system`, `clipboard`, `preset-operation`, `scene-template`, `script-info`, `deep-serialize`, `window-management`), and the previously-disabled `capture-screenshot`, `playmode-control`, `asset-operation`. The C# handler files and the Python/MCP layers already existed; the registry had never been updated to wire them in. Unit tests pass because they mock the bridge — live Unity previously returned "Unknown command type" for every Phase 4-ext / Phase 6 command.
 - Added `timeout` property to 21 core MCP schemas in `schemas.py` (previously only `run_tests`, `build_operation`, `compile_scripts` declared it) so LLM clients can discover per-tool timeout overrides
 - Cleared all ruff lint errors across `src/` and `tests/` (unused imports, dead variables, lambda-to-def)

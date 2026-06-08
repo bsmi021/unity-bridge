@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -327,13 +326,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     ? BridgeResponse.Success(commandId, commandType, dataJson)
                     : BridgeResponse.Error(commandId, commandType, dataJson);
 
-                var projectRoot = System.IO.Directory.GetParent(Application.dataPath).FullName;
-                var responsesPath = Path.Combine(
-                    projectRoot, ".claude", "unity", "responses");
-                var responsePath = Path.Combine(
-                    responsesPath, $"{commandId}-{commandType}.json");
-
-                File.WriteAllText(responsePath, JsonUtility.ToJson(response));
+                ClaudeUnityBridge.WriteResponseStatic(response);
                 BridgeLogger.LogInfo($"Deferred response written for {commandId}");
             }
             catch (Exception ex)

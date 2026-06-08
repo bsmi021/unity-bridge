@@ -68,20 +68,27 @@ class RetryConfig:
 DEFAULT_RETRY_CONFIG = RetryConfig()
 
 
-def _check_result_error(result: Any) -> tuple[bool, str]:
+def _check_result_error(result: Any) -> tuple[bool, str, bool | None]:
     """Extract success status and error message from a result.
 
     Supports CommandResult (duck-typed via 'success' attr) and legacy dicts.
 
     Returns:
-        Tuple of (is_success, error_message). If the result type is
-        unrecognized, returns (True, "") so no retry is attempted.
+        Tuple of (is_success, error_message, retryable_override). If the
+        result type is unrecognized, returns (True, "", None) so no retry is
+        attempted.
     """
     if hasattr(result, "success"):
-        return (result.success, result.error or "")
+        data = getattr(result, "data", None)
+        retryable = data.get("retryable") if isinstance(data, dict) else None
+        return (result.success, result.error or "", retryable)
     if isinstance(result, dict):
-        return (result.get("success", True), result.get("error", ""))
-    return (True, "")
+        return (
+            result.get("success", True),
+            result.get("error", ""),
+            result.get("retryable"),
+        )
+    return (True, "", None)
 
 
 async def _log_and_delay(
@@ -126,9 +133,9 @@ async def retry_async(
     for attempt in range(cfg.max_retries + 1):
         try:
             result = await func(*args, **kwargs)
-            success, error_msg = _check_result_error(result)
+            success, error_msg, retryable = _check_result_error(result)
 
-            if success or not is_retryable_error(error_msg):
+            if success or retryable is False or not is_retryable_error(error_msg):
                 return result
             if attempt < cfg.max_retries:
                 await _log_and_delay(cfg, attempt, "Retryable error", error_msg)

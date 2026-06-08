@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unity Bridge Reload and Domain Operation Resilience Research</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --text: #17202a;
+      --muted: #556270;
+      --line: #d9e0e8;
+      --panel: #f6f8fb;
+      --panel-strong: #eef4f8;
+      --accent: #1f6f7a;
+      --accent-dark: #12515b;
+      --good: #1f6b3a;
+      --warn: #8a5200;
+      --bad: #9a2f2f;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: #ffffff;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px 60px;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.2;
+      margin: 0 0 12px;
+    }
+
+    h1 {
+      font-size: 30px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      font-size: 21px;
+      margin-top: 32px;
+    }
+
+    h3 {
+      font-size: 17px;
+      margin-top: 22px;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    ul, ol {
+      margin-top: 8px;
+      padding-left: 24px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: #eef2f6;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+
+    a {
+      color: var(--accent-dark);
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 12px 0 18px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--panel-strong);
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: -6px;
+      margin-bottom: 20px;
+    }
+
+    .summary {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      padding: 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+
+    .recommendation {
+      background: #effaf2;
+      border: 1px solid #b9dec5;
+      border-left: 5px solid var(--good);
+      padding: 14px 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+
+    .warning {
+      background: #fff8ed;
+      border: 1px solid #f0d19b;
+      border-left: 5px solid var(--warn);
+      padding: 14px 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+
+    .risk {
+      background: #fff5f5;
+      border: 1px solid #edc7c7;
+      border-left: 5px solid var(--bad);
+      padding: 14px 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin: 12px 0 18px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 14px;
+      background: #ffffff;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Unity Bridge Reload and Domain Operation Resilience Research</h1>
+  <p class="meta">Last updated: 2026-06-08</p>
+
+  <section class="summary">
+    <p><strong>Conclusion:</strong> <code>unity-bridge</code> already has the right first layer: it separates heartbeat liveness from command readiness and waits before dispatching while Unity is compiling, updating, reloading assemblies, or changing play mode. The next resilience layer should protect commands that are already accepted or running when Unity reloads the scripting domain. That requires a durable operation ledger, reload generation tracking, atomic terminal responses, and client-side wait semantics that pause or reclassify in-flight waits during editor busy windows instead of reporting generic command failure.</p>
+  </section>
+
+  <h2>Scope</h2>
+  <p>This research focuses on Unity Editor plugins that communicate with outside clients, using this repository's file-based bridge as the concrete case. The goal is not to prevent Unity from compiling or reloading. The goal is to make client-observed behavior correct while Unity is legitimately busy: either keep waiting, report a retryable busy/reload state, or return a precise interruption result.</p>
+
+  <h2>Implementation Status</h2>
+  <p>As of 2026-06-08, this repository has the first durable implementation slice in place. The bridge now writes per-command operation snapshots to <code>.claude/unity/operations/&lt;commandId&gt;.json</code>, appends transition events to <code>&lt;commandId&gt;.events.jsonl</code>, exposes <code>domainGeneration</code> in heartbeat health, writes C# responses through an atomic central path, and provides <code>unity-bridge operation status COMMAND_ID</code> plus <code>unity_operation_status</code> for client-side inspection.</p>
+  <p>The implementation is intentionally conservative for reload recovery: accepted/running operations found after a domain reload are marked <code>interrupted</code> and receive a terminal error response unless a response already exists. Handler-specific resume logic can be added on top of the same ledger for operations that are provably pollable after reload.</p>
+
+  <h2>What Unity Reloads and Why It Matters</h2>
+  <ul>
+    <li>Unity reloads code and scene state as part of normal Play mode entry by default. Unity documents this as a tradeoff between iteration time and the degree to which Play mode resembles a fresh application start. Source: <a href="https://docs.unity3d.com/6000.0/Documentation/Manual/code-reloading-editor.html">Unity Manual: Code and scene reload on entering Play mode</a>.</li>
+    <li>AssetDatabase refresh can compile code-related files, reload the C# domain, import assets, hot reload assets, and restart its refresh loop when import work creates more work. Source: <a href="https://docs.unity.cn/Manual/AssetDatabaseRefreshing.html">Unity Manual: Refreshing the Asset Database</a>.</li>
+    <li><code>InitializeOnLoad</code> static constructors run when Unity loads the editor and when scripts are recompiled. Unity warns that asset operations should be avoided there because asset importing may not be complete. Source: <a href="https://docs.unity.cn/ScriptReference/InitializeOnLoadAttribute.html">Unity Scripting API: InitializeOnLoadAttribute</a>.</li>
+    <li>For initialization that needs assets after a reload, Unity recommends <code>AssetPostprocessor.OnPostprocessAllAssets(..., bool didDomainReload)</code>, which is called after importing completes and can safely perform asset database operations. Source: <a href="https://docs.unity.cn/ScriptReference/AssetPostprocessor.OnPostprocessAllAssets.html">Unity Scripting API: AssetPostprocessor.OnPostprocessAllAssets</a>.</li>
+    <li><code>AssemblyReloadEvents.beforeAssemblyReload</code> and <code>afterAssemblyReload</code> bracket assembly reloads. Source: <a href="https://docs.unity.cn/2021.2/Documentation/ScriptReference/AssemblyReloadEvents.html">Unity Scripting API: AssemblyReloadEvents</a>.</li>
+    <li>Unity exposes <code>EditorApplication.isCompiling</code>, <code>isUpdating</code>, <code>isPlayingOrWillChangePlaymode</code>, and <code>playModeStateChanged</code> as editor-state signals. Sources: <a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/EditorApplication-isCompiling.html">isCompiling</a>, <a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/EditorApplication-isUpdating.html">isUpdating</a>, <a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/EditorApplication-isPlayingOrWillChangePlaymode.html">isPlayingOrWillChangePlaymode</a>, <a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/EditorApplication-playModeStateChanged.html">playModeStateChanged</a>.</li>
+    <li>When domain reload on Play mode entry is disabled, static fields and static event subscriptions persist between Play mode runs, so plugin code must explicitly reset state and avoid duplicate subscriptions. Source: <a href="https://docs.unity.cn/2023.3/Documentation/Manual/domain-reloading.html">Unity Manual: Enter Play mode with domain reload disabled</a>.</li>
+  </ul>
+
+  <h2>Current Unity Bridge Baseline</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>Already Good</h3>
+      <ul>
+        <li><code>HealthMonitor.wait_for_ready()</code> waits for command readiness, not only heartbeat liveness.</li>
+        <li><code>DirectBridge.send_command()</code> waits before generating a command ID or writing a command file.</li>
+        <li><code>HeartbeatGenerator</code> writes busy flags for compile, AssetDatabase update, assembly reload, and play-mode transition.</li>
+        <li>The Python side treats <code>running</code> responses as non-terminal and keeps polling for the final response.</li>
+      </ul>
+    </section>
+    <section class="card">
+      <h3>Still Fragile</h3>
+      <ul>
+        <li>Accepted and running commands are not represented in durable state outside static C# fields.</li>
+        <li>Domain reload can erase callback dictionaries for tests, play-mode transitions, package manager requests, and synchronous lightmap waits.</li>
+        <li>The response timeout starts after dispatch and does not currently distinguish "Unity reloaded while running" from "handler failed to answer."</li>
+        <li>C# response writes are not consistently atomic, even though Python has retry-on-partial-read behavior.</li>
+      </ul>
+    </section>
+  </div>
+
+  <h2>Failure Modes to Design Around</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Failure mode</th>
+        <th>Likely cause</th>
+        <th>Client-visible problem</th>
+        <th>Desired behavior</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Command sent just before compile/import</td>
+        <td>Unity becomes busy after the Python pre-dispatch gate passed.</td>
+        <td>Normal response timeout fires even though the editor is alive.</td>
+        <td>Pause or reclassify in-flight wait while heartbeat shows busy/reload, bounded by a hard client deadline.</td>
+      </tr>
+      <tr>
+        <td><code>running</code> response never becomes terminal</td>
+        <td>Static callback state is lost during domain reload.</td>
+        <td>Python keeps reading the same <code>running</code> response until command timeout.</td>
+        <td>Recovery scan writes a terminal <code>interrupted_by_reload</code>, <code>recovered</code>, or <code>retryable_busy</code> response.</td>
+      </tr>
+      <tr>
+        <td>Duplicate command execution</td>
+        <td>In-memory <code>_processedCommandFiles</code> resets on domain reload while a command file remains.</td>
+        <td>Mutating commands can apply twice or produce conflicting responses.</td>
+        <td>Use an on-disk accepted/executing/terminal ledger and idempotency keys before invoking handlers.</td>
+      </tr>
+      <tr>
+        <td>Bridge initializes too early after reload</td>
+        <td><code>InitializeOnLoad</code> runs before asset importing completes.</td>
+        <td>Asset-dependent handlers fail immediately after reload.</td>
+        <td>Keep boot code file-only and defer asset operations to <code>OnPostprocessAllAssets(... didDomainReload)</code> or <code>delayCall</code>.</td>
+      </tr>
+      <tr>
+        <td>Editor remains unresponsive after an asset batch</td>
+        <td><code>AssetDatabase.StartAssetEditing()</code> is not matched with <code>StopAssetEditing()</code> after an exception.</td>
+        <td>All later bridge commands appear broken.</td>
+        <td>Use <code>try/finally</code> for every asset editing batch. Unity explicitly warns a missing stop call can leave the editor unresponsive. Source: <a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/AssetDatabase.StartAssetEditing.html">Unity Scripting API: AssetDatabase.StartAssetEditing</a>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Recommended Resilience Model</h2>
+  <section class="recommendation">
+    <p><strong>Make command lifecycle durable.</strong> Treat every command as a small state machine persisted to disk before handler execution. Heartbeat readiness prevents bad dispatch timing; the ledger prevents reloads from stranding or duplicating accepted work.</p>
+  </section>
+
+  <h3>1. Add a Durable Operation Ledger</h3>
+  <p>Create <code>&lt;project&gt;/.claude/unity/operations/&lt;commandId&gt;.json</code> with a compact schema:</p>
+  <ul>
+    <li><code>commandId</code>, <code>commandType</code>, <code>parametersHash</code>, <code>idempotencyKey</code></li>
+    <li><code>state</code>: <code>queued</code>, <code>accepted</code>, <code>running</code>, <code>completed</code>, <code>failed</code>, <code>interrupted</code>, <code>abandoned</code></li>
+    <li><code>domainGeneration</code>, <code>acceptedAt</code>, <code>startedAt</code>, <code>lastProgressAt</code>, <code>terminalAt</code></li>
+    <li><code>reloadPolicy</code>: <code>safe_to_retry_before_start</code>, <code>pollable_after_reload</code>, <code>must_not_retry_after_start</code></li>
+    <li><code>responsePath</code>, <code>commandPath</code>, <code>lastBusyReason</code>, <code>lastError</code></li>
+  </ul>
+  <p>The bridge should write <code>accepted</code> before invoking a handler and write <code>running</code> before returning a <code>BridgeResponse.Running</code>. Terminal response writing should update the ledger and response file atomically. This makes post-reload recovery an inspection problem instead of a guess.</p>
+
+  <h3>2. Track Domain Generation</h3>
+  <p>Add a monotonic <code>domainGeneration</code> or <code>reloadGeneration</code> field to the heartbeat. Increment it from editor-side persistent storage after each domain reload, then include it in heartbeat, operation ledger entries, diagnostics, and responses. If a client sees an in-flight command accepted in generation 12 but the heartbeat is now generation 13 and no recovery terminal response exists, it can report a precise reload interruption instead of a generic timeout.</p>
+
+  <h3>3. Recover After Reload</h3>
+  <p>Add a small <code>BridgeReloadRecovery</code> initializer that runs after reload and scans the operation ledger:</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Operation state after reload</th>
+        <th>Recovery action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>queued</code> with no <code>acceptedAt</code></td>
+        <td>Leave it for normal processing, or mark retryable if the command file is gone.</td>
+      </tr>
+      <tr>
+        <td><code>accepted</code> but not <code>running</code></td>
+        <td>If no side effects started, write retryable <code>interrupted_before_start</code> and leave retry to the client.</td>
+      </tr>
+      <tr>
+        <td><code>running</code> and pollable</td>
+        <td>Rebuild enough state to poll current Unity status and write a recovered terminal response when possible.</td>
+      </tr>
+      <tr>
+        <td><code>running</code> and not pollable</td>
+        <td>Write terminal <code>interrupted_by_domain_reload</code> with <code>retryable</code> based on handler metadata.</td>
+      </tr>
+      <tr>
+        <td>terminal response already exists</td>
+        <td>Do nothing except cleanup old ledger files by age.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>4. Give Handlers Explicit Retry and Reload Metadata</h3>
+  <p>Not every command can be retried safely. Add handler metadata, either on <code>ICommandHandler</code> or in a registry table:</p>
+  <ul>
+    <li><code>ReadOnly</code>: safe to retry after no terminal response.</li>
+    <li><code>MutatingIdempotent</code>: retry only with the same <code>idempotencyKey</code> and a ledger check.</li>
+    <li><code>MutatingNonIdempotent</code>: never auto-retry after <code>accepted</code>.</li>
+    <li><code>PollableAfterReload</code>: recovery can infer completion from current Unity state.</li>
+    <li><code>CanTriggerReload</code>: response wait should expect a reload window.</li>
+  </ul>
+  <p>Examples: hierarchy reads are read-only; component edits are mutating and should not auto-retry after acceptance; play mode transitions are pollable after reload by checking current editor state; test runs are usually not recoverable if the test runner callback state is lost.</p>
+
+  <h3>5. Change Response Waiting Semantics</h3>
+  <p>Keep the existing command response timeout, but split it into two concepts:</p>
+  <ul>
+    <li><strong>Operation timeout:</strong> how long the Unity operation is allowed to take when the editor is active.</li>
+    <li><strong>Client patience timeout:</strong> how long the CLI or MCP call should wait before returning control to the caller.</li>
+  </ul>
+  <p>While a command is in flight, the Python client should keep reading heartbeat readiness. If the heartbeat becomes busy or stale-after-busy, the wait should produce <code>editor_busy</code> or <code>editor_reloading</code> progress rather than immediately consuming the operation timeout. A hard maximum still prevents infinite hangs.</p>
+
+  <h3>6. Make Response Writes Atomic</h3>
+  <p>Python already writes command files through a temp file and rename. C# should use the same pattern for response files and ledger updates: write <code>&lt;name&gt;.tmp</code>, flush/close, then replace or move into place. Python's partial-read retry is useful, but atomic terminal writes reduce false <code>running</code> loops and malformed-response windows.</p>
+
+  <h3>7. Normalize Busy Reason Enums</h3>
+  <p>The current C# heartbeat can emit <code>assembly_reload</code>, while Python-derived readiness names use <code>reloading_assemblies</code>. Normalize busy reasons at the C# boundary or in Python parsing. Suggested canonical values: <code>compiling</code>, <code>updating</code>, <code>reloading_assemblies</code>, <code>playmode_transition</code>, <code>domain_recovery</code>.</p>
+
+  <h3>8. Keep <code>InitializeOnLoad</code> Lightweight</h3>
+  <p>Use <code>InitializeOnLoad</code> for file paths, event registration, heartbeat startup, and recovery scheduling. Do not do asset loading there. For asset-dependent recovery, schedule one pass through <code>EditorApplication.delayCall</code> or <code>AssetPostprocessor.OnPostprocessAllAssets(..., didDomainReload)</code> after import completes. <code>delayCall</code> is a one-shot post-inspector callback. Source: <a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/EditorApplication-delayCall.html">Unity Scripting API: EditorApplication.delayCall</a>.</p>
+
+  <h2>Anti-patterns to Avoid</h2>
+  <section class="warning">
+    <p><strong>Do not use global reload locking as the main fix.</strong> Unity documents <code>EditorApplication.LockReloadAssemblies()</code> as a paired lock for short periods when reload is inconvenient. Every lock must be matched with unlock; a leaked lock prevents scripts from unloading. Source: <a href="https://docs.unity3d.com/2023.2/Documentation/ScriptReference/EditorApplication.LockReloadAssemblies.html">Unity Scripting API: EditorApplication.LockReloadAssemblies</a>.</p>
+  </section>
+  <ul>
+    <li>Do not silently retry mutating commands after they were accepted by Unity.</li>
+    <li>Do not depend on static dictionaries as the only record of active async work.</li>
+    <li>Do not leave <code>running</code> response files as the only progress signal.</li>
+    <li>Do not call AssetDatabase batch APIs without <code>try/finally</code> cleanup.</li>
+    <li>Do not treat stale heartbeat as dead editor when recent busy or reload evidence exists.</li>
+  </ul>
+
+  <h2>Implementation Sequence</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Phase</th>
+        <th>Work</th>
+        <th>Why first</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>A</td>
+        <td>Normalize busy reasons, add reload generation to heartbeat, make C# response writes atomic, and expose generation in <code>status</code> / MCP health.</td>
+        <td>Low-risk observability and protocol cleanup that improves diagnosis immediately.</td>
+      </tr>
+      <tr>
+        <td>B</td>
+        <td>Add operation ledger, command acceptance states, terminal ledger writes, and stale ledger cleanup.</td>
+        <td>Creates the durable substrate needed for recovery without rewriting every handler at once.</td>
+      </tr>
+      <tr>
+        <td>C</td>
+        <td>Migrate long-running handlers to ledger-backed progress: tests, play mode, package manager, build, lightmap, compile/import operations.</td>
+        <td>Targets the handlers most likely to strand clients while waiting.</td>
+      </tr>
+      <tr>
+        <td>D</td>
+        <td>Add post-reload recovery scan and handler metadata for retry/recovery behavior.</td>
+        <td>Turns reload interruptions into precise terminal responses.</td>
+      </tr>
+      <tr>
+        <td>E</td>
+        <td>Update Python response wait to watch heartbeat, pause/reclassify busy windows, and support operation polling by command ID.</td>
+        <td>Completes the client behavior needed to avoid false failures during reloads.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Validation Plan</h2>
+  <ol>
+    <li>Unit-test heartbeat parsing for <code>domainGeneration</code>, normalized busy reasons, stale-after-busy, and busy-to-ready transitions.</li>
+    <li>Unit-test <code>DirectBridge</code> so no command is written before readiness and in-flight waits classify busy/reload windows separately from command timeout.</li>
+    <li>Static-test C# heartbeat and response writer contracts when no Unity compile target is available in this repo.</li>
+    <li>Add Unity integration tests that send a long-running command, trigger AssetDatabase refresh or script compilation, and verify the client gets either a terminal recovered result or a retryable reload interruption.</li>
+    <li>Add fixture-based recovery tests that leave <code>queued</code>, <code>accepted</code>, <code>running</code>, and terminal ledger files on disk, then simulate reload recovery.</li>
+    <li>Run <code>python3 -m pytest tests/</code> and <code>ruff check src/ tests/</code>; when a Unity project is available, run a live compile/test smoke before claiming editor-side completion.</li>
+  </ol>
+
+  <h2>Bottom Line</h2>
+  <section class="risk">
+    <p>The remaining client failure risk is no longer primarily "Unity is busy before dispatch." It is "Unity reloads after a command has been accepted and before the final response is written." The robust fix is to persist command lifecycle state, tag each operation with reload/retry semantics, and make the client understand busy/reload progress while waiting.</p>
+  </section>
+</main>
+</body>
+</html>
