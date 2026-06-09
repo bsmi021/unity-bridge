@@ -8,6 +8,26 @@ from typing import Annotated
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.settings_params import SettingField, build_set_params
+
+_ENVIRONMENT_FIELDS = [
+    SettingField("skybox_material", ("skyboxMaterial",)),  # no set-flag
+    SettingField("ambient_mode", ("ambientMode",), "setAmbientMode"),
+    SettingField("ambient_intensity", ("ambientIntensity",), "setAmbientIntensity"),
+    SettingField(
+        "ambient_light",
+        ("ambientLightR", "ambientLightG", "ambientLightB"),
+        "setAmbientLight",
+    ),
+    SettingField("fog", ("fog",), "setFog"),
+    SettingField("fog_mode", ("fogMode",), "setFogMode"),
+    SettingField("fog_color", ("fogColorR", "fogColorG", "fogColorB"), "setFogColor"),
+    SettingField("fog_density", ("fogDensity",), "setFogDensity"),
+    SettingField("fog_start", ("fogStartDistance",), "setFogStartDistance"),
+    SettingField("fog_end", ("fogEndDistance",), "setFogEndDistance"),
+    SettingField("reflection_bounces", ("reflectionBounces",), "setReflectionBounces"),
+    SettingField("reflection_intensity", ("reflectionIntensity",), "setReflectionIntensity"),
+]
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -81,48 +101,7 @@ async def environment_set(
         reflection_intensity: Reflection intensity multiplier.
         timeout: Timeout in seconds.
     """
-    params: dict[str, object] = {"operation": "set"}
-
-    if skybox_material is not None:
-        params["skyboxMaterial"] = skybox_material
-    if ambient_mode is not None:
-        params["ambientMode"] = ambient_mode
-        params["setAmbientMode"] = True
-    if ambient_intensity is not None:
-        params["ambientIntensity"] = ambient_intensity
-        params["setAmbientIntensity"] = True
-    if ambient_light is not None:
-        params["ambientLightR"] = ambient_light[0]
-        params["ambientLightG"] = ambient_light[1]
-        params["ambientLightB"] = ambient_light[2]
-        params["setAmbientLight"] = True
-    if fog is not None:
-        params["fog"] = fog
-        params["setFog"] = True
-    if fog_mode is not None:
-        params["fogMode"] = fog_mode
-        params["setFogMode"] = True
-    if fog_color is not None:
-        params["fogColorR"] = fog_color[0]
-        params["fogColorG"] = fog_color[1]
-        params["fogColorB"] = fog_color[2]
-        params["setFogColor"] = True
-    if fog_density is not None:
-        params["fogDensity"] = fog_density
-        params["setFogDensity"] = True
-    if fog_start is not None:
-        params["fogStartDistance"] = fog_start
-        params["setFogStartDistance"] = True
-    if fog_end is not None:
-        params["fogEndDistance"] = fog_end
-        params["setFogEndDistance"] = True
-    if reflection_bounces is not None:
-        params["reflectionBounces"] = reflection_bounces
-        params["setReflectionBounces"] = True
-    if reflection_intensity is not None:
-        params["reflectionIntensity"] = reflection_intensity
-        params["setReflectionIntensity"] = True
-
+    params = build_set_params("set", _ENVIRONMENT_FIELDS, locals())
     return await bridge.send_command_with_retry(
         command_type="environment-settings",
         parameters=params,
