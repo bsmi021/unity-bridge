@@ -424,6 +424,12 @@ async def clean(
     deleted.extend(operation_deleted)
     skipped.extend(operation_skipped)
 
+    # Reap response files orphaned by timed-out/terminal operations (B5).
+    if not dry_run:
+        from unity_bridge.core.bridge import DirectBridge
+
+        deleted.extend(DirectBridge(project_root).reconcile_orphans())
+
     return CommandResult(
         success=True,
         data={

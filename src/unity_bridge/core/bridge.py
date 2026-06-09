@@ -20,11 +20,13 @@ from typing import Any
 import aiofiles
 
 from unity_bridge.core.operation import (
+    RETRY_NON_IDEMPOTENT,
     STATE_ABANDONED,
     STATE_ACCEPTED,
     STATE_COMPLETED,
     STATE_FAILED,
     STATE_INTERRUPTED,
+    STATE_QUEUED,
     STATE_RUNNING,
     STATE_RECOVERING,
     OperationStore,
@@ -215,10 +217,62 @@ class DirectBridge:
             logger.warning("retry module not available — retries disabled.")
             return await self.send_command(command_type, parameters, timeout)
 
+        policy = retry_policy_for_command(command_type)
+        idempotency_key = (parameters or {}).get("idempotencyKey")
+
         async def attempt() -> CommandResult:
             return await self.send_command(command_type, parameters, timeout)
 
-        return await retry_async(attempt, config=retry_config)
+        def can_retry(result: CommandResult) -> bool:
+            return self._retry_allowed(result, policy, idempotency_key)
+
+        return await retry_async(attempt, config=retry_config, can_retry=can_retry)
+
+    def _retry_allowed(
+        self,
+        result: CommandResult,
+        retry_policy: str,
+        idempotency_key: str | None,
+    ) -> bool:
+        """Whether a failed attempt may be re-sent without risking duplication.
+
+        A non-idempotent command that Unity has already accepted (moved past
+        QUEUED) must not be re-sent unless the caller supplied an idempotency
+        key, since each send creates a fresh command and side effect.
+        """
+        if retry_policy != RETRY_NON_IDEMPOTENT or idempotency_key is not None:
+            return True
+        command_id = getattr(result, "command_id", None)
+        if not command_id:
+            return True
+        record = self._operation_store.load(command_id)
+        if record is not None and record.state != STATE_QUEUED:
+            return False
+        return True
+
+    def reconcile_orphans(self) -> list[str]:
+        """Reap stale response files left by timed-out/terminal operations.
+
+        When a command times out the bridge stops polling but leaves the
+        command file so Unity can finish; a late response then orphans. This
+        removes response files belonging to terminal operations.
+
+        Returns:
+            The response file paths that were removed.
+        """
+        removed: list[str] = []
+        for record in self._operation_store.list_records(include_terminal=True, limit=10_000):
+            if not record.is_terminal or not record.response_path:
+                continue
+            response_file = Path(record.response_path)
+            if not response_file.exists():
+                continue
+            try:
+                response_file.unlink()
+                removed.append(str(response_file))
+            except OSError as exc:
+                logger.debug("Could not reap orphan response %s: %s", response_file, exc)
+        return removed
 
     # ------------------------------------------------------------------
     # Internal helpers

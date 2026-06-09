@@ -7,12 +7,15 @@ from pathlib import Path
 
 import pytest
 
+from unittest.mock import patch
+
 from unity_bridge.core.operation import (
     RETRY_NON_IDEMPOTENT,
     RETRY_READ_ONLY,
     STATE_ACCEPTED,
     STATE_COMPLETED,
     STATE_QUEUED,
+    STATE_RUNNING,
     OperationStateMachine,
     OperationStore,
     parameters_hash,
@@ -121,6 +124,52 @@ def test_operation_state_machine_rejects_invalid_transition(fake_project: Path) 
     assert completed is not None
     with pytest.raises(ValueError):
         OperationStateMachine.transition(record=completed, to_state=STATE_ACCEPTED)
+
+
+def _make_record(store: OperationStore, command_id: str, state: str) -> None:
+    store.create_queued(
+        command_id=command_id,
+        command_type="set-component-data",
+        parameters={},
+        command_path=store.project_root / "cmd.json",
+        response_path=store.project_root / "resp.json",
+        domain_generation=None,
+        retry_policy=RETRY_NON_IDEMPOTENT,
+    )
+    if state != STATE_QUEUED:
+        store.transition(command_id, state, reason="setup")
+
+
+def test_store_transition_rejects_invalid_without_raising(fake_project: Path) -> None:
+    """store.transition must not raise on an illegal transition (the other
+    writer advanced the state); it returns the current record unchanged."""
+    store = OperationStore(fake_project)
+    _make_record(store, "id", STATE_RUNNING)
+
+    # RUNNING -> ACCEPTED is not allowed; should be rejected gracefully.
+    result = store.transition("id", STATE_ACCEPTED, reason="stale")
+
+    assert result is not None
+    assert result.state == STATE_RUNNING
+
+
+def test_store_transition_does_not_clobber_concurrent_terminal(fake_project: Path) -> None:
+    """C2: if the C# writer advances to a terminal state between our load and
+    write, the Python transition must not overwrite it with a non-terminal one."""
+    store = OperationStore(fake_project)
+    _make_record(store, "id", STATE_ACCEPTED)
+    completed = store.load("id")
+    object.__setattr__(completed, "state", STATE_COMPLETED)
+
+    accepted = store.load("id")  # state == accepted
+    # First load (top of transition) sees ACCEPTED; reload-before-write sees COMPLETED.
+    with patch.object(store, "load", side_effect=[accepted, completed]):
+        result = store.transition("id", STATE_RUNNING, reason="unity running")
+
+    assert result is not None
+    assert result.state == STATE_COMPLETED
+    # The non-terminal RUNNING write must have been skipped (disk not regressed).
+    assert store.load("id").state != STATE_RUNNING
 
 
 def test_retry_policy_classifies_parallel_safe_commands() -> None:

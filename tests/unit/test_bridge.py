@@ -546,3 +546,99 @@ class TestActiveElapsedClamp:
 
     def test_active_elapsed_normal_case(self) -> None:
         assert DirectBridge._active_elapsed(10.0, 3.0, 1.0) == 6.0
+
+
+class TestRetryPolicyEnforcement:
+    """B6: non-idempotent mutations must not be re-sent once Unity accepted them."""
+
+    def _accepted_record(self, bridge: DirectBridge, command_id: str, state: str) -> None:
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="set-component-data",
+            parameters={},
+            command_path=bridge.commands_path / f"{command_id}.json",
+            response_path=bridge.responses_path / f"{command_id}.json",
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+        if state != STATE_QUEUED:
+            bridge._operation_store.transition(command_id, state, reason="setup")
+
+    def test_non_idempotent_accepted_is_not_retryable(self, fake_project: Path) -> None:
+        from unity_bridge.core.operation import RETRY_NON_IDEMPOTENT
+
+        bridge = DirectBridge(fake_project)
+        self._accepted_record(bridge, "cmd-acc", STATE_ACCEPTED)
+        result = CommandResult(success=False, error="file is being used", command_id="cmd-acc")
+        assert bridge._retry_allowed(result, RETRY_NON_IDEMPOTENT, None) is False
+
+    def test_non_idempotent_still_queued_is_retryable(self, fake_project: Path) -> None:
+        from unity_bridge.core.operation import RETRY_NON_IDEMPOTENT
+
+        bridge = DirectBridge(fake_project)
+        self._accepted_record(bridge, "cmd-q", STATE_QUEUED)
+        result = CommandResult(success=False, error="timeout", command_id="cmd-q")
+        assert bridge._retry_allowed(result, RETRY_NON_IDEMPOTENT, None) is True
+
+    def test_idempotency_key_allows_retry(self, fake_project: Path) -> None:
+        from unity_bridge.core.operation import RETRY_NON_IDEMPOTENT
+
+        bridge = DirectBridge(fake_project)
+        self._accepted_record(bridge, "cmd-idem", STATE_ACCEPTED)
+        result = CommandResult(success=False, error="timeout", command_id="cmd-idem")
+        assert bridge._retry_allowed(result, RETRY_NON_IDEMPOTENT, "key-123") is True
+
+    def test_read_only_always_retryable(self, fake_project: Path) -> None:
+        from unity_bridge.core.operation import RETRY_READ_ONLY
+
+        bridge = DirectBridge(fake_project)
+        self._accepted_record(bridge, "cmd-ro", STATE_ACCEPTED)
+        result = CommandResult(success=False, error="timeout", command_id="cmd-ro")
+        assert bridge._retry_allowed(result, RETRY_READ_ONLY, None) is True
+
+
+class TestReconcileOrphans:
+    """B5: a late response for a timed-out (terminal) operation must be reaped."""
+
+    async def test_reconcile_removes_terminal_response(self, fake_project: Path) -> None:
+        from unity_bridge.core.operation import STATE_INTERRUPTED
+
+        bridge = DirectBridge(fake_project)
+        response_file = bridge.responses_path / "orphan-set-component-data.json"
+        bridge._operation_store.create_queued(
+            command_id="orphan",
+            command_type="set-component-data",
+            parameters={},
+            command_path=bridge.commands_path / "orphan-set-component-data.json",
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+        bridge._operation_store.transition("orphan", STATE_ACCEPTED, reason="setup")
+        bridge._operation_store.transition("orphan", STATE_INTERRUPTED, reason="timed out")
+        response_file.write_text('{"status":"success"}', encoding="utf-8")
+
+        removed = bridge.reconcile_orphans()
+
+        assert str(response_file) in removed
+        assert not response_file.exists()
+
+    async def test_reconcile_keeps_in_flight_response(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project)
+        response_file = bridge.responses_path / "live-query-hierarchy.json"
+        bridge._operation_store.create_queued(
+            command_id="live",
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=bridge.commands_path / "live-query-hierarchy.json",
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+        bridge._operation_store.transition("live", STATE_RUNNING, reason="setup")
+        response_file.write_text('{"status":"running"}', encoding="utf-8")
+
+        removed = bridge.reconcile_orphans()
+
+        assert str(response_file) not in removed
+        assert response_file.exists()

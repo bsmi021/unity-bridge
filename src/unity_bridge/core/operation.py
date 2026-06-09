@@ -291,12 +291,27 @@ class OperationStore:
             self.append_event(current, current.state, current.state, "ignored_transition", reason)
             return current
         previous = current.state
-        updated = OperationStateMachine.transition(
-            current,
-            to_state,
-            reason=reason,
-            busy_reason=busy_reason,
-        )
+        try:
+            updated = OperationStateMachine.transition(
+                current,
+                to_state,
+                reason=reason,
+                busy_reason=busy_reason,
+            )
+        except ValueError:
+            # The other writer (the C# bridge) advanced the record to a state we
+            # cannot legally transition from. Do not clobber its progress.
+            self.append_event(current, current.state, to_state, "rejected_transition", reason)
+            return current
+        # Re-load immediately before writing: if the other writer advanced to a
+        # terminal state between our load and write, keep the terminal state
+        # rather than regressing it (best-effort guard for the cross-process race).
+        latest = self.load(command_id)
+        if latest is not None and latest.is_terminal and not updated.is_terminal:
+            self.append_event(
+                latest, current.state, to_state, "skipped_concurrent_terminal", reason
+            )
+            return latest
         self.write(updated)
         self.append_event(updated, previous, to_state, "transition", reason)
         return updated

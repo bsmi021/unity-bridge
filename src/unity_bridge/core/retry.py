@@ -108,6 +108,7 @@ async def retry_async(
     func: Callable[..., T],
     *args: Any,
     config: RetryConfig | None = None,
+    can_retry: Callable[[Any], bool] | None = None,
     **kwargs: Any,
 ) -> T:
     """Execute an async function with retry logic.
@@ -119,6 +120,9 @@ async def retry_async(
         func: Async function to execute.
         *args: Positional arguments for func.
         config: Retry configuration (uses DEFAULT_RETRY_CONFIG if None).
+        can_retry: Optional policy gate called with the just-returned result
+            before a retry; returning False stops further retries (e.g. to
+            avoid re-sending a non-idempotent command Unity already accepted).
         **kwargs: Keyword arguments for func.
 
     Returns:
@@ -137,6 +141,9 @@ async def retry_async(
             success, error_msg, retryable = _check_result_error(result)
 
             if success or retryable is False or not is_retryable_error(error_msg):
+                return result
+            if can_retry is not None and not can_retry(result):
+                logger.warning("Retry vetoed by policy gate: %s", error_msg)
                 return result
             if attempt < cfg.max_retries:
                 await _log_and_delay(cfg, attempt, "Retryable error", error_msg)
