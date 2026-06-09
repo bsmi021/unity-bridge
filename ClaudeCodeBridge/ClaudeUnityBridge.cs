@@ -130,8 +130,9 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 isInitialized = inst._isInitialized,
                 isWatcherActive = inst._commandWatcher != null && inst._commandWatcher.EnableRaisingEvents,
-                isHealthy = inst._isInitialized && inst._commandWatcher != null
-                    && inst._commandWatcher.EnableRaisingEvents,
+                // Health reflects the poll-driven processing loop, not the file
+                // watcher (which only logs — all processing happens in Update).
+                isHealthy = inst._isInitialized,
                 handlerCount = inst._commandHandlers.Count,
                 processedCount = inst._processedCommandFiles.Count,
                 playModeState = inst._lastPlayModeState.ToString(),
@@ -250,8 +251,22 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             try
             {
-                var commandFiles = Directory.GetFiles(COMMANDS_PATH, "*.json")
+                var present = Directory.GetFiles(COMMANDS_PATH, "*.json");
+
+                // Bound memory: a processed command file is deleted immediately,
+                // so drop tracking entries whose files no longer exist instead of
+                // letting the set grow unbounded for the editor session.
+                if (_processedCommandFiles.Count > 0)
+                {
+                    _processedCommandFiles.IntersectWith(present);
+                }
+
+                // Process in submission order (creation time), not the
+                // unspecified order Directory.GetFiles returns, so ordered
+                // sequences (e.g. add-component then set-component-data) run FIFO.
+                var commandFiles = present
                     .Where(f => !_processedCommandFiles.Contains(f))
+                    .OrderBy(GetCommandFileOrderKey)
                     .ToList();
 
                 foreach (var commandFile in commandFiles)
@@ -264,6 +279,12 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 BridgeLogger.LogError($"Error processing commands: {ex.Message}");
             }
+        }
+
+        private static DateTime GetCommandFileOrderKey(string path)
+        {
+            try { return File.GetCreationTimeUtc(path); }
+            catch { return DateTime.UtcNow; }
         }
 
         private void ProcessCommandFile(string commandFilePath)
@@ -473,7 +494,25 @@ namespace BWS.Editor.ClaudeCodeBridge
                     file = file,
                     exception = ex?.ToString()
                 };
+                RotateDiagnosticsLogIfNeeded();
                 File.AppendAllText(DIAGNOSTICS_LOG, JsonUtility.ToJson(evt, false) + Environment.NewLine);
+            }
+            catch { }
+        }
+
+        private const long DIAGNOSTICS_LOG_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+        private static void RotateDiagnosticsLogIfNeeded()
+        {
+            try
+            {
+                var info = new FileInfo(DIAGNOSTICS_LOG);
+                if (!info.Exists || info.Length < DIAGNOSTICS_LOG_MAX_BYTES)
+                    return;
+                var rotated = DIAGNOSTICS_LOG + ".1";
+                if (File.Exists(rotated))
+                    File.Delete(rotated);
+                File.Move(DIAGNOSTICS_LOG, rotated);
             }
             catch { }
         }

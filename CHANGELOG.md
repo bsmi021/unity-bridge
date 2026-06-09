@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI command/group registration failures are now logged as warnings instead of being silently swallowed.
 
 ### Fixed
+- **C# bridge: the `compile` handler no longer freezes the Unity Editor.** The blocking `Thread.Sleep` busy-wait on `EditorApplication.isCompiling` (which ran on the main thread Unity needs to drive compilation) was replaced with a non-blocking `EditorApplication.update` poll that returns `running` immediately and writes the terminal response when compilation finishes, never started (nothing to compile), or times out. A compile-triggered domain reload is handled by the existing operation-ledger recovery. *(Needs in-Editor compile verification — no Unity available at change time.)*
+- **C# bridge: `HeartbeatGenerator` now writes atomically** via the shared `WriteAtomic` (temp + fsync + replace) instead of delete-then-move, removing the window where a health check could observe a missing heartbeat file.
+- **C# bridge:** command files are now processed in submission (creation-time) order rather than the unspecified filesystem order; `_processedCommandFiles` is bounded to currently-present files instead of growing for the whole session; `isHealthy` no longer depends on the no-op file watcher; and `bridge-log.jsonl` is size-rotated at 5 MB.
 - A plain command timeout now reports exit code 4 (Timeout) instead of 1.
 - The operation ledger guards against the cross-process (Python/C#) write race: illegal transitions are rejected gracefully instead of raising, and a concurrently-written terminal state is no longer clobbered by a later non-terminal write.
 - Non-idempotent commands that Unity has already accepted are no longer re-sent on retry (preventing duplicate side effects) unless an `idempotencyKey` is supplied.

@@ -81,6 +81,19 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string CommandType => "compile";
 
+        // Non-blocking wait state. Handlers run synchronously from
+        // EditorApplication.update, so we must NOT block the main thread while
+        // EditorApplication.isCompiling — Unity drives compilation on that same
+        // thread, so a blocking wait freezes the whole editor and the flag never
+        // clears. Instead we return "running" and finish from a per-frame poll.
+        private static readonly Dictionary<string, CompileWaitContext> _pendingCompiles =
+            new Dictionary<string, CompileWaitContext>();
+        private static bool _pollRegistered = false;
+
+        // Grace period for compilation to *begin* after a refresh before we
+        // conclude there was nothing to compile and complete immediately.
+        private const double CompileStartGraceSeconds = 1.0;
+
         public BridgeResponse Execute(BridgeCommand command)
         {
             try
@@ -92,7 +105,6 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 BridgeLogger.LogDebug($"Triggering compilation (waitForCompletion={parameters.waitForCompletion}, timeout={parameters.timeout}s)");
 
-                // Record start time
                 var startTime = DateTime.UtcNow;
 
                 // Trigger compilation
@@ -111,8 +123,26 @@ namespace BWS.Editor.ClaudeCodeBridge
                     return BridgeResponse.Success(command.commandId, command.commandType, JsonUtility.ToJson(quickResult));
                 }
 
-                // Wait for compilation to complete
-                return HandleWaitForCompletion(command, parameters, startTime);
+                // Defer completion to a non-blocking per-frame poll and return
+                // "running" now. The terminal response is written later via
+                // ClaudeUnityBridge.WriteResponseStatic. If compilation triggers
+                // a domain reload, the operation ledger's reload recovery writes
+                // the terminal response instead — so the caller never hangs.
+                _pendingCompiles[command.commandId] = new CompileWaitContext
+                {
+                    CommandId = command.commandId,
+                    CommandType = command.commandType,
+                    StartTime = startTime,
+                    TimeoutSeconds = parameters.timeout,
+                    CompilationStarted = false,
+                };
+                EnsurePollRegistered();
+
+                return BridgeResponse.Running(
+                    command.commandId,
+                    command.commandType,
+                    $"{{\"message\":\"Compilation requested at {startTime:O}\"}}"
+                );
             }
             catch (Exception ex)
             {
@@ -121,82 +151,99 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
         }
 
-        /// <summary>
-        /// Waits for compilation to complete and collects results.
-        /// </summary>
-        private BridgeResponse HandleWaitForCompletion(BridgeCommand command, CompileParams parameters, DateTime startTime)
+        private static void EnsurePollRegistered()
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var timeoutMs = parameters.timeout * 1000;
-
-            // Wait for compilation to finish
-            if (!WaitForCompilationComplete(timeoutMs))
-            {
-                sw.Stop();
-                return CreateTimeoutResponse(command, parameters, sw);
-            }
-
-            sw.Stop();
-
-            // Collect and analyze results
-            var messages = GetCompilationMessages();
-            var result = CreateSuccessResult(messages, sw);
-
-            BridgeLogger.LogInfo($"Compilation complete in {result.durationSeconds:F2}s " +
-                     $"(errors={result.errorCount}, warnings={result.warningCount})");
-
-            return BridgeResponse.Success(command.commandId, command.commandType, JsonUtility.ToJson(result));
+            if (_pollRegistered)
+                return;
+            EditorApplication.update += PollPendingCompiles;
+            _pollRegistered = true;
         }
 
         /// <summary>
-        /// Waits for compilation to finish, respecting timeout.
-        /// Returns true if compilation finished, false if timeout occurred.
+        /// Per-frame, non-blocking check of in-flight compile waits. Writes the
+        /// terminal response when compilation finishes (or never started) or on
+        /// timeout, then unregisters itself once no waits remain.
         /// </summary>
-        private bool WaitForCompilationComplete(int timeoutMs)
+        private static void PollPendingCompiles()
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-
-            while (EditorApplication.isCompiling)
+            if (_pendingCompiles.Count == 0)
             {
-                if (sw.ElapsedMilliseconds > timeoutMs)
+                EditorApplication.update -= PollPendingCompiles;
+                _pollRegistered = false;
+                return;
+            }
+
+            var compiling = EditorApplication.isCompiling;
+            var completed = new List<string>();
+
+            foreach (var kvp in _pendingCompiles)
+            {
+                var ctx = kvp.Value;
+                var elapsed = (DateTime.UtcNow - ctx.StartTime).TotalSeconds;
+
+                if (compiling)
                 {
-                    BridgeLogger.LogError($"Compilation timeout after {timeoutMs}ms");
-                    return false;
+                    ctx.CompilationStarted = true;
                 }
 
-                System.Threading.Thread.Sleep(100);
+                if (elapsed > ctx.TimeoutSeconds)
+                {
+                    WriteTimeout(ctx, elapsed);
+                    completed.Add(kvp.Key);
+                    continue;
+                }
+
+                // Done when compilation has finished, or when it never started
+                // within the grace window (nothing to compile).
+                if (!compiling && (ctx.CompilationStarted || elapsed >= CompileStartGraceSeconds))
+                {
+                    WriteCompleted(ctx, elapsed);
+                    completed.Add(kvp.Key);
+                }
             }
 
-            return true;
+            foreach (var id in completed)
+            {
+                _pendingCompiles.Remove(id);
+            }
         }
 
-        /// <summary>
-        /// Creates a timeout result response.
-        /// </summary>
-        private BridgeResponse CreateTimeoutResponse(BridgeCommand command, CompileParams parameters, System.Diagnostics.Stopwatch sw)
+        private static void WriteCompleted(CompileWaitContext ctx, double elapsedSeconds)
         {
+            var messages = GetCompilationMessages();
+            var result = CreateSuccessResult(messages, elapsedSeconds);
+            BridgeLogger.LogInfo($"Compilation complete in {result.durationSeconds:F2}s " +
+                     $"(errors={result.errorCount}, warnings={result.warningCount})");
+            ClaudeUnityBridge.WriteResponseStatic(
+                BridgeResponse.Success(ctx.CommandId, ctx.CommandType, JsonUtility.ToJson(result)));
+        }
+
+        private static void WriteTimeout(CompileWaitContext ctx, double elapsedSeconds)
+        {
+            BridgeLogger.LogError($"Compilation timeout after {ctx.TimeoutSeconds}s");
             var timeoutResult = new CompilationResult
             {
                 success = false,
                 hasErrors = true,
                 errorCount = 1,
-                durationSeconds = sw.Elapsed.TotalSeconds,
+                durationSeconds = elapsedSeconds,
                 messages = new List<CompilationMessage>
                 {
                     new CompilationMessage
                     {
                         type = "error",
-                        message = $"Compilation timeout after {parameters.timeout} seconds"
+                        message = $"Compilation timeout after {ctx.TimeoutSeconds} seconds"
                     }
                 }
             };
-            return BridgeResponse.Success(command.commandId, command.commandType, JsonUtility.ToJson(timeoutResult));
+            ClaudeUnityBridge.WriteResponseStatic(
+                BridgeResponse.Success(ctx.CommandId, ctx.CommandType, JsonUtility.ToJson(timeoutResult)));
         }
 
         /// <summary>
         /// Creates a successful result from compilation messages.
         /// </summary>
-        private CompilationResult CreateSuccessResult(List<CompilationMessage> messages, System.Diagnostics.Stopwatch sw)
+        private static CompilationResult CreateSuccessResult(List<CompilationMessage> messages, double elapsedSeconds)
         {
             var hasErrors = messages.Any(m => m.type == "error");
             var hasWarnings = messages.Any(m => m.type == "warning");
@@ -208,7 +255,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 hasWarnings = hasWarnings,
                 errorCount = messages.Count(m => m.type == "error"),
                 warningCount = messages.Count(m => m.type == "warning"),
-                durationSeconds = sw.Elapsed.TotalSeconds,
+                durationSeconds = elapsedSeconds,
                 messages = messages
             };
         }
@@ -217,7 +264,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         /// Retrieves compilation messages from Unity's LogEntries using reflection.
         /// This accesses the editor console logs that were generated during compilation.
         /// </summary>
-        private List<CompilationMessage> GetCompilationMessages()
+        private static List<CompilationMessage> GetCompilationMessages()
         {
             var messages = new List<CompilationMessage>();
 
@@ -283,7 +330,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         /// <summary>
         /// Extracts a single log entry using reflection.
         /// </summary>
-        private CompilationMessage ExtractLogEntry(Type logEntriesType, MethodInfo getEntryMethod, int index)
+        private static CompilationMessage ExtractLogEntry(Type logEntriesType, MethodInfo getEntryMethod, int index)
         {
             // Create output parameters for GetEntryInternal
             // Signature: GetEntryInternal(int index, LogEntry& entry)
@@ -330,7 +377,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         /// <summary>
         /// Determines message type from LogEntry mode value.
         /// </summary>
-        private string DetermineMessageType(object mode)
+        private static string DetermineMessageType(object mode)
         {
             if (mode is int modeInt)
             {
@@ -345,6 +392,18 @@ namespace BWS.Editor.ClaudeCodeBridge
 
             return "log";
         }
+    }
+
+    /// <summary>
+    /// Tracks one in-flight, non-blocking compile wait.
+    /// </summary>
+    internal class CompileWaitContext
+    {
+        public string CommandId;
+        public string CommandType;
+        public DateTime StartTime;
+        public int TimeoutSeconds;
+        public bool CompilationStarted;
     }
 
     /// <summary>
