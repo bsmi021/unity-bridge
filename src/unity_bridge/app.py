@@ -188,7 +188,7 @@ def _register_optional_commands() -> None:
     Each block is wrapped in a try/except so the CLI remains functional
     even when some command modules have not been implemented.
     """
-    _try_register_group("unity_bridge.commands.snapshot", "snapshot_app", "snapshot")
+    _try_register_group("unity_bridge.commands.workflow", "snapshot_app", "snapshot")
     _try_register_command("unity_bridge.commands.playmode", "playmode_cli", "playmode")
     _try_register_command("unity_bridge.commands.diagnostics", "status_cli", "status")
     _try_register_command("unity_bridge.commands.diagnostics", "doctor_cli", "doctor")
