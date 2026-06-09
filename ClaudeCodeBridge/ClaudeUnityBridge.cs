@@ -87,6 +87,9 @@ namespace BWS.Editor.ClaudeCodeBridge
             SetupFileWatcher();
             if (!_recoveryScanned)
             {
+                // Complete a compile that finished by triggering this reload,
+                // before generic recovery would mark it interrupted.
+                CompileCommandHandler.CompletePendingCompileAfterReload();
                 BridgeOperationLedger.RecoverAfterReload();
                 _recoveryScanned = true;
             }

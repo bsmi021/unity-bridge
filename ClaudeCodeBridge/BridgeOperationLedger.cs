@@ -159,9 +159,21 @@ namespace BWS.Editor.ClaudeCodeBridge
         private static bool ShouldInterruptAfterReload(OperationRecord record)
         {
             if (ResponseExists(record)) return false;
+            // Commands that intentionally span a domain reload (a PlayMode test
+            // run, or a compile that triggered the reload) own their own
+            // completion and must not be force-interrupted here, or the caller
+            // would receive a spurious "interrupted" before the real result.
+            if (IsDeferredAcrossReload(record.commandId)) return false;
             return record.state == StateAccepted
                 || record.state == StateRunning
                 || record.state == StateRecovering;
+        }
+
+        private static bool IsDeferredAcrossReload(string commandId)
+        {
+            if (string.IsNullOrEmpty(commandId)) return false;
+            return commandId == SessionState.GetString(BridgeTestRunReporter.CommandIdKey, "")
+                || commandId == SessionState.GetString(CompileCommandHandler.PendingCommandIdKey, "");
         }
 
         private static bool ResponseExists(OperationRecord record)

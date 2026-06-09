@@ -28,8 +28,18 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string CommandType => "assembly-reload-lock";
 
-        private static bool _isLocked = false;
-        private static int _lockDepth = 0;
+        // Lock depth must survive domain reloads (a lock taken before a reload is
+        // still in effect after it), so it is stored in SessionState rather than
+        // a plain static that the reload would reset.
+        private const string LockDepthKey = "UnityBridge.AssemblyReloadLock.Depth";
+
+        private static int LockDepth
+        {
+            get => SessionState.GetInt(LockDepthKey, 0);
+            set => SessionState.SetInt(LockDepthKey, value);
+        }
+
+        private static bool IsLocked => LockDepth > 0;
 
         public BridgeResponse Execute(BridgeCommand command)
         {
@@ -66,16 +76,15 @@ namespace BWS.Editor.ClaudeCodeBridge
         private BridgeResponse HandleLock(BridgeCommand command)
         {
             EditorApplication.LockReloadAssemblies();
-            _isLocked = true;
-            _lockDepth++;
+            LockDepth++;
 
             var result = new AssemblyReloadLockResult
             {
                 operation = "lock",
                 isLocked = true,
-                lockDepth = _lockDepth,
+                lockDepth = LockDepth,
                 success = true,
-                message = $"Assembly reloading locked (depth: {_lockDepth}). " +
+                message = $"Assembly reloading locked (depth: {LockDepth}). " +
                     "Remember to unlock when done."
             };
 
@@ -87,7 +96,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private BridgeResponse HandleUnlock(BridgeCommand command)
         {
-            if (_lockDepth <= 0)
+            if (LockDepth <= 0)
             {
                 var noLockResult = new AssemblyReloadLockResult
                 {
@@ -103,17 +112,16 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             EditorApplication.UnlockReloadAssemblies();
-            _lockDepth--;
-            _isLocked = _lockDepth > 0;
+            LockDepth--;
 
             var result = new AssemblyReloadLockResult
             {
                 operation = "unlock",
-                isLocked = _isLocked,
-                lockDepth = _lockDepth,
+                isLocked = IsLocked,
+                lockDepth = LockDepth,
                 success = true,
-                message = _isLocked
-                    ? $"Assembly reload unlocked one level (remaining depth: {_lockDepth})"
+                message = IsLocked
+                    ? $"Assembly reload unlocked one level (remaining depth: {LockDepth})"
                     : "Assembly reloading fully unlocked."
             };
 
@@ -128,11 +136,11 @@ namespace BWS.Editor.ClaudeCodeBridge
             var result = new AssemblyReloadLockResult
             {
                 operation = "status",
-                isLocked = _isLocked,
-                lockDepth = _lockDepth,
+                isLocked = IsLocked,
+                lockDepth = LockDepth,
                 success = true,
-                message = _isLocked
-                    ? $"Assembly reloading is locked (depth: {_lockDepth})"
+                message = IsLocked
+                    ? $"Assembly reloading is locked (depth: {LockDepth})"
                     : "Assembly reloading is unlocked."
             };
 

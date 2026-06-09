@@ -94,6 +94,11 @@ namespace BWS.Editor.ClaudeCodeBridge
         // conclude there was nothing to compile and complete immediately.
         private const double CompileStartGraceSeconds = 1.0;
 
+        // SessionState markers so a compile that triggers a domain reload (which
+        // wipes the in-memory poll) is still completed after the reload.
+        internal const string PendingCommandIdKey = "UnityBridge.Compile.CommandId";
+        private const string PendingStartTicksKey = "UnityBridge.Compile.StartTicks";
+
         public BridgeResponse Execute(BridgeCommand command)
         {
             try
@@ -136,6 +141,9 @@ namespace BWS.Editor.ClaudeCodeBridge
                     TimeoutSeconds = parameters.timeout,
                     CompilationStarted = false,
                 };
+                // Persist across a potential domain reload triggered by the compile.
+                SessionState.SetString(PendingCommandIdKey, command.commandId);
+                SessionState.SetString(PendingStartTicksKey, startTime.Ticks.ToString());
                 EnsurePollRegistered();
 
                 return BridgeResponse.Running(
@@ -216,6 +224,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                      $"(errors={result.errorCount}, warnings={result.warningCount})");
             ClaudeUnityBridge.WriteResponseStatic(
                 BridgeResponse.Success(ctx.CommandId, ctx.CommandType, JsonUtility.ToJson(result)));
+            ClearPendingMarker(ctx.CommandId);
         }
 
         private static void WriteTimeout(CompileWaitContext ctx, double elapsedSeconds)
@@ -238,6 +247,54 @@ namespace BWS.Editor.ClaudeCodeBridge
             };
             ClaudeUnityBridge.WriteResponseStatic(
                 BridgeResponse.Success(ctx.CommandId, ctx.CommandType, JsonUtility.ToJson(timeoutResult)));
+            ClearPendingMarker(ctx.CommandId);
+        }
+
+        private static void ClearPendingMarker(string commandId)
+        {
+            if (SessionState.GetString(PendingCommandIdKey, "") == commandId)
+            {
+                SessionState.EraseString(PendingCommandIdKey);
+                SessionState.EraseString(PendingStartTicksKey);
+            }
+        }
+
+        /// <summary>
+        /// Called once on domain load (before ledger reload recovery). If a
+        /// compile was in flight when the reload occurred, the reload itself
+        /// means compilation finished, so collect results and write the terminal
+        /// response now. No-op if no compile was pending.
+        /// </summary>
+        public static void CompletePendingCompileAfterReload()
+        {
+            var commandId = SessionState.GetString(PendingCommandIdKey, "");
+            if (string.IsNullOrEmpty(commandId))
+                return;
+
+            double elapsed = 0.0;
+            if (long.TryParse(SessionState.GetString(PendingStartTicksKey, ""), out var ticks))
+                elapsed = (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc)).TotalSeconds;
+
+            try
+            {
+                var messages = GetCompilationMessages();
+                var result = CreateSuccessResult(messages, elapsed);
+                BridgeLogger.LogInfo(
+                    $"Compilation completed across reload (errors={result.errorCount}, warnings={result.warningCount})");
+                ClaudeUnityBridge.WriteResponseStatic(
+                    BridgeResponse.Success(commandId, "compile", JsonUtility.ToJson(result)));
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError($"Error completing compile after reload: {ex}");
+                ClaudeUnityBridge.WriteResponseStatic(
+                    BridgeResponse.Error(commandId, "compile", ex.ToString()));
+            }
+            finally
+            {
+                SessionState.EraseString(PendingCommandIdKey);
+                SessionState.EraseString(PendingStartTicksKey);
+            }
         }
 
         /// <summary>
