@@ -52,7 +52,10 @@ class AppState:
         if self._bridge is None:
             from unity_bridge.core.bridge import DirectBridge
 
-            self._bridge = DirectBridge(self.project_root)
+            global_timeout = (
+                self.config.default_timeout if self.config.timeout_explicit else None
+            )
+            self._bridge = DirectBridge(self.project_root, default_timeout=global_timeout)
         return self._bridge
 
 

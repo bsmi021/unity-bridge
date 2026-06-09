@@ -158,6 +158,23 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "multiplayer-playmode",  # inspection operations are read-only
 }
 
+# Commands that appear in PARALLEL_SAFE_COMMANDS but mix read-only and
+# mutating operations. They are only parallel-safe for the listed (read-only)
+# operation values; any other operation (or a missing operation) is treated as
+# a mutation and runs sequentially. Omitting a genuine read operation here is
+# safe (it just runs sequentially); never list a mutating operation.
+OPERATION_GATED_PARALLEL_SAFE: dict[str, frozenset[str]] = {
+    "transform-operation": frozenset({"get"}),
+    "serialized-property": frozenset({"get", "list"}),
+    "script-execution-order": frozenset({"get"}),
+    "clipboard": frozenset({"read"}),
+    "deep-serialize": frozenset({"get"}),
+    "window-management": frozenset({"list"}),
+    "input-system": frozenset(
+        {"list-actions", "get-action-map", "export", "list-control-schemes"}
+    ),
+}
+
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.
 _FALLBACK_TIMEOUT: int = 30
 
@@ -186,6 +203,26 @@ def get_timeout(
     return TIMEOUT_DEFAULTS.get(command_type, _FALLBACK_TIMEOUT)
 
 
-def is_parallel_safe(command_type: str) -> bool:
-    """Return True if the command is safe for parallel batch execution."""
-    return command_type in PARALLEL_SAFE_COMMANDS
+def is_parallel_safe(
+    command_type: str,
+    parameters: dict[str, object] | None = None,
+) -> bool:
+    """Return True if the command is safe for parallel batch execution.
+
+    For commands whose safety depends on the operation (those in
+    ``OPERATION_GATED_PARALLEL_SAFE``), only the read-only operations are
+    parallel-safe; a missing or mutating operation is treated as unsafe so it
+    runs sequentially.
+
+    Args:
+        command_type: Bridge command type.
+        parameters: Command parameters (inspected for ``operation`` on gated
+            commands).
+    """
+    if command_type not in PARALLEL_SAFE_COMMANDS:
+        return False
+    gated = OPERATION_GATED_PARALLEL_SAFE.get(command_type)
+    if gated is None:
+        return True
+    operation = (parameters or {}).get("operation")
+    return operation in gated

@@ -495,3 +495,54 @@ class TestResponseWaitState:
         assert record is not None
         assert record.state == STATE_ABANDONED
         assert not command_file.exists()
+
+
+class TestTimeoutExitCode:
+    """B4: a plain command timeout must report exit_code 4 (Timeout), not 1."""
+
+    async def test_command_timeout_returns_exit_code_4(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project)
+        bridge._health_monitor = None
+        command_id = "cmd-timeout-code"
+        command_file = bridge.commands_path / f"{command_id}-query-hierarchy.json"
+        response_file = bridge.responses_path / f"{command_id}-query-hierarchy.json"
+        command_file.write_text("{}", encoding="utf-8")
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=command_file,
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+
+        result = await bridge._wait_for_response(
+            response_file, command_file, command_id, timeout=0.01
+        )
+
+        assert result.exit_code == 4
+
+
+class TestGlobalTimeoutOverride:
+    """B2: an explicit global --timeout/env override applies to every command."""
+
+    def test_no_override_uses_requested_timeout(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project)
+        assert bridge._effective_timeout("run-tests", 300.0) == 300.0
+
+    def test_global_override_replaces_requested_timeout(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project, default_timeout=5)
+        assert bridge._effective_timeout("run-tests", 300.0) == 5.0
+        assert bridge._effective_timeout("query-hierarchy", 10.0) == 5.0
+
+
+class TestActiveElapsedClamp:
+    """B10: busy accounting must never produce a negative active-elapsed."""
+
+    def test_active_elapsed_never_negative(self) -> None:
+        # busy_elapsed + current_busy exceeds elapsed (flapping health states)
+        assert DirectBridge._active_elapsed(1.0, 2.0, 0.5) == 0.0
+
+    def test_active_elapsed_normal_case(self) -> None:
+        assert DirectBridge._active_elapsed(10.0, 3.0, 1.0) == 6.0

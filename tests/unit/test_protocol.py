@@ -7,6 +7,7 @@ from unity_bridge.core.protocol import (
     TIMEOUT_DEFAULTS,
     PARALLEL_SAFE_COMMANDS,
     get_timeout,
+    is_parallel_safe,
 )
 
 
@@ -56,6 +57,56 @@ class TestParallelSafeCommands:
         assert "set-component-data" not in PARALLEL_SAFE_COMMANDS
         assert "run-tests" not in PARALLEL_SAFE_COMMANDS
         assert "compile" not in PARALLEL_SAFE_COMMANDS
+
+
+# ---------------------------------------------------------------------------
+# is_parallel_safe — operation-aware gating (B1)
+# ---------------------------------------------------------------------------
+
+
+class TestIsParallelSafeByOperation:
+    """Commands that mix read and mutating operations must only be classified
+    parallel-safe for their read-only operations."""
+
+    def test_fully_read_only_command_is_safe_without_params(self) -> None:
+        assert is_parallel_safe("query-hierarchy") is True
+        assert is_parallel_safe("get-component-data", {}) is True
+
+    def test_unsafe_command_is_never_safe(self) -> None:
+        assert is_parallel_safe("set-component-data") is False
+        assert is_parallel_safe("set-component-data", {"operation": "get"}) is False
+
+    def test_transform_get_is_safe_but_set_is_not(self) -> None:
+        assert is_parallel_safe("transform-operation", {"operation": "get"}) is True
+        assert is_parallel_safe("transform-operation", {"operation": "set"}) is False
+        assert is_parallel_safe("transform-operation", {"operation": "parent"}) is False
+        assert (
+            is_parallel_safe("transform-operation", {"operation": "sibling-index"})
+            is False
+        )
+
+    def test_serialized_property_reads_safe_set_unsafe(self) -> None:
+        assert is_parallel_safe("serialized-property", {"operation": "get"}) is True
+        assert is_parallel_safe("serialized-property", {"operation": "list"}) is True
+        assert is_parallel_safe("serialized-property", {"operation": "set"}) is False
+
+    def test_other_gated_commands(self) -> None:
+        assert is_parallel_safe("clipboard", {"operation": "read"}) is True
+        assert is_parallel_safe("clipboard", {"operation": "write"}) is False
+        assert is_parallel_safe("deep-serialize", {"operation": "get"}) is True
+        assert is_parallel_safe("deep-serialize", {"operation": "set"}) is False
+        assert is_parallel_safe("window-management", {"operation": "list"}) is True
+        assert is_parallel_safe("window-management", {"operation": "open"}) is False
+        assert is_parallel_safe("script-execution-order", {"operation": "get"}) is True
+        assert is_parallel_safe("script-execution-order", {"operation": "set"}) is False
+        assert is_parallel_safe("input-system", {"operation": "list-actions"}) is True
+        assert is_parallel_safe("input-system", {"operation": "add-action"}) is False
+
+    def test_gated_command_without_operation_is_unsafe(self) -> None:
+        """Missing/unknown operation on a gated command defaults to unsafe."""
+        assert is_parallel_safe("transform-operation") is False
+        assert is_parallel_safe("transform-operation", {}) is False
+        assert is_parallel_safe("transform-operation", {"operation": "bogus"}) is False
 
 
 # ---------------------------------------------------------------------------

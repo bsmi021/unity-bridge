@@ -10,7 +10,7 @@ from typing import Annotated, Any
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
-from unity_bridge.core.protocol import PARALLEL_SAFE_COMMANDS
+from unity_bridge.core.protocol import is_parallel_safe
 
 # ---------------------------------------------------------------------------
 # Core async function (CLI + MCP)
@@ -83,7 +83,7 @@ async def _execute_parallel(
     safe: list[dict[str, Any]] = []
     unsafe: list[dict[str, Any]] = []
     for cmd in commands:
-        if cmd.get("type", "") in PARALLEL_SAFE_COMMANDS:
+        if is_parallel_safe(cmd.get("type", ""), cmd.get("parameters")):
             safe.append(cmd)
         else:
             unsafe.append(cmd)

@@ -91,10 +91,18 @@ class DirectBridge:
     EDITOR_READY_POLL_INTERVAL: float = 0.5
     DEFAULT_IN_FLIGHT_BUSY_GRACE: float = 300.0
 
-    def __init__(self, project_root: Path) -> None:
+    def __init__(
+        self,
+        project_root: Path,
+        default_timeout: int | None = None,
+    ) -> None:
         self.project_root = Path(project_root)
         self.commands_path = self.project_root / ".claude" / "unity" / "commands"
         self.responses_path = self.project_root / ".claude" / "unity" / "responses"
+        # Global timeout override (from the --timeout flag / UNITY_BRIDGE_TIMEOUT).
+        # When set, it applies to every command, overriding the per-command
+        # default the caller passes. None means "use the requested timeout".
+        self._default_timeout = default_timeout
         self._operation_store = OperationStore(self.project_root)
 
         self._health_monitor = None
@@ -108,6 +116,17 @@ class DirectBridge:
         self.commands_path.mkdir(parents=True, exist_ok=True)
         self.responses_path.mkdir(parents=True, exist_ok=True)
         logger.debug("DirectBridge initialized for project: %s", project_root)
+
+    def _effective_timeout(self, command_type: str, requested: float) -> float:
+        """Apply the global timeout override, if one was explicitly configured.
+
+        When a global ``--timeout`` / ``UNITY_BRIDGE_TIMEOUT`` is set it acts as
+        a blanket default for every command; otherwise the caller's requested
+        per-command timeout is used unchanged.
+        """
+        if self._default_timeout is not None:
+            return float(self._default_timeout)
+        return requested
 
     async def send_command(
         self,
@@ -127,6 +146,7 @@ class DirectBridge:
         Returns:
             CommandResult with success/error and parsed data.
         """
+        timeout = self._effective_timeout(command_type, timeout)
         health = None
         if check_health and self._health_monitor:
             health = self._wait_for_editor_ready()
@@ -241,7 +261,9 @@ class DirectBridge:
                 busy_elapsed,
             )
             current_busy_elapsed = (now - busy_started) if busy_started is not None else 0.0
-            active_elapsed = elapsed - busy_elapsed - current_busy_elapsed
+            active_elapsed = self._active_elapsed(
+                elapsed, busy_elapsed, current_busy_elapsed
+            )
             if self._domain_generation_changed(status, origin_generation):
                 self._mark_recovering_after_reload(
                     command_id,
@@ -324,6 +346,20 @@ class DirectBridge:
             return None
 
     @staticmethod
+    def _active_elapsed(
+        elapsed: float,
+        busy_elapsed: float,
+        current_busy_elapsed: float,
+    ) -> float:
+        """Wall-clock time minus editor-busy time, clamped to non-negative.
+
+        Health states can flap within a poll window, so the accumulated busy
+        time may briefly exceed the total elapsed time; clamp to avoid a
+        negative active-elapsed that would mis-trigger timeout logic.
+        """
+        return max(0.0, elapsed - busy_elapsed - current_busy_elapsed)
+
+    @staticmethod
     def _update_busy_accounting(
         health: Any | None,
         now: float,
@@ -372,7 +408,7 @@ class DirectBridge:
             },
             command_id=command_id,
             execution_time_ms=int(elapsed * 1000),
-            exit_code=1,
+            exit_code=4,
         )
 
     def _busy_timeout_result(

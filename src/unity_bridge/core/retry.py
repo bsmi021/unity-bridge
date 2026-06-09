@@ -74,9 +74,9 @@ def _check_result_error(result: Any) -> tuple[bool, str, bool | None]:
     Supports CommandResult (duck-typed via 'success' attr) and legacy dicts.
 
     Returns:
-        Tuple of (is_success, error_message, retryable_override). If the
-        result type is unrecognized, returns (True, "", None) so no retry is
-        attempted.
+        Tuple of (is_success, error_message, retryable_override). An
+        unrecognized result type (e.g. ``None``) defaults to failure so it is
+        never silently treated as success.
     """
     if hasattr(result, "success"):
         data = getattr(result, "data", None)
@@ -88,7 +88,8 @@ def _check_result_error(result: Any) -> tuple[bool, str, bool | None]:
             result.get("error", ""),
             result.get("retryable"),
         )
-    return (True, "", None)
+    logger.warning("Unrecognized result type %r — treating as failure", type(result))
+    return (False, "Unrecognized result type", None)
 
 
 async def _log_and_delay(

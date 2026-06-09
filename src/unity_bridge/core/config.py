@@ -31,6 +31,9 @@ class BridgeConfig:
         log_level: Logging level string.
         output_format: Output format — "json", "pretty", or "human".
         default_timeout: Default command timeout in seconds.
+        timeout_explicit: Whether default_timeout was explicitly set (via CLI
+            flag, env var, or config file) rather than left at its built-in
+            default. Lets a global override be distinguished from the default.
         color: Whether to use colored output.
         config_file: Path to config file (auto-detected if None).
     """
@@ -39,6 +42,7 @@ class BridgeConfig:
     log_level: str = "ERROR"
     output_format: str = "json"
     default_timeout: int = 30
+    timeout_explicit: bool = False
     color: bool = True
     config_file: Path | None = None
 
@@ -55,9 +59,10 @@ class BridgeConfig:
         if env_log in VALID_LOG_LEVELS:
             config.log_level = env_log
 
-        env_timeout = os.environ.get("UNITY_BRIDGE_TIMEOUT")
-        if env_timeout and env_timeout.isdigit():
-            config.default_timeout = int(env_timeout)
+        env_timeout = _parse_timeout(os.environ.get("UNITY_BRIDGE_TIMEOUT"))
+        if env_timeout is not None:
+            config.default_timeout = env_timeout
+            config.timeout_explicit = True
 
         env_config = os.environ.get("UNITY_BRIDGE_CONFIG")
         if env_config:
@@ -80,8 +85,14 @@ class BridgeConfig:
         if "output_format" in data and data["output_format"] in VALID_OUTPUT_FORMATS:
             config.output_format = data["output_format"]
 
-        if "default_timeout" in data and isinstance(data["default_timeout"], int):
+        if (
+            "default_timeout" in data
+            and isinstance(data["default_timeout"], int)
+            and not isinstance(data["default_timeout"], bool)
+            and data["default_timeout"] > 0
+        ):
             config.default_timeout = data["default_timeout"]
+            config.timeout_explicit = True
 
         if "color" in data and isinstance(data["color"], bool):
             config.color = data["color"]
@@ -126,6 +137,7 @@ class BridgeConfig:
             config.log_level = "CRITICAL"
         if cli_timeout is not None:
             config.default_timeout = cli_timeout
+            config.timeout_explicit = True
         if cli_no_color:
             config.color = False
 
@@ -166,6 +178,20 @@ def save_config_file(config: dict[str, Any], path: Path | None = None) -> bool:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+def _parse_timeout(raw: str | None) -> int | None:
+    """Parse a timeout string into a positive int, tolerating whitespace.
+
+    Returns None for missing, malformed, or non-positive values.
+    """
+    if raw is None:
+        return None
+    try:
+        value = int(raw.strip())
+    except (ValueError, AttributeError):
+        return None
+    return value if value > 0 else None
+
+
 def _find_config_file(project_root: Path | None = None) -> Path | None:
     """Search for a config file in standard locations."""
     env_path = os.environ.get("UNITY_BRIDGE_CONFIG")
@@ -197,10 +223,9 @@ def _merge_config(base: BridgeConfig, overlay: BridgeConfig) -> BridgeConfig:
             else base.output_format
         ),
         default_timeout=(
-            overlay.default_timeout
-            if overlay.default_timeout != defaults.default_timeout
-            else base.default_timeout
+            overlay.default_timeout if overlay.timeout_explicit else base.default_timeout
         ),
+        timeout_explicit=overlay.timeout_explicit or base.timeout_explicit,
         color=overlay.color if overlay.color != defaults.color else base.color,
         config_file=overlay.config_file or base.config_file,
     )

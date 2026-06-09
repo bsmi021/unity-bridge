@@ -10,9 +10,37 @@ import pytest
 from unity_bridge.core.bridge import CommandResult
 from unity_bridge.core.retry import (
     RetryConfig,
+    _check_result_error,
     is_retryable_error,
     retry_async,
 )
+
+
+# ---------------------------------------------------------------------------
+# _check_result_error — unknown result shapes (B8)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckResultError:
+
+    def test_dict_success(self) -> None:
+        assert _check_result_error({"success": True}) == (True, "", None)
+
+    def test_command_result_failure(self) -> None:
+        result = CommandResult(success=False, error="boom")
+        success, error, _ = _check_result_error(result)
+        assert success is False
+        assert error == "boom"
+
+    def test_unknown_shape_defaults_to_failure(self) -> None:
+        """A None / unexpected result must not be silently treated as success."""
+        success, _error, retryable = _check_result_error(None)
+        assert success is False
+        assert retryable is None
+
+    def test_unexpected_object_defaults_to_failure(self) -> None:
+        success, _error, _retryable = _check_result_error(object())
+        assert success is False
 
 
 # ---------------------------------------------------------------------------
