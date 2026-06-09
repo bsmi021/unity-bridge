@@ -79,7 +79,7 @@ unity-bridge doctor --human
 ```
 unity-bridge install [--check] [--force]      # Install/update C# bridge files
 unity-bridge init                             # Create .claude/unity/ directory structure
-unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response and old terminal operation files
+unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response files, stale temp files, and old terminal operation files
 ```
 
 ```bash

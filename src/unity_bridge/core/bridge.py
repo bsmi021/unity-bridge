@@ -274,7 +274,7 @@ class DirectBridge:
         """
         await asyncio.sleep(0.01)  # brief delay for write completion
         try:
-            async with aiofiles.open(response_file, "r", encoding="utf-8") as f:
+            async with aiofiles.open(response_file, "r", encoding="utf-8-sig") as f:
                 content = await f.read()
             response = json.loads(content)
         except (json.JSONDecodeError, IOError) as exc:
@@ -437,7 +437,7 @@ class DirectBridge:
         if not raw:
             return None
         try:
-            return json.loads(raw)
+            return json.loads(raw.removeprefix("\ufeff"))
         except json.JSONDecodeError:
             return raw
 

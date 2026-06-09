@@ -56,6 +56,29 @@ def test_operation_store_writes_json_and_jsonl(fake_project: Path) -> None:
     assert json.loads(events[0])["toState"] == STATE_QUEUED
 
 
+def test_operation_store_load_accepts_utf8_bom_snapshot(fake_project: Path) -> None:
+    store = OperationStore(fake_project)
+    command_path = fake_project / ".claude" / "unity" / "commands" / "id-test.json"
+    response_path = fake_project / ".claude" / "unity" / "responses" / "id-test.json"
+    store.create_queued(
+        command_id="id",
+        command_type="query-hierarchy",
+        parameters={},
+        command_path=command_path,
+        response_path=response_path,
+        domain_generation=None,
+        retry_policy=RETRY_READ_ONLY,
+    )
+    record_path = store.record_path("id")
+    record_path.write_bytes(b"\xef\xbb\xbf" + record_path.read_bytes())
+
+    record = store.load("id")
+
+    assert record is not None
+    assert record.command_id == "id"
+    assert record.state == STATE_QUEUED
+
+
 def test_operation_store_transitions_and_logs_event(fake_project: Path) -> None:
     store = OperationStore(fake_project)
     path = fake_project / "cmd.json"

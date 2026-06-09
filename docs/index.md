@@ -17,6 +17,7 @@ Last updated: 2026-06-08
 
 ## Reviews and Gap Reports
 
+- [Unity Bridge UTF-8 BOM JSON RCA](bridge-bom-json-rca.html)
 - [Unity Bridge reload and domain operation resilience research](reload-domain-resilience-research.html)
 - [Unity Bridge compile wait research](bridge-compile-wait-research.html)
 - [CLI refactor review](tech-spec-cli-refactor-review.md)

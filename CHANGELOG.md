@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
 
 ### Fixed
+- Unity bridge response and operation JSON parsing now tolerates UTF-8 BOM-prefixed files, and the C# atomic writer now emits UTF-8 without BOM for bridge JSON files.
+- Hardened bridge operation ledger writes with unique temp files, bounded retry/backoff, and clearer response-vs-ledger failure logging so transient Bridge state file locks do not masquerade as Unity compile/build failures.
+- `unity-bridge clean` now prunes stale bridge `*.tmp` files from command, response, and operation state directories while still preserving active operation records.
 - Packaged command-line installs now bundle `ClaudeCodeBridge/`, so `unity-bridge install` deploys the current C# bridge scripts from normal wheel installs as well as editable source installs.
 - Restored `unity-bridge playmode stop` by sending canonical `operation` payloads and accepting legacy `action` aliases in the C# bridge handler.
 - Applied the advertised `package list --source` filter in the C# Package Manager handler, including source validation and filtered list responses.

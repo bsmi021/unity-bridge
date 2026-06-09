@@ -102,15 +102,6 @@ unity-bridge asset-ext export Assets/Prefabs/ -o export.unitypackage
 unity-bridge asset-ext import-package downloaded.unitypackage
 ```
 
-### `asset-ext reserialize` (not yet registered)
-
-```bash
-unity-bridge asset-ext reserialize
-unity-bridge asset-ext reserialize --paths "Assets/Prefabs/Player.prefab"
-```
-
----
-
 ## import-settings (registered)
 
 ### `import-settings get`
@@ -214,7 +205,7 @@ unity-bridge shader keywords "Standard" --global
 
 ---
 
-## find-references (not yet registered)
+## find-references
 
 ```bash
 unity-bridge find-references Assets/Prefabs/Enemy.prefab
@@ -222,7 +213,7 @@ unity-bridge find-references Assets/Prefabs/Enemy.prefab
 
 ---
 
-## preset (not yet registered)
+## preset
 
 ```bash
 unity-bridge preset create Assets/Materials/Lit.mat Assets/Presets/LitMat.preset

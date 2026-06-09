@@ -161,7 +161,7 @@ unity-bridge scene-ext preview-close 12345
 
 ---
 
-## scene-view (not yet registered -- module exists)
+## scene-view
 
 Scene View camera control.
 
@@ -210,7 +210,7 @@ unity-bridge scene-view set-draw-mode Wireframe
 
 ---
 
-## scene-template (not yet registered -- module exists)
+## scene-template
 
 ### `scene-template list`
 

@@ -266,6 +266,36 @@ class TestResponseParsing:
         assert record is not None
         assert record.state == STATE_RUNNING
 
+    async def test_bom_prefixed_response_is_parsed(
+        self,
+        fake_project: Path,
+    ) -> None:
+        bridge = DirectBridge(fake_project)
+        command_id = "cmd-bom"
+        response_file = bridge.responses_path / "cmd-bom-query-hierarchy.json"
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=bridge.commands_path / "cmd-bom-query-hierarchy.json",
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+        payload = {
+            "status": "success",
+            "commandId": command_id,
+            "commandType": "query-hierarchy",
+            "dataJson": '{"count": 3}',
+        }
+        response_file.write_bytes(b"\xef\xbb\xbf" + json.dumps(payload).encode("utf-8"))
+
+        result = await bridge._try_read_response(response_file, command_id, elapsed=0.1)
+
+        assert result is not None
+        assert result.success is True
+        assert result.data == {"count": 3}
+
     async def test_repeated_running_response_does_not_spam_events(
         self,
         fake_project: Path,

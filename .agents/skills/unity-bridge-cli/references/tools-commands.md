@@ -1,9 +1,7 @@
 # Tools Commands Reference
 
-Editor tools: profiler, game view, clipboard, window management, input system,
-script info, deep serialize, find references, execution order, and assembly lock.
-
-Commands marked "not yet registered" have Python modules but are not wired into app.py yet.
+Editor tools: profiler, profiler-control, game view, clipboard, window management,
+input system, script info, deep serialize, find references, execution order, and assembly lock.
 
 ---
 
@@ -15,39 +13,41 @@ Commands marked "not yet registered" have Python modules but are not wired into 
 unity-bridge profiler --memory --rendering --cpu
 ```
 
-### Advanced controls (not yet registered -- module exists)
+## profiler-control
 
-#### `profiler start`
+Advanced profiler controls.
+
+### `profiler-control start`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `--log-file` | TEXT | no | Path to save profiler data |
 
-#### `profiler stop`
+### `profiler-control stop`
 
 Stop the Unity Profiler. No arguments.
 
-#### `profiler save`
+### `profiler-control save`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `LOG_FILE` | positional | yes | Path to save profiler data |
 
-#### `profiler memory`
+### `profiler-control memory`
 
 Get detailed memory statistics. No arguments.
 
 ```bash
-unity-bridge profiler start
-unity-bridge profiler start --log-file profiler.raw
-unity-bridge profiler stop
-unity-bridge profiler save profiler-output.raw
-unity-bridge profiler memory
+unity-bridge profiler-control start
+unity-bridge profiler-control start --log-file profiler.raw
+unity-bridge profiler-control stop
+unity-bridge profiler-control save profiler-output.raw
+unity-bridge profiler-control memory
 ```
 
 ---
 
-## game-view (not yet registered)
+## game-view
 
 ### `game-view get`
 
@@ -74,7 +74,7 @@ unity-bridge game-view set-scale 2.0
 
 ---
 
-## clipboard (not yet registered)
+## clipboard
 
 ```bash
 unity-bridge clipboard read
@@ -83,7 +83,7 @@ unity-bridge clipboard write "Hello from CLI"
 
 ---
 
-## window (not yet registered)
+## window
 
 ```bash
 unity-bridge window list
@@ -94,7 +94,7 @@ unity-bridge window close ProfilerWindow
 
 ---
 
-## input-system (not yet registered)
+## input-system
 
 Requires `com.unity.inputsystem` package.
 
@@ -132,15 +132,15 @@ unity-bridge input-system import Assets/Input/Controls.inputactions -f controls.
 
 ---
 
-## execution-order (not yet registered)
+## script-execution-order
 
-### `execution-order get`
+### `script-execution-order get`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `--non-default` | flag | no | Only scripts with non-zero order |
 
-### `execution-order set`
+### `script-execution-order set`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -148,14 +148,14 @@ unity-bridge input-system import Assets/Input/Controls.inputactions -f controls.
 | `ORDER` | positional (INT) | yes | Execution order value |
 
 ```bash
-unity-bridge execution-order get
-unity-bridge execution-order get --non-default
-unity-bridge execution-order set Assets/Scripts/GameManager.cs -100
+unity-bridge script-execution-order get
+unity-bridge script-execution-order get --non-default
+unity-bridge script-execution-order set Assets/Scripts/GameManager.cs -100
 ```
 
 ---
 
-## assembly-lock / assembly-unlock / assembly-status (not yet registered)
+## assembly-lock / assembly-unlock / assembly-status
 
 Standalone commands (not a group).
 
@@ -167,7 +167,7 @@ unity-bridge assembly-status
 
 ---
 
-## script-info (not yet registered)
+## script-info
 
 ### `script-info info`
 
@@ -198,7 +198,7 @@ unity-bridge script-info find-component Player PlayerController
 
 ---
 
-## deep-serialize (not yet registered)
+## deep-serialize
 
 ### `deep-serialize get`
 

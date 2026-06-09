@@ -39,6 +39,23 @@ def test_bridge_operation_ledger_contract_exists() -> None:
     assert "WriteAtomic" in source
 
 
+def test_bridge_operation_ledger_atomic_writes_are_retryable() -> None:
+    source = Path("ClaudeCodeBridge/BridgeOperationLedger.cs").read_text(encoding="utf-8")
+
+    assert "AtomicWriteMaxAttempts" in source
+    assert "Guid.NewGuid()" in source
+    assert "File.Replace(tempPath, path, null)" in source
+    assert "Thread.Sleep(RetryDelayMs(attempt))" in source
+    assert "TryDeleteTemp(tempPath)" in source
+
+
+def test_bridge_operation_ledger_writes_utf8_without_bom() -> None:
+    source = Path("ClaudeCodeBridge/BridgeOperationLedger.cs").read_text(encoding="utf-8")
+
+    assert "new UTF8Encoding(false, true)" in source
+    assert "new StreamWriter(stream, Encoding.UTF8)" not in source
+
+
 def test_claude_unity_bridge_wires_operation_ledger() -> None:
     source = Path("ClaudeCodeBridge/ClaudeUnityBridge.cs").read_text(encoding="utf-8")
 
@@ -47,3 +64,4 @@ def test_claude_unity_bridge_wires_operation_ledger() -> None:
     assert "BridgeOperationLedger.MarkAccepted(command, commandFilePath)" in source
     assert "BridgeOperationLedger.WriteAtomic(filePath, responseJson)" in source
     assert "BridgeOperationLedger.MarkResponse(response)" in source
+    assert "Operation ledger terminal-state update failed" in source

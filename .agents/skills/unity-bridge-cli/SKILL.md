@@ -9,7 +9,8 @@ description: >
   console, watch console, clear console, log message, take screenshot, build
   project, build target, execute C# expression, script expression, TDD workflow,
   is Unity running, health check, doctor diagnostics, install bridge, clean
-  orphaned files, list packages, add package, remove package, search package,
+  orphaned files, stale temp files, operation status, durable operation ledger,
+  list packages, add package, remove package, search package,
   bake lightmaps, lightmap settings, shader info, shader keywords, shader errors,
   shader properties, undo, redo, undo history, import settings, reimport asset,
   bulk import, import template, quality settings, scene setup, scene layout,
@@ -41,7 +42,7 @@ description: >
   Physics2D, Addressables profiles, Addressables labels, Addressables analyze,
   InputActionAsset authoring, action maps, bindings, control schemes, package
   source filters, or any request involving an open Unity Editor.
-  Also trigger when about to write raw JSON to .Codex/unity/commands/ -- use
+  Also trigger when about to write raw JSON to .claude/unity/commands/ -- use
   the CLI instead for retries, timeouts, caching, and error formatting.
 allowed-tools: Bash(unity-bridge *), Bash(unity-bridge), Read, Grep, Glob
 ---
@@ -166,7 +167,8 @@ unity-bridge doctor                    # Full 9-check diagnostics
 unity-bridge version                   # CLI versions
 unity-bridge install [--check|--force] # Install/update C# bridge + project skill
 unity-bridge init                      # Create directory structure
-unity-bridge clean [--dry-run]         # Remove orphaned files
+unity-bridge clean [--dry-run]         # Remove orphaned/stale bridge state files
+unity-bridge operation status COMMAND_ID | operation list
 unity-bridge serve                     # Start MCP server
 unity-bridge profiler --memory --cpu   # Performance snapshot
 
@@ -356,6 +358,8 @@ For full argument tables, types, defaults, and examples, read the appropriate re
 - Unity Editor must be open with ClaudeUnityBridge active.
 - If `unity-bridge status` shows unhealthy, run `unity-bridge doctor`.
 - `unity-bridge install` deploys both the C# bridge and this skill to the Unity project; the skill target is `.agents/skills/unity-bridge-cli`.
+- In-flight command lifecycle state lives under `.claude/unity/operations/`; use `unity-bridge operation status COMMAND_ID` or `operation list` to inspect accepted/running/recovered commands.
+- `unity-bridge clean` prunes orphaned command/response files, stale `*.tmp` bridge files, and old terminal operation records while preserving active operation records.
 - Asset paths use forward slashes relative to project root: `Assets/Scenes/Main.unity`.
 - The `-u` flag is shorthand for `--update` on `component set`. Pass multiple: `-u "a:1" -u "b:2"`.
 - The `-s` flag on `import-settings` is `--setting`; on `prefs` it is `--scope`.

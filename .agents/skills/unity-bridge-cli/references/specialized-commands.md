@@ -1,8 +1,8 @@
 # Specialized Commands Reference
 
-Domain-specific commands: NavMesh, animation, terrain, tilemap, addressables, reflection probes, and occlusion culling.
-
-All commands in this file have Python modules but are **not yet registered** in the CLI.
+Domain-specific commands: NavMesh, animation, terrain, tilemap, addressables,
+reflection probes, occlusion culling, Project Auditor, Graph Toolkit, Entities,
+Adaptive Performance, and Multiplayer Play Mode.
 
 ---
 
@@ -161,30 +161,30 @@ unity-bridge addressables set-address Assets/Prefabs/Enemy.prefab "enemies/basic
 
 ---
 
-## reflection-probes
+## reflection-probe
 
-### `reflection-probes bake`
+### `reflection-probe bake`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `GAME_OBJECT_PATH` | positional | no | Hierarchy path (omit with --all) |
 | `--all` | flag | no | Bake all probes in scene |
 
-### `reflection-probes list`
+### `reflection-probe list`
 
 List all reflection probes. No arguments.
 
-### `reflection-probes info`
+### `reflection-probe info`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `GAME_OBJECT_PATH` | positional | yes | Hierarchy path to the probe |
 
 ```bash
-unity-bridge reflection-probes bake "Environment/Probe1"
-unity-bridge reflection-probes bake --all
-unity-bridge reflection-probes list
-unity-bridge reflection-probes info "Environment/Probe1"
+unity-bridge reflection-probe bake "Environment/Probe1"
+unity-bridge reflection-probe bake --all
+unity-bridge reflection-probe list
+unity-bridge reflection-probe info "Environment/Probe1"
 ```
 
 ---
@@ -199,4 +199,68 @@ All no arguments.
 unity-bridge occlusion bake
 unity-bridge occlusion clear
 unity-bridge occlusion settings
+```
+
+---
+
+## project-auditor
+
+Requires Unity Project Auditor package/API availability.
+
+```bash
+unity-bridge project-auditor availability
+unity-bridge project-auditor run --output Reports/project-audit.json
+unity-bridge project-auditor load Reports/project-audit.json
+```
+
+---
+
+## graph-toolkit
+
+Read-only Graph Toolkit package and graph asset inspection.
+
+```bash
+unity-bridge graph-toolkit availability
+unity-bridge graph-toolkit list-assets
+unity-bridge graph-toolkit inspect Assets/Graphs/Gameplay.asset
+unity-bridge graph-toolkit export Assets/Graphs/Gameplay.asset
+```
+
+---
+
+## entities
+
+Read-only Unity Entities package, world, system, and archetype inspection.
+
+```bash
+unity-bridge entities availability
+unity-bridge entities list-worlds
+unity-bridge entities world-summary --world "Default World"
+unity-bridge entities list-systems --world "Default World"
+unity-bridge entities list-archetypes --max-archetypes 25
+```
+
+---
+
+## adaptive-performance
+
+Read-only Adaptive Performance package and scaler profile inspection.
+
+```bash
+unity-bridge adaptive-performance availability
+unity-bridge adaptive-performance settings
+unity-bridge adaptive-performance list-profiles
+unity-bridge adaptive-performance inspect-profile Assets/Settings/AdaptivePerformanceProfile.asset
+```
+
+---
+
+## multiplayer-playmode
+
+Read-only Multiplayer Play Mode package and current player inspection.
+
+```bash
+unity-bridge multiplayer-playmode availability
+unity-bridge multiplayer-playmode current-player
+unity-bridge multiplayer-playmode packages
 ```

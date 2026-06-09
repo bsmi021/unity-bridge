@@ -319,7 +319,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     return;
                 }
 
-                BridgeOperationLedger.MarkAccepted(command, commandFilePath);
+                TryMarkAccepted(command, commandFilePath);
                 var response = handler.Execute(command);
                 WriteResponse(response);
                 HeartbeatGenerator.IncrementCommandCount();
@@ -335,6 +335,21 @@ namespace BWS.Editor.ClaudeCodeBridge
                     commandId ?? fbId ?? $"filename-{fileBaseName}",
                     commandType ?? fbType ?? "unknown", ex.ToString()));
                 SafeDelete(commandFilePath);
+            }
+        }
+
+        private void TryMarkAccepted(BridgeCommand command, string commandFilePath)
+        {
+            try
+            {
+                BridgeOperationLedger.MarkAccepted(command, commandFilePath);
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError(
+                    $"Operation ledger accepted-state update failed for command {command.commandId}: {ex}");
+                WriteDiagnostic("ledger-accepted-failed",
+                    "Operation ledger accepted-state update failed", commandFilePath, ex);
             }
         }
 
@@ -470,19 +485,30 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         public static void WriteResponseStatic(BridgeResponse response)
         {
+            var filePath = Path.Combine(RESPONSES_PATH,
+                $"{response.commandId}-{response.commandType}.json");
             try
             {
                 var responseJson = JsonUtility.ToJson(response, true);
-                var filePath = Path.Combine(RESPONSES_PATH,
-                    $"{response.commandId}-{response.commandType}.json");
                 BridgeOperationLedger.WriteAtomic(filePath, responseJson);
-                BridgeOperationLedger.MarkResponse(response);
-                BridgeLogger.LogDebug($"Wrote response: {Path.GetFileName(filePath)}");
             }
             catch (Exception ex)
             {
-                BridgeLogger.LogError($"Error writing response: {ex}");
+                BridgeLogger.LogError($"Error writing response file '{filePath}': {ex}");
+                return;
             }
+
+            try
+            {
+                BridgeOperationLedger.MarkResponse(response);
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError(
+                    $"Operation ledger terminal-state update failed for command {response.commandId}: {ex}");
+            }
+
+            BridgeLogger.LogDebug($"Wrote response: {Path.GetFileName(filePath)}");
         }
 
         #endregion

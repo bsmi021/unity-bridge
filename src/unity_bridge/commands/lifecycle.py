@@ -344,13 +344,46 @@ async def init(project_root: Path) -> CommandResult:
     )
 
 
+def _cleanup_files_by_age(
+    directories: list[Path],
+    pattern: str,
+    cutoff: datetime,
+    delete_all: bool,
+    dry_run: bool,
+) -> tuple[list[str], list[str]]:
+    """Delete files matching a pattern when they are stale enough."""
+    deleted: list[str] = []
+    skipped: list[str] = []
+    for directory in directories:
+        if not directory.is_dir():
+            continue
+        for path in directory.glob(pattern):
+            try:
+                file_mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            except OSError:
+                skipped.append(str(path))
+                continue
+            if not delete_all and file_mtime >= cutoff:
+                skipped.append(str(path))
+                continue
+            if dry_run:
+                deleted.append(str(path))
+                continue
+            try:
+                path.unlink()
+                deleted.append(str(path))
+            except OSError:
+                skipped.append(str(path))
+    return deleted, skipped
+
+
 async def clean(
     project_root: Path,
     age_minutes: int = 5,
     all_files: bool = False,
     dry_run: bool = False,
 ) -> CommandResult:
-    """Remove orphaned command/response files and old terminal operation records.
+    """Remove orphaned command/response files, stale temp files, and old terminal operations.
 
     Args:
         project_root: Unity project root directory.
@@ -365,26 +398,24 @@ async def clean(
     operation_store = OperationStore(project_root)
     effective_age = 0 if all_files else age_minutes
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=effective_age)
+    delete_all = effective_age == 0
 
-    deleted: list[str] = []
-    skipped: list[str] = []
-
-    for directory in [paths.commands_dir, paths.responses_dir]:
-        if not directory.is_dir():
-            continue
-        for f in directory.glob("*.json"):
-            file_mtime = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc)
-            if effective_age == 0 or file_mtime < cutoff:
-                if dry_run:
-                    deleted.append(str(f))
-                else:
-                    try:
-                        f.unlink()
-                        deleted.append(str(f))
-                    except OSError:
-                        skipped.append(str(f))
-            else:
-                skipped.append(str(f))
+    deleted, skipped = _cleanup_files_by_age(
+        [paths.commands_dir, paths.responses_dir],
+        "*.json",
+        cutoff,
+        delete_all,
+        dry_run,
+    )
+    temp_deleted, temp_skipped = _cleanup_files_by_age(
+        [paths.commands_dir, paths.responses_dir, operation_store.operations_path],
+        "*.tmp",
+        cutoff,
+        delete_all,
+        dry_run,
+    )
+    deleted.extend(temp_deleted)
+    skipped.extend(temp_skipped)
 
     operation_deleted, operation_skipped = operation_store.cleanup_terminal(
         older_than=cutoff,
@@ -483,7 +514,7 @@ def clean_cli(
         typer.Option("--dry-run", help="Show what would be deleted."),
     ] = False,
 ) -> None:
-    """Remove orphaned command/response files and old terminal operation records."""
+    """Remove orphaned command/response files, stale temp files, and old terminal operations."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj

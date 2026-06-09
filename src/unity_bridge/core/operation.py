@@ -216,7 +216,7 @@ class OperationStore:
         path = self.record_path(command_id)
         if not path.exists():
             return None
-        return OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        return OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
 
     def list_records(
         self,
@@ -228,7 +228,7 @@ class OperationStore:
         records: list[OperationRecord] = []
         for path in self.operations_path.glob("*.json"):
             try:
-                record = OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                record = OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
             except (json.JSONDecodeError, KeyError, OSError):
                 continue
             if include_terminal or not record.is_terminal:
