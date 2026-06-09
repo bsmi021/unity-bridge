@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
@@ -30,6 +31,20 @@ namespace BWS.Editor.ClaudeCodeBridge
             // play-mode domain reload and still report the in-flight run.
             _api = ScriptableObject.CreateInstance<TestRunnerApi>();
             _api.RegisterCallbacks(new Callbacks());
+            Diag($"ctor: registered callbacks; pendingCmdId='{SessionState.GetString(CommandIdKey, "")}'");
+        }
+
+        // --- TEMP diagnostics: file-based lifecycle log that survives reloads ---
+        private static void Diag(string message)
+        {
+            try
+            {
+                var root = Directory.GetParent(Application.dataPath).FullName;
+                var path = Path.Combine(root, ".claude", "unity", "diagnostics", "test-reporter.log");
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.AppendAllText(path, $"{DateTime.UtcNow:O} | {message}{Environment.NewLine}");
+            }
+            catch { }
         }
 
         /// <summary>
@@ -40,7 +55,9 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             SessionState.SetString(CommandIdKey, commandId ?? "");
             SessionState.SetString(StartTicksKey, DateTime.UtcNow.Ticks.ToString());
+            Diag($"BeginRunAndExecute: cmdId={commandId}; mode={filter?.testMode}");
             _api.Execute(new ExecutionSettings(filter));
+            Diag("BeginRunAndExecute: Execute() returned");
         }
 
         private static void Clear()
@@ -58,13 +75,18 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private class Callbacks : ICallbacks
         {
-            public void RunStarted(ITestAdaptor testsToRun) { }
+            public void RunStarted(ITestAdaptor testsToRun)
+            {
+                Diag($"RunStarted; pendingCmdId='{SessionState.GetString(CommandIdKey, "")}'");
+            }
+
             public void TestStarted(ITestAdaptor test) { }
             public void TestFinished(ITestResultAdaptor result) { }
 
             public void RunFinished(ITestResultAdaptor result)
             {
                 var commandId = SessionState.GetString(CommandIdKey, "");
+                Diag($"RunFinished; pendingCmdId='{commandId}'");
                 if (string.IsNullOrEmpty(commandId))
                     return; // Not a bridge-initiated run; ignore.
 
@@ -74,6 +96,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     parsed.durationSeconds = ElapsedSeconds();
                     ClaudeUnityBridge.WriteResponseStatic(
                         BridgeResponse.Success(commandId, "run-tests", JsonUtility.ToJson(parsed)));
+                    Diag($"RunFinished: wrote success response ({parsed.passed}/{parsed.total} passed)");
                     BridgeLogger.LogInfo($"Tests completed: {parsed.passed}/{parsed.total} passed");
                 }
                 catch (Exception ex)

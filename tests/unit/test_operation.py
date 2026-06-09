@@ -9,6 +9,72 @@ import pytest
 
 from unittest.mock import patch
 
+from unity_bridge.core.operation import OperationRecord, SCHEMA_VERSION
+
+
+def _record(command_id: str = "rec", state: str = "queued") -> OperationRecord:
+    return OperationRecord(
+        command_id=command_id,
+        command_type="run-tests",
+        state=state,
+        parameters_hash="h",
+        retry_policy="non_idempotent",
+        schema_version=SCHEMA_VERSION,
+    )
+
+
+class TestLedgerWriteResilience:
+    """Cross-process file contention (Python + C# writing the same ledger file)
+    must never propagate out of the ledger and fail/retry the command."""
+
+    def test_write_retries_transient_lock_then_succeeds(self, fake_project: Path) -> None:
+        store = OperationStore(fake_project)
+        calls = {"n": 0}
+        real_replace = Path.replace
+
+        def flaky_replace(self: Path, target):  # type: ignore[no-untyped-def]
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise PermissionError("[WinError 32] being used by another process")
+            return real_replace(self, target)
+
+        with patch.object(Path, "replace", flaky_replace):
+            store.write(_record("retry-ok"))  # must not raise
+
+        assert calls["n"] >= 3
+        assert store.load("retry-ok") is not None
+
+    def test_write_swallows_persistent_lock(self, fake_project: Path) -> None:
+        store = OperationStore(fake_project)
+
+        def always_locked(self: Path, target):  # type: ignore[no-untyped-def]
+            raise PermissionError("being used by another process")
+
+        with patch.object(Path, "replace", always_locked):
+            # Must NOT raise — a ledger write failure is best-effort, never fatal.
+            store.write(_record("never"))
+
+    def test_transition_does_not_raise_on_write_failure(self, fake_project: Path) -> None:
+        store = OperationStore(fake_project)
+        store.create_queued(
+            command_id="t",
+            command_type="run-tests",
+            parameters={},
+            command_path=fake_project / "c.json",
+            response_path=fake_project / "r.json",
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+
+        def always_locked(self: Path, target):  # type: ignore[no-untyped-def]
+            raise PermissionError("being used by another process")
+
+        with patch.object(Path, "replace", always_locked):
+            result = store.transition("t", STATE_ACCEPTED, reason="accept")
+
+        # Returns (best-effort) rather than propagating the lock error.
+        assert result is not None
+
 from unity_bridge.core.operation import (
     RETRY_NON_IDEMPOTENT,
     RETRY_READ_ONLY,

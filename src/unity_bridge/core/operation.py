@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import time
+import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +24,38 @@ from unity_bridge.core.timeutil import (
     utc_now_iso as _utc_now,
 )
 
+logger = logging.getLogger("unity_bridge.operation")
+
 SCHEMA_VERSION = 1
+
+# The operation ledger files are written by BOTH this process and the C# bridge,
+# so a write can transiently hit a cross-process file lock (e.g. Windows
+# "being used by another process"). Ledger persistence is best-effort durability,
+# never on the critical path: a failed write must never propagate and fail/retry
+# the command itself (which would, for run-tests, spawn a duplicate run).
+_LEDGER_WRITE_ATTEMPTS = 5
+_LEDGER_WRITE_BASE_DELAY = 0.02
+
+
+def _best_effort_write(do_write: Callable[[], None], path: Path) -> bool:
+    """Run a write with bounded retries on transient file locks; never raises.
+
+    Returns True on success, False if every attempt failed (logged as a warning).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(_LEDGER_WRITE_ATTEMPTS):
+        try:
+            do_write()
+            return True
+        except (PermissionError, OSError) as exc:
+            last_exc = exc
+            if attempt < _LEDGER_WRITE_ATTEMPTS - 1:
+                time.sleep(_LEDGER_WRITE_BASE_DELAY * (2 ** attempt))
+    logger.warning(
+        "Ledger write failed for %s after %d attempts: %s",
+        path, _LEDGER_WRITE_ATTEMPTS, last_exc,
+    )
+    return False
 
 STATE_QUEUED = "queued"
 STATE_ACCEPTED = "accepted"
@@ -274,12 +309,22 @@ class OperationStore:
         return deleted, skipped
 
     def write(self, record: OperationRecord) -> None:
-        """Atomically write a current-state record."""
+        """Atomically write a current-state record (best-effort, never raises)."""
         path = self.record_path(record.command_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(".json.tmp")
-        temp.write_text(json.dumps(record.to_dict(), indent=2), encoding="utf-8")
-        temp.replace(path)
+        content = json.dumps(record.to_dict(), indent=2)
+
+        def _do() -> None:
+            # Unique temp name so concurrent writers never collide on the temp.
+            temp = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+            try:
+                temp.write_text(content, encoding="utf-8")
+                temp.replace(path)
+            except BaseException:
+                temp.unlink(missing_ok=True)
+                raise
+
+        _best_effort_write(_do, path)
 
     def transition(
         self,
@@ -344,8 +389,13 @@ class OperationStore:
         }
         path = self.events_path(record.command_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event) + "\n")
+        line = json.dumps(event) + "\n"
+
+        def _do() -> None:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(line)
+
+        _best_effort_write(_do, path)
 
 
 def parameters_hash(parameters: dict[str, Any] | None) -> str:
