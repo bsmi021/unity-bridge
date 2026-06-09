@@ -10,9 +10,15 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from unity_bridge.core.timeutil import (
+    optional_int as _optional_int,
+    parse_optional_datetime as _parse_optional_datetime,
+    utc_now_iso as _utc_now,
+)
 
 SCHEMA_VERSION = 1
 
@@ -390,26 +396,3 @@ def _touch(
     return replace(record, **updates)
 
 
-def _optional_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _parse_optional_datetime(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed

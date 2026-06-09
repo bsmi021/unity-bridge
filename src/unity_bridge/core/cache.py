@@ -47,6 +47,11 @@ class ResponseCache:
     - Thread-safe async operations via asyncio.Lock
     """
 
+    # A curated subset of read-only commands worth caching (each must have a
+    # TTL below). Invariant: every entry must be classified read-only by
+    # protocol.is_parallel_safe — enforced by test_protocol to prevent the two
+    # command classifications from drifting apart. protocol.py is the single
+    # source of truth for read-only classification.
     CACHEABLE_COMMANDS: set[str] = {
         "query-hierarchy",
         "get-component-data",

@@ -109,6 +109,23 @@ class TestIsParallelSafeByOperation:
         assert is_parallel_safe("transform-operation", {"operation": "bogus"}) is False
 
 
+class TestCommandClassificationConsistency:
+    """U1: keep the separate read-only command lists from drifting apart.
+    protocol.is_parallel_safe is the single source of truth; the cache's
+    cacheable set must be a subset of fully-read-only commands."""
+
+    def test_cacheable_commands_are_read_only(self) -> None:
+        from unity_bridge.core.cache import ResponseCache
+
+        for command in ResponseCache.CACHEABLE_COMMANDS:
+            assert is_parallel_safe(command), f"{command} is cacheable but not read-only"
+
+    def test_cacheable_commands_have_ttls(self) -> None:
+        from unity_bridge.core.cache import ResponseCache
+
+        assert ResponseCache.CACHEABLE_COMMANDS <= set(ResponseCache.DEFAULT_TTL)
+
+
 # ---------------------------------------------------------------------------
 # get_timeout
 # ---------------------------------------------------------------------------
