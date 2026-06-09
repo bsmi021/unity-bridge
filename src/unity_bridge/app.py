@@ -7,6 +7,7 @@ every sub-command can access the shared bridge and formatter.
 
 from __future__ import annotations
 
+import logging
 import signal
 import sys
 from dataclasses import dataclass, field
@@ -17,6 +18,8 @@ import typer
 
 from unity_bridge.core.config import BridgeConfig
 from unity_bridge.core.output import OutputFormatter
+
+logger = logging.getLogger("unity_bridge")
 
 # ---------------------------------------------------------------------------
 # Application state
@@ -358,8 +361,8 @@ def _try_import_module(module_path: str) -> None:
         from importlib import import_module
 
         import_module(module_path)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.warning("Skipped optional module %s: %s", module_path, exc)
 
 
 def _try_register_command(module_path: str, attr_name: str, command_name: str) -> None:
@@ -370,8 +373,11 @@ def _try_register_command(module_path: str, attr_name: str, command_name: str) -
         mod = import_module(module_path)
         func = getattr(mod, attr_name)
         app.command(command_name)(func)
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError) as exc:
+        logger.warning(
+            "Command '%s' not registered (%s.%s): %s",
+            command_name, module_path, attr_name, exc,
+        )
 
 
 def _try_register_group(module_path: str, attr_name: str, group_name: str) -> None:
@@ -382,8 +388,11 @@ def _try_register_group(module_path: str, attr_name: str, group_name: str) -> No
         mod = import_module(module_path)
         sub_app = getattr(mod, attr_name)
         app.add_typer(sub_app, name=group_name)
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError) as exc:
+        logger.warning(
+            "Command group '%s' not registered (%s.%s): %s",
+            group_name, module_path, attr_name, exc,
+        )
 
 
 # Perform registration on import

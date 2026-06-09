@@ -92,9 +92,9 @@ unity-bridge/
 │   │   ├── navmesh.py         # Phase 4-ext: NavMesh bake/query
 │   │   ├── preset.py          # Phase 6: Unity Preset asset API
 │   │   └── ...                # animator, asset, batch, build, console, addressables, terrain, tilemap, profiler, etc.
-│   └── mcp/                   # MCP server layer
+│   └── mcp/                   # MCP server layer (DEPRECATED — see note below)
 │       ├── server.py          # MCP server using shared core functions
-│       ├── tools.py           # Tool definitions + dispatch map (48 MCP tools)
+│       ├── tools.py           # Tool definitions + dispatch map (94 MCP tools)
 │       ├── schemas.py         # Schemas for 24 core MCP tools
 │       ├── schemas_ext.py     # Schemas for Phase 1+2 tools (11 tools)
 │       ├── schemas_phase3.py  # Schemas for Phase 3 tools (4 tools)
@@ -129,6 +129,15 @@ Additional bridge directories created by Phase 3 handlers:
 ### Project Auto-Detection
 
 `core/project.py` walks up from cwd looking for `Assets/` + `ProjectSettings/` directories. Override with `--project` flag or `UNITY_BRIDGE_PROJECT` env var.
+
+### MCP Interface — DEPRECATED
+
+The MCP server (`mcp/`, `serve` command, `[mcp]` extra) is **deprecated and no
+longer actively maintained**. The supported interface is the `unity-bridge` CLI
+(driven by the `unity-bridge-cli` skill). The MCP code is retained so existing
+integrations keep working but receives no new capabilities; new command work
+should target the CLI + core functions only. The MCP-only `ResponseCache` lives
+under this deprecation as well.
 
 ### Dual Interface Pattern
 

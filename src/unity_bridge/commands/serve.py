@@ -1,10 +1,24 @@
-"""Serve command: start the MCP server for Claude Code integration."""
+"""Serve command: start the MCP server for Claude Code integration.
+
+DEPRECATED: the MCP server interface is deprecated and no longer actively
+maintained. The supported interface is the ``unity-bridge`` CLI (driven by the
+``unity-bridge-cli`` skill). The MCP server still starts for existing
+integrations but receives no new capabilities.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import typer
+
+logger = logging.getLogger("unity_bridge")
+
+_DEPRECATION_NOTICE = (
+    "DEPRECATED: the unity-bridge MCP server is no longer actively maintained. "
+    "Use the unity-bridge CLI instead. The server will still start."
+)
 
 # ---------------------------------------------------------------------------
 # Core function
@@ -26,6 +40,8 @@ def start_mcp_server(
     """
     import sys
     import os
+
+    logger.warning(_DEPRECATION_NOTICE)
 
     # Ensure the legacy module is importable (lives alongside this package)
     plugin_dir = _find_plugin_dir()
@@ -80,7 +96,8 @@ serve_app = typer.Typer(name="serve", help="Start MCP server mode.")
 
 @serve_app.callback(invoke_without_command=True)
 def serve_cli(ctx: typer.Context) -> None:
-    """Start MCP server mode for Claude Code integration."""
+    """Start MCP server mode for Claude Code integration (deprecated)."""
+    typer.echo(_DEPRECATION_NOTICE, err=True)
     state = ctx.obj
     project_str = str(state.config.project_root) if state.config.project_root else None
     log_level = state.config.log_level

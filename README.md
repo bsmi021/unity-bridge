@@ -93,7 +93,12 @@ unity-bridge install --force
 unity-bridge clean --dry-run
 ```
 
-### MCP Server
+### MCP Server (deprecated)
+
+> **Deprecated:** the MCP server is no longer actively maintained. The supported
+> interface is the `unity-bridge` CLI (used via the `unity-bridge-cli` skill).
+> The server still starts for existing integrations but receives no new
+> capabilities.
 
 ```
 unity-bridge serve                            # Start MCP server mode (stdio transport)

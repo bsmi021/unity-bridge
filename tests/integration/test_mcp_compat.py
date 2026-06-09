@@ -116,8 +116,12 @@ class TestMCPToolNames:
         missing = EXPECTED_TOOL_NAMES - _tool_names()
         assert not missing, f"Missing MCP tool definitions: {missing}"
 
-    def test_minimum_tool_count(self) -> None:
-        assert len(_tool_names()) >= 65
+    def test_tool_count_is_exact(self) -> None:
+        # The MCP surface is deprecated and frozen; pin the count exactly so an
+        # accidental bulk drop (or addition) of tools is caught rather than
+        # silently passing a loose floor. Update deliberately if the (frozen)
+        # surface ever changes.
+        assert len(_tool_names()) == 94
 
     def test_no_tool_name_changes(self) -> None:
         """Verify none of the original tool names have been renamed."""

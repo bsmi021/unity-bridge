@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated
+- The MCP server interface (`mcp/`, `unity-bridge serve`, the `[mcp]` extra, and the MCP-only `ResponseCache`) is deprecated and no longer actively maintained. The supported interface is the `unity-bridge` CLI; `serve` now emits a deprecation notice but still starts.
+
+### Changed
+- Parallel batch execution now classifies command safety by `parameters.operation`, not just command type, so operation-gated commands (`transform-operation`/`serialized-property`/`clipboard`/etc.) only run concurrently for their read-only operations.
+- The global `--timeout` flag and `UNITY_BRIDGE_TIMEOUT` now apply across the whole CLI (previously ignored by every command); a global override is treated as a blanket per-command timeout.
+- Settings command modules (physics2d, audio, time, graphics, environment, lightmap) now build their `set` parameters via a shared `core/settings_params.py` helper, removing ~140 lines of duplicated flag/value boilerplate (bridge payloads unchanged).
+- Shared datetime/int parsing helpers consolidated into `core/timeutil.py` (previously duplicated in `core/health.py` and `core/operation.py`).
+- CLI command/group registration failures are now logged as warnings instead of being silently swallowed.
+
+### Fixed
+- A plain command timeout now reports exit code 4 (Timeout) instead of 1.
+- The operation ledger guards against the cross-process (Python/C#) write race: illegal transitions are rejected gracefully instead of raising, and a concurrently-written terminal state is no longer clobbered by a later non-terminal write.
+- Non-idempotent commands that Unity has already accepted are no longer re-sent on retry (preventing duplicate side effects) unless an `idempotencyKey` is supplied.
+- `unity-bridge clean` now reaps response files orphaned by timed-out/terminal operations.
+- The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
+
 ### Added
 - Editor readiness health state distinguishes bridge liveness from command readiness and waits before writing command files.
 - Durable bridge operation state machine with per-command JSON snapshots, JSONL transition logs, Unity domain-generation tracking, atomic C# response writes, reload recovery, stale terminal ledger cleanup, and `operation status` / `unity_operation_status` inspection surfaces.
