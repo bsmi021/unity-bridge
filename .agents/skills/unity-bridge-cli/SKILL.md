@@ -10,7 +10,8 @@ description: >
   project, build target, execute C# expression, script expression, TDD workflow,
   is Unity running, health check, doctor diagnostics, install bridge, clean
   orphaned files, stale temp files, operation status, durable operation ledger,
-  list packages, add package, remove package, search package,
+  list packages, add package, add package from Git, add local package,
+  add tarball package, batch packages, remove package, search package,
   bake lightmaps, lightmap settings, shader info, shader keywords, shader errors,
   shader properties, undo, redo, undo history, import settings, reimport asset,
   bulk import, import template, quality settings, scene setup, scene layout,
@@ -28,7 +29,8 @@ description: >
   batch commands, MCP server, profiler metrics, focus gameobject, menu item,
   refresh assets, editor selection, preview scene, play start scene, set layer,
   set tag, component data, move to scene, folder create, folder list, embed
-  package, resolve packages, navmesh bake, animation clip, terrain, tilemap,
+  package, pack package, clear package cache, resolve packages, navmesh bake,
+  animation clip, terrain, tilemap,
   addressables, reflection probes, occlusion culling, time settings, graphics
   settings, environment fog, audio settings, game view, scene view camera,
   clipboard, presets, scene templates, script info, deep serialize, window
@@ -120,6 +122,8 @@ Global flags go BEFORE the command name:
 - `import-settings set path -s "maxTextureSize:512"` -- change import
 - `material modify path --properties '{...}'` -- edit materials
 - `package list --source git` -- enumerate packages by source
+- `package batch --add com.unity.inputsystem --remove com.unity.timeline` -- one package solve
+- `package pack Packages/com.company.tools Build/Packages` -- create a UPM .tgz
 - `addressables profiles` / `addressables labels` -- inspect Addressables metadata
 
 **Author UI and input assets:**
@@ -248,7 +252,13 @@ unity-bridge cloud project-id|environments|active-environment
 
 # Packages & Undo
 unity-bridge package list [--source registry|git|embedded|local]
-unity-bridge package search|add|remove|info|embed|resolve
+unity-bridge package search QUERY [--all]
+unity-bridge package add IDENTIFIER
+unity-bridge package batch [--add IDENTIFIER] [--remove NAME]
+unity-bridge package remove|info|embed NAME
+unity-bridge package pack PACKAGE_FOLDER TARGET_FOLDER
+unity-bridge package clear-cache --yes
+unity-bridge package resolve
 unity-bridge undo perform|redo|history|clear|group-name|collapse
 unity-bridge lightmap bake|cancel|clear|status|settings|set-settings
 unity-bridge batch FILE [--parallel] [--no-stop-on-error]

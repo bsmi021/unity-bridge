@@ -512,9 +512,12 @@ unity-bridge settings defines add --symbol "ENABLE_ANALYTICS"
 unity-bridge package list [--offline] [--include-indirect] [--source TYPE]
 unity-bridge package search QUERY [--all]
 unity-bridge package add IDENTIFIER
+unity-bridge package batch [--add IDENTIFIER] [--remove NAME]
 unity-bridge package remove NAME
 unity-bridge package info NAME
 unity-bridge package embed NAME
+unity-bridge package pack PACKAGE_FOLDER TARGET_FOLDER
+unity-bridge package clear-cache --yes
 unity-bridge package resolve
 ```
 
@@ -525,11 +528,17 @@ unity-bridge package list
 # Example: add a package by name@version
 unity-bridge package add "com.unity.inputsystem@1.7.0"
 
+# Example: add and remove packages in one dependency solve
+unity-bridge package batch --add "com.unity.inputsystem" --remove "com.unity.timeline"
+
 # Example: search for packages
 unity-bridge package search "input"
 
 # Example: embed a package for local editing
 unity-bridge package embed "com.unity.inputsystem"
+
+# Example: pack a local UPM package into a .tgz
+unity-bridge package pack "Packages/com.company.tools" "Build/Packages"
 ```
 
 ### Undo/Redo

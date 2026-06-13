@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
@@ -20,19 +18,22 @@ namespace BWS.Editor.ClaudeCodeBridge
     /// 2. "search"       - Search for a package by ID/name
     /// 3. "search-all"   - List all available registry packages
     /// 4. "add"          - Add a package by identifier (name@version or git URL)
-    /// 5. "remove"       - Remove a package by name
-    /// 6. "info"         - Get detailed info for a package
-    /// 7. "embed"        - Embed a package into the Packages/ folder
-    /// 8. "resolve"      - Trigger package resolution (returns void, immediate success)
+    /// 5. "batch"        - Add and remove packages atomically
+    /// 6. "remove"       - Remove a package by name
+    /// 7. "info"         - Get detailed info for a package
+    /// 8. "embed"        - Embed a package into the Packages/ folder
+    /// 9. "resolve"      - Trigger package resolution (returns void, immediate success)
+    /// 10. "pack"        - Pack a package folder into a tarball
+    /// 11. "clear-cache" - Clear Unity Package Manager's global cache
     /// </summary>
-    public class PackageManagerCommandHandler : ICommandHandler
+    public partial class PackageManagerCommandHandler : ICommandHandler
     {
         public string CommandType => "package-operation";
 
         private static readonly HashSet<string> MUTATING_OPERATIONS = new HashSet<string>(
             StringComparer.OrdinalIgnoreCase)
         {
-            "add", "remove", "embed", "resolve"
+            "add", "batch", "remove", "embed", "resolve", "clear-cache"
         };
 
         private static readonly Dictionary<string, PendingPackageRequest> _pending =
@@ -62,6 +63,13 @@ namespace BWS.Editor.ClaudeCodeBridge
                         "Cannot perform mutating operations during play mode. Exit play mode first.");
                 }
 
+                if (_pending.Count > 0)
+                {
+                    return BridgeResponse.Error(command.commandId, CommandType,
+                        "A Package Manager operation is already in progress. " +
+                        "Wait for it to complete before sending another package command.");
+                }
+
                 BridgeLogger.LogDebug($"Package operation: {parameters.operation}");
 
                 switch (parameters.operation?.ToLower())
@@ -74,6 +82,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                         return StartSearchAllRequest(command);
                     case "add":
                         return StartAddRequest(command, parameters);
+                    case "batch":
+                        return StartBatchRequest(command, parameters);
                     case "remove":
                         return StartRemoveRequest(command, parameters);
                     case "info":
@@ -82,10 +92,15 @@ namespace BWS.Editor.ClaudeCodeBridge
                         return StartEmbedRequest(command, parameters);
                     case "resolve":
                         return ExecuteResolve(command);
+                    case "pack":
+                        return StartPackRequest(command, parameters);
+                    case "clear-cache":
+                        return StartClearCacheRequest(command, parameters);
                     default:
                         return BridgeResponse.Error(command.commandId, CommandType,
                             $"Unknown operation: {parameters.operation}. " +
-                            "Supported: list, search, search-all, add, remove, info, embed, resolve");
+                            "Supported: list, search, search-all, add, batch, remove, " +
+                            "info, embed, resolve, pack, clear-cache");
                 }
             }
             catch (Exception ex)
@@ -207,7 +222,9 @@ namespace BWS.Editor.ClaudeCodeBridge
         // --- Async polling infrastructure ---
 
         private void RegisterPending(BridgeCommand command, Request request, string operation,
-            string context = null)
+            string context = null, string[] packagesToAdd = null,
+            string[] packagesToRemove = null, string packageFolder = null,
+            string targetFolder = null)
         {
             _pending[command.commandId] = new PendingPackageRequest
             {
@@ -216,6 +233,10 @@ namespace BWS.Editor.ClaudeCodeBridge
                 Request = request,
                 Operation = operation,
                 Context = context,
+                PackagesToAdd = packagesToAdd,
+                PackagesToRemove = packagesToRemove,
+                PackageFolder = packageFolder,
+                TargetFolder = targetFolder,
                 StartTime = DateTime.UtcNow
             };
 
@@ -323,11 +344,20 @@ namespace BWS.Editor.ClaudeCodeBridge
                 case "add":
                     BuildAddResult(pending, result);
                     break;
+                case "batch":
+                    BuildBatchResult(pending, result);
+                    break;
                 case "remove":
                     BuildRemoveResult(pending, result);
                     break;
                 case "embed":
                     BuildEmbedResult(pending, result);
+                    break;
+                case "pack":
+                    BuildPackResult(pending, result);
+                    break;
+                case "clear-cache":
+                    BuildClearCacheResult(pending, result);
                     break;
             }
 
@@ -407,64 +437,6 @@ namespace BWS.Editor.ClaudeCodeBridge
             result.message = $"Found {result.totalCount} available packages";
         }
 
-        private static void BuildAddResult(PendingPackageRequest pending, PackageOperationResult result)
-        {
-            var addRequest = (AddRequest)pending.Request;
-            result.package = ConvertPackageInfo(addRequest.Result);
-            result.message = $"Added {addRequest.Result.name}@{addRequest.Result.version}";
-        }
-
-        private static void BuildRemoveResult(PendingPackageRequest pending, PackageOperationResult result)
-        {
-            result.packageName = pending.Context;
-            result.message = $"Removed {pending.Context}";
-        }
-
-        private static void BuildEmbedResult(PendingPackageRequest pending, PackageOperationResult result)
-        {
-            var embedRequest = (EmbedRequest)pending.Request;
-            result.package = ConvertPackageInfo(embedRequest.Result);
-            result.message = $"Embedded {embedRequest.Result.name} to Packages/";
-        }
-
-        private static PackageInfoData ConvertPackageInfo(UnityEditor.PackageManager.PackageInfo pkg)
-        {
-            var data = new PackageInfoData
-            {
-                name = pkg.name,
-                version = pkg.version,
-                displayName = pkg.displayName,
-                description = pkg.description,
-                source = pkg.source.ToString().ToLower(),
-                resolvedPath = pkg.resolvedPath,
-            };
-
-            if (pkg.dependencies is not null)
-            {
-                foreach (var dep in pkg.dependencies)
-                {
-                    data.dependencies.Add(new PackageDependency
-                    {
-                        name = dep.name,
-                        version = dep.version
-                    });
-                }
-            }
-
-            if (pkg.keywords is not null)
-            {
-                data.keywords = new List<string>(pkg.keywords);
-            }
-
-            if (pkg.author is not null)
-            {
-                data.author = pkg.author.name;
-            }
-
-            data.documentationUrl = pkg.documentationUrl;
-            return data;
-        }
-
         private class PendingPackageRequest
         {
             public string CommandId;
@@ -472,6 +444,10 @@ namespace BWS.Editor.ClaudeCodeBridge
             public Request Request;
             public string Operation;
             public string Context;
+            public string[] PackagesToAdd;
+            public string[] PackagesToRemove;
+            public string PackageFolder;
+            public string TargetFolder;
             public DateTime StartTime;
         }
     }

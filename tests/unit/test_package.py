@@ -127,6 +127,57 @@ class TestPackageAdd:
 
 
 # ---------------------------------------------------------------------------
+# batch
+# ---------------------------------------------------------------------------
+
+
+class TestPackageBatch:
+    async def test_sends_batch_with_adds_and_removes(self, mock_bridge: MagicMock) -> None:
+        await package_operation(
+            mock_bridge,
+            "batch",
+            packages_to_add=["com.unity.inputsystem@1.7.0"],
+            packages_to_remove=["com.unity.timeline"],
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["operation"] == "batch"
+        assert params["packagesToAdd"] == ["com.unity.inputsystem@1.7.0"]
+        assert params["packagesToRemove"] == ["com.unity.timeline"]
+
+
+# ---------------------------------------------------------------------------
+# pack
+# ---------------------------------------------------------------------------
+
+
+class TestPackagePack:
+    async def test_sends_pack_paths(self, mock_bridge: MagicMock) -> None:
+        await package_operation(
+            mock_bridge,
+            "pack",
+            package_folder="Packages/com.company.tools",
+            target_folder="Build/Packages",
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["operation"] == "pack"
+        assert params["packageFolder"] == "Packages/com.company.tools"
+        assert params["targetFolder"] == "Build/Packages"
+
+
+# ---------------------------------------------------------------------------
+# clear-cache
+# ---------------------------------------------------------------------------
+
+
+class TestPackageClearCache:
+    async def test_sends_clear_cache_confirmation(self, mock_bridge: MagicMock) -> None:
+        await package_operation(mock_bridge, "clear-cache", confirm_clear_cache=True)
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["operation"] == "clear-cache"
+        assert params["confirmClearCache"] is True
+
+
+# ---------------------------------------------------------------------------
 # remove
 # ---------------------------------------------------------------------------
 

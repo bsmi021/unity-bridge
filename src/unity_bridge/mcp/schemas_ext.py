@@ -158,10 +158,13 @@ def package_operation() -> dict[str, Any]:
                     "search",
                     "search-all",
                     "add",
+                    "batch",
                     "remove",
                     "info",
                     "embed",
                     "resolve",
+                    "pack",
+                    "clear-cache",
                 ],
                 "description": "Package manager operation to perform",
             },
@@ -179,6 +182,29 @@ def package_operation() -> dict[str, Any]:
                     "Package ID or name to search for (search operation). "
                     "Searches by package ID/name, not free-text keywords."
                 ),
+            },
+            "packagesToAdd": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Package identifiers to add for batch operation",
+            },
+            "packagesToRemove": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Package names to remove for batch operation",
+            },
+            "packageFolder": {
+                "type": "string",
+                "description": "Folder containing package.json for pack operation",
+            },
+            "targetFolder": {
+                "type": "string",
+                "description": "Folder where pack writes the generated .tgz file",
+            },
+            "confirmClearCache": {
+                "type": "boolean",
+                "description": "Must be true for clear-cache operation",
+                "default": False,
             },
             "source": {
                 "type": "string",

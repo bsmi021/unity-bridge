@@ -102,6 +102,83 @@ unity-bridge asset-ext export Assets/Prefabs/ -o export.unitypackage
 unity-bridge asset-ext import-package downloaded.unitypackage
 ```
 
+---
+
+## package
+
+Unity Package Manager operations. JSON output reports operation, package data,
+and command status. Package Manager client operations must run sequentially, so
+do not batch these through `unity-bridge batch --parallel`.
+
+### `package list`
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `--offline` | flag | no | Use cached data only |
+| `--include-indirect` | flag | no | Include transitive dependencies |
+| `--source` / `-s` | TEXT | no | Filter: registry, git, embedded, local |
+
+```bash
+unity-bridge package list
+unity-bridge package list --include-indirect --source git
+```
+
+### `package search`
+
+Searches by package ID/name, not free-text keywords. Use `--all` to list all
+discoverable packages.
+
+```bash
+unity-bridge package search com.unity.inputsystem
+unity-bridge package search ignored --all
+```
+
+### `package add`
+
+Accepts Unity Package Manager identifiers:
+
+```bash
+unity-bridge package add com.unity.inputsystem
+unity-bridge package add com.unity.inputsystem@1.7.0
+unity-bridge package add https://github.com/company/package.git#v1.2.3
+unity-bridge package add file:/C:/Packages/com.company.tools
+unity-bridge package add file:/C:/Packages/com.company.tools-1.0.0.tgz
+```
+
+### `package batch`
+
+Runs one dependency resolution pass for multiple additions/removals.
+
+```bash
+unity-bridge package batch --add com.unity.inputsystem --remove com.unity.timeline
+unity-bridge package batch --add com.unity.addressables --add com.unity.localization
+```
+
+### `package remove` / `package info` / `package embed` / `package resolve`
+
+```bash
+unity-bridge package remove com.unity.timeline
+unity-bridge package info com.unity.inputsystem
+unity-bridge package embed com.unity.inputsystem
+unity-bridge package resolve
+```
+
+### `package pack`
+
+Creates a registry-format `.tgz` from a folder containing `package.json`.
+
+```bash
+unity-bridge package pack Packages/com.company.tools Build/Packages
+```
+
+### `package clear-cache`
+
+Clears Unity's global package cache. This is disruptive and requires `--yes`.
+
+```bash
+unity-bridge package clear-cache --yes
+```
+
 ## import-settings (registered)
 
 ### `import-settings get`

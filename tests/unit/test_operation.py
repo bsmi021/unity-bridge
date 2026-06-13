@@ -4,12 +4,26 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from unittest.mock import patch
-
-from unity_bridge.core.operation import OperationRecord, SCHEMA_VERSION
+from unity_bridge.core.operation import (
+    RETRY_NON_IDEMPOTENT,
+    RETRY_READ_ONLY,
+    SCHEMA_VERSION,
+    STATE_ACCEPTED,
+    STATE_COMPLETED,
+    STATE_QUEUED,
+    STATE_RUNNING,
+    OperationRecord,
+    OperationStateMachine,
+    OperationStore,
+    parameters_hash,
+    retry_policy_for_command,
+    terminal_state_for_response_status,
+)
+from unity_bridge.commands.operation import operation_list, operation_status
 
 
 def _record(command_id: str = "rec", state: str = "queued") -> OperationRecord:
@@ -51,7 +65,7 @@ class TestLedgerWriteResilience:
             raise PermissionError("being used by another process")
 
         with patch.object(Path, "replace", always_locked):
-            # Must NOT raise — a ledger write failure is best-effort, never fatal.
+            # Must NOT raise - a ledger write failure is best-effort, never fatal.
             store.write(_record("never"))
 
     def test_transition_does_not_raise_on_write_failure(self, fake_project: Path) -> None:
@@ -74,21 +88,6 @@ class TestLedgerWriteResilience:
 
         # Returns (best-effort) rather than propagating the lock error.
         assert result is not None
-
-from unity_bridge.core.operation import (
-    RETRY_NON_IDEMPOTENT,
-    RETRY_READ_ONLY,
-    STATE_ACCEPTED,
-    STATE_COMPLETED,
-    STATE_QUEUED,
-    STATE_RUNNING,
-    OperationStateMachine,
-    OperationStore,
-    parameters_hash,
-    retry_policy_for_command,
-    terminal_state_for_response_status,
-)
-from unity_bridge.commands.operation import operation_list, operation_status
 
 
 def test_parameters_hash_is_stable_for_sorted_json() -> None:

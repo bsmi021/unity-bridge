@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
 
 ### Added
+- Package Manager automation now exposes `package batch`, `package pack`, and
+  `package clear-cache --yes`, with MCP schema fields for `packagesToAdd`,
+  `packagesToRemove`, `packageFolder`, `targetFolder`, and `confirmClearCache`.
 - Editor readiness health state distinguishes bridge liveness from command readiness and waits before writing command files.
 - Durable bridge operation state machine with per-command JSON snapshots, JSONL transition logs, Unity domain-generation tracking, atomic C# response writes, reload recovery, stale terminal ledger cleanup, and `operation status` / `unity_operation_status` inspection surfaces.
 - **Unity 6.4 Phase 5: Built-in core packages** — 3 command groups + MCP tools:
@@ -71,6 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
 
 ### Fixed
+- Package Manager client requests are now serialized in the C# bridge so a
+  second UPM request is rejected while one is pending, matching Unity's
+  sequential `PackageManager.Client` requirement.
 - Unity bridge response and operation JSON parsing now tolerates UTF-8 BOM-prefixed files, and the C# atomic writer now emits UTF-8 without BOM for bridge JSON files.
 - Hardened bridge operation ledger writes with unique temp files, bounded retry/backoff, and clearer response-vs-ledger failure logging so transient Bridge state file locks do not masquerade as Unity compile/build failures.
 - `unity-bridge clean` now prunes stale bridge `*.tmp` files from command, response, and operation state directories while still preserving active operation records.

@@ -58,10 +58,13 @@ class TestValidOperations:
             "search",
             "search-all",
             "add",
+            "batch",
             "remove",
             "info",
             "embed",
             "resolve",
+            "pack",
+            "clear-cache",
         }
         assert VALID_OPERATIONS == expected
 
@@ -163,6 +166,17 @@ class TestParameterExclusion:
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert "source" not in params
 
+    async def test_none_batch_arrays_not_sent(self, mock_bridge: MagicMock) -> None:
+        await package_operation(mock_bridge, "batch")
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert "packagesToAdd" not in params
+        assert "packagesToRemove" not in params
+
+    async def test_false_clear_cache_confirmation_not_sent(self, mock_bridge: MagicMock) -> None:
+        await package_operation(mock_bridge, "clear-cache", confirm_clear_cache=False)
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert "confirmClearCache" not in params
+
     async def test_resolve_only_operation_param(self, mock_bridge: MagicMock) -> None:
         """Resolve sends nothing extra — M1: Client.Resolve() is void."""
         await package_operation(mock_bridge, "resolve")
@@ -211,6 +225,28 @@ class TestNonDefaultParamsSent:
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert params["query"] == "textmeshpro"
 
+    async def test_batch_arrays_sent(self, mock_bridge: MagicMock) -> None:
+        await package_operation(
+            mock_bridge,
+            "batch",
+            packages_to_add=["com.unity.inputsystem"],
+            packages_to_remove=["com.unity.timeline"],
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["packagesToAdd"] == ["com.unity.inputsystem"]
+        assert params["packagesToRemove"] == ["com.unity.timeline"]
+
+    async def test_pack_paths_sent(self, mock_bridge: MagicMock) -> None:
+        await package_operation(
+            mock_bridge,
+            "pack",
+            package_folder="Packages/com.company.tools",
+            target_folder="Build/Packages",
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["packageFolder"] == "Packages/com.company.tools"
+        assert params["targetFolder"] == "Build/Packages"
+
 
 # ---------------------------------------------------------------------------
 # camelCase parameter naming
@@ -235,6 +271,18 @@ class TestCamelCaseParams:
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert "includeIndirectDependencies" in params
         assert "include_indirect" not in params
+
+    async def test_packages_to_add_is_camel_case(self, mock_bridge: MagicMock) -> None:
+        await package_operation(mock_bridge, "batch", packages_to_add=["com.unity.foo"])
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert "packagesToAdd" in params
+        assert "packages_to_add" not in params
+
+    async def test_package_folder_is_camel_case(self, mock_bridge: MagicMock) -> None:
+        await package_operation(mock_bridge, "pack", package_folder="Packages/com.company.foo")
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert "packageFolder" in params
+        assert "package_folder" not in params
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +426,16 @@ class TestMcpSchema:
         source_enum = set(schema["properties"]["source"]["enum"])
         assert source_enum == {"registry", "git", "embedded", "local"}
 
+    def test_schema_has_batch_and_pack_properties(self) -> None:
+        from unity_bridge.mcp.schemas_ext import package_operation as pkg_schema
+
+        properties = pkg_schema()["properties"]
+        assert "packagesToAdd" in properties
+        assert "packagesToRemove" in properties
+        assert "packageFolder" in properties
+        assert "targetFolder" in properties
+        assert "confirmClearCache" in properties
+
     def test_tool_registered_in_command_map(self) -> None:
         from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
 
@@ -398,3 +456,44 @@ class TestCSharpPackageHandler:
         assert 'RegisterPending(command, request, "list", source)' in source
         assert "MatchesSourceFilter(pkg, pending.Context)" in source
         assert "NormalizeSourceFilter(parameters.source)" in source
+
+    def test_package_handler_rejects_overlapping_requests(self) -> None:
+        source = (ROOT / "ClaudeCodeBridge" / "PackageManagerCommandHandler.cs").read_text()
+
+        assert "_pending.Count > 0" in source
+        assert "already in progress" in source
+
+    def test_extended_package_requests_are_implemented(self) -> None:
+        source = (
+            ROOT / "ClaudeCodeBridge" / "PackageManagerRequestOperations.cs"
+        ).read_text()
+
+        assert "Client.AddAndRemove" in source
+        assert "Client.Pack" in source
+        assert "Client.ClearCache" in source
+        assert "BuildBatchResult" in source
+        assert "BuildPackResult" in source
+
+
+class TestSkillPackageDocs:
+    def test_skill_mentions_updated_package_commands(self) -> None:
+        skill = (ROOT / ".agents" / "skills" / "unity-bridge-cli" / "SKILL.md").read_text()
+
+        assert "package batch" in skill
+        assert "package pack" in skill
+        assert "package clear-cache --yes" in skill
+
+    def test_asset_reference_documents_package_manager(self) -> None:
+        reference = (
+            ROOT
+            / ".agents"
+            / "skills"
+            / "unity-bridge-cli"
+            / "references"
+            / "asset-commands.md"
+        ).read_text()
+
+        assert "## package" in reference
+        assert "package batch" in reference
+        assert "package pack" in reference
+        assert "package clear-cache --yes" in reference
