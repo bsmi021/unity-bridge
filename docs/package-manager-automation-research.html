@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unity Bridge Package Manager Automation Research</title>
+  <style>
+    :root {
+      --bg: #f7f7f4;
+      --ink: #202124;
+      --muted: #5d6470;
+      --line: #d7d9dd;
+      --panel: #ffffff;
+      --accent: #0b5c7a;
+      --good: #1f6f43;
+      --warn: #9a6700;
+      --risk: #a33a3a;
+      --code: #f0f2f4;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.55;
+    }
+
+    header,
+    main,
+    footer {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    header {
+      padding-top: 36px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 36px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 24px 0 8px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 12px;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.94em;
+    }
+
+    ul {
+      margin: 8px 0 16px;
+      padding-left: 24px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #eceff1;
+      font-weight: 650;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 22px 0 6px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 0 4px 4px 0;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #e8eef2;
+      color: #1f3d4d;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .tag.good {
+      background: #e7f2eb;
+      color: var(--good);
+    }
+
+    .tag.warn {
+      background: #fff2c7;
+      color: var(--warn);
+    }
+
+    .tag.risk {
+      background: #f9e5e5;
+      color: var(--risk);
+    }
+
+    .callout {
+      margin: 14px 0 20px;
+      padding: 13px 15px;
+      border-left: 4px solid var(--accent);
+      background: var(--panel);
+    }
+
+    .callout.warn {
+      border-left-color: var(--warn);
+    }
+
+    .callout.risk {
+      border-left-color: var(--risk);
+    }
+
+    .priority {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    footer {
+      padding-top: 20px;
+      padding-bottom: 36px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 860px) {
+      header,
+      main,
+      footer {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        padding: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Unity Bridge Package Manager Automation Research</h1>
+    <p class="meta">Last updated: 2026-06-13. Scope: what Unity Bridge can automate around Unity Package Manager, based on current repo coverage and official Unity documentation.</p>
+    <div class="summary">
+      <section class="card">
+        <strong>Current bridge coverage</strong>
+        <span class="tag good">list</span>
+        <span class="tag good">search</span>
+        <span class="tag good">add</span>
+        <span class="tag good">remove</span>
+        <span class="tag good">info</span>
+        <span class="tag good">embed</span>
+        <span class="tag good">resolve</span>
+        <p>Unity Bridge already wraps the core public Package Manager request flow.</p>
+      </section>
+      <section class="card">
+        <strong>Best next automation</strong>
+        <span class="tag warn">outdated</span>
+        <span class="tag warn">lockfile</span>
+        <span class="tag warn">manifest policy</span>
+        <span class="tag warn">batch add/remove</span>
+        <p>The largest value is package-state intelligence and safer dependency changes.</p>
+      </section>
+      <section class="card">
+        <strong>Main guardrail</strong>
+        <span class="tag risk">serialize requests</span>
+        <span class="tag risk">imports reload domain</span>
+        <p>Unity documents Package Manager client operations as sequential only.</p>
+      </section>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>Executive Summary</h2>
+      <p>
+        Unity Bridge can automate nearly all UPM dependency management that Unity exposes through
+        <code>UnityEditor.PackageManager.Client</code>: install, remove, list, search, embed, resolve, clear cache,
+        package a folder into a <code>.tgz</code>, and batch add/remove through one dependency solver pass.
+        The bridge already covers the first-pass operations, but it does not yet expose
+        <code>AddAndRemove</code>, <code>ClearCache</code>, or <code>Pack</code>.
+      </p>
+      <p>
+        The larger opportunity is package-state intelligence: combine <code>Client.List()</code>,
+        <code>PackageInfo</code>, <code>Packages/manifest.json</code>, and
+        <code>Packages/packages-lock.json</code> to answer "what changed", "what is direct vs transitive",
+        "which packages are outdated", "which packages are deprecated", "which packages came from
+        Git/local/tarball/registry", and "which settings make this dependency graph reproducible".
+      </p>
+      <div class="callout warn">
+        The current bridge handler stores multiple pending package requests in a dictionary. Unity's
+        <code>Client</code> docs state that methods can only be called in sequence and that overlapping
+        add/remove calls can produce nondeterministic outcomes. Before expanding mutating package automation,
+        add a single-operation queue or reject new package operations while one is pending.
+      </div>
+    </section>
+
+    <section>
+      <h2>Current Unity Bridge Surface</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Bridge command</th>
+            <th>Current behavior</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>unity-bridge package list</code></td>
+            <td>Calls <code>Client.List(offlineMode, includeIndirectDependencies)</code>.</td>
+            <td>Supports <code>--offline</code>, <code>--include-indirect</code>, and <code>--source registry|git|embedded|local</code>.</td>
+          </tr>
+          <tr>
+            <td><code>unity-bridge package search</code></td>
+            <td>Calls <code>Client.Search(query)</code>; <code>--all</code> calls <code>Client.SearchAll()</code>.</td>
+            <td>Search is by package ID/name, not free-text discovery.</td>
+          </tr>
+          <tr>
+            <td><code>unity-bridge package add IDENTIFIER</code></td>
+            <td>Calls <code>Client.Add(identifier)</code>.</td>
+            <td>Unity supports name, <code>name@version</code>, Git URL, <code>file:/folder</code>, and <code>file:/package.tgz</code> identifiers.</td>
+          </tr>
+          <tr>
+            <td><code>unity-bridge package remove NAME</code></td>
+            <td>Calls <code>Client.Remove(name)</code>.</td>
+            <td>Mutates the project manifest after dependency resolution.</td>
+          </tr>
+          <tr>
+            <td><code>unity-bridge package info NAME</code></td>
+            <td>Calls <code>Client.Search(name)</code> and returns the exact package match.</td>
+            <td>Can be expanded to include more <code>PackageInfo</code> fields.</td>
+          </tr>
+          <tr>
+            <td><code>unity-bridge package embed NAME</code></td>
+            <td>Calls <code>Client.Embed(name)</code>.</td>
+            <td>Copies an installed package under the project <code>Packages/</code> folder for local editing.</td>
+          </tr>
+          <tr>
+            <td><code>unity-bridge package resolve</code></td>
+            <td>Calls <code>Client.Resolve()</code>.</td>
+            <td><code>Resolve()</code> returns void; the bridge currently reports that resolution has been requested.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Relevant repo files: <code>src/unity_bridge/commands/package.py</code>,
+        <code>ClaudeCodeBridge/PackageManagerCommandHandler.cs</code>,
+        <code>ClaudeCodeBridge/PackageManagerModels.cs</code>,
+        <code>src/unity_bridge/mcp/schemas_ext.py</code>, and <code>tests/unit/test_package*.py</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Official Unity Automation Surface</h2>
+      <h3>Public <code>PackageManager.Client</code> operations</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Unity API</th>
+            <th>Automation value for Unity Bridge</th>
+            <th>Status in bridge</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Client.Add(identifier)</code></td>
+            <td>Add or update a package by name, version, Git URL, local folder, or local tarball.</td>
+            <td><span class="tag good">covered</span> Needs explicit CLI validation for Git/local/tarball.</td>
+          </tr>
+          <tr>
+            <td><code>Client.Remove(name)</code></td>
+            <td>Remove a direct project dependency and let Unity resolve the graph.</td>
+            <td><span class="tag good">covered</span></td>
+          </tr>
+          <tr>
+            <td><code>Client.AddAndRemove(add[], remove[])</code></td>
+            <td>Apply a coordinated dependency change in one graph solve. This is better than repeated add/remove calls.</td>
+            <td><span class="tag warn">missing</span> Recommended as <code>package batch</code>.</td>
+          </tr>
+          <tr>
+            <td><code>Client.List(offlineMode, includeIndirectDependencies)</code></td>
+            <td>Inventory direct and resolved packages, including cached/offline mode and transitive dependencies.</td>
+            <td><span class="tag good">covered</span> Should enrich output with directness and errors.</td>
+          </tr>
+          <tr>
+            <td><code>Client.Search(packageIdOrName, offlineMode)</code></td>
+            <td>Look up a specific package by ID/name and its available versions.</td>
+            <td><span class="tag good">partly covered</span> Offline variant is not surfaced.</td>
+          </tr>
+          <tr>
+            <td><code>Client.SearchAll(offlineMode)</code></td>
+            <td>Discover compatible packages from registry data.</td>
+            <td><span class="tag good">partly covered</span> Offline variant is not surfaced.</td>
+          </tr>
+          <tr>
+            <td><code>Client.Embed(name)</code></td>
+            <td>Copy an installed immutable package to <code>Packages/name</code> for local source editing.</td>
+            <td><span class="tag good">covered</span></td>
+          </tr>
+          <tr>
+            <td><code>Client.Resolve()</code></td>
+            <td>Force package dependency resolution after manifest or package-manifest changes.</td>
+            <td><span class="tag good">covered</span> Needs better follow-up status/lockfile verification.</td>
+          </tr>
+          <tr>
+            <td><code>Client.Pack(packageFolder, targetFolder)</code></td>
+            <td>Create a publishable/testable GZip tarball from a UPM package folder.</td>
+            <td><span class="tag warn">missing</span> Recommended as <code>package pack</code>.</td>
+          </tr>
+          <tr>
+            <td><code>Client.ClearCache()</code></td>
+            <td>Clear the global package cache to recover disk space or force clean downloads.</td>
+            <td><span class="tag warn">missing</span> Should require an explicit confirmation flag.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3><code>PackageInfo</code> inspection</h3>
+      <p>
+        Unity exposes richer package metadata than the bridge currently serializes. Useful fields include
+        <code>assetPath</code>, <code>category</code>, <code>dependencies</code>,
+        <code>resolvedDependencies</code>, <code>errors</code>, <code>git</code>,
+        <code>isDeprecated</code>, <code>isDirectDependency</code>, <code>packageId</code>,
+        <code>registry</code>, <code>resolvedPath</code>, <code>source</code>, <code>type</code>,
+        <code>version</code>, and <code>versions</code>. Static helpers
+        <code>FindForPackageName</code>, <code>GetAllRegisteredPackages</code>, and
+        <code>IsPackageRegistered</code> can provide fast loaded-package checks that do not need a registry request.
+      </p>
+      <p>
+        <code>VersionsInfo</code> is the basis for <code>package outdated</code>. It exposes all versions,
+        compatible versions, deprecated versions, latest, latest compatible, and recommended version.
+      </p>
+    </section>
+
+    <section>
+      <h2>Manifest And Lockfile Automation</h2>
+      <p>
+        Not every Package Manager feature is a public <code>Client</code> method. The project manifest
+        <code>Packages/manifest.json</code> is also a package-manager configuration file. Unity documents these
+        project-level controls:
+      </p>
+      <ul>
+        <li><code>dependencies</code>: direct project dependencies, including registry versions, Git URLs, local folders, and local tarballs.</li>
+        <li><code>scopedRegistries</code>: custom registry definitions with <code>name</code>, <code>url</code>, and <code>scopes</code>.</li>
+        <li><code>enableLockFile</code>: deterministic lockfile creation, enabled by default.</li>
+        <li><code>resolutionStrategy</code>: how Unity selects indirect dependency versions.</li>
+        <li><code>testables</code>: package test assemblies to load into Unity Test Framework.</li>
+        <li><code>pinnedPackages</code>: direct dependencies that should stay at the requested version.</li>
+      </ul>
+      <p>
+        The lock file <code>Packages/packages-lock.json</code> records the resolved dependency graph. Unity says a lock
+        file contains the result of dependency resolution, and deleting it forces a refresh of indirect dependency versions.
+        For Unity Bridge, it is valuable read-only evidence for version, dependency depth, source, URL, and resolved edges.
+      </p>
+      <div class="callout">
+        Recommended split: expose manifest mutation through explicit bridge operations, then call
+        <code>Client.Resolve()</code> and verify with <code>Client.List(includeIndirectDependencies: true)</code>
+        plus lockfile inspection. Keep lockfile operations read-only except for an explicit
+        "delete lockfile and resolve" repair command.
+      </div>
+    </section>
+
+    <section>
+      <h2>Asset Store Boundary</h2>
+      <p>
+        Unity's Package Manager window can manage Asset Store packages, but Asset Store assets split into two shapes:
+        UPM packages and legacy <code>.unitypackage</code> asset packages. UPM-shaped Asset Store packages can be
+        treated like UPM packages once they are available to the project. Legacy asset packages are downloaded and
+        imported through the Package Manager window and then unpacked into <code>Assets/</code>.
+      </p>
+      <p>
+        I did not find an official public <code>PackageManager.Client</code> API for headless download of acquired
+        Asset Store packages. The practical bridge surface is therefore:
+      </p>
+      <ul>
+        <li>Inventory the local Asset Store cache path on Windows: <code>C:\Users\accountName\AppData\Roaming\Unity\Asset Store-5.x</code>.</li>
+        <li>Import an already-downloaded <code>.unitypackage</code> with the existing <code>asset-ext import-package</code> operation.</li>
+        <li>For UPM packages acquired from the Asset Store, use normal package-manager add/list/update flows where Unity exposes a package identifier.</li>
+      </ul>
+      <div class="callout warn">
+        Avoid promising unattended Asset Store download/install unless a supported API or authenticated Unity workflow is verified in-Editor. Local cache import is automatable; acquisition/download from a Unity account is not proven by the public scripting docs.
+      </div>
+    </section>
+
+    <section>
+      <h2>Recommended Next Work</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Command surface</th>
+            <th>Why it matters</th>
+            <th>Implementation notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="priority">P0</td>
+            <td>Package request serialization</td>
+            <td>Prevents nondeterministic UPM state when multiple package requests overlap.</td>
+            <td>Reject or queue a second <code>Client</code> request while one is pending; persist in-flight state across reload-sensitive windows.</td>
+          </tr>
+          <tr>
+            <td class="priority">P1</td>
+            <td><code>package snapshot</code></td>
+            <td>Gives agents a trusted package-state report before changing dependencies.</td>
+            <td>Combine manifest, lockfile, <code>Client.List(true)</code>, and <code>PackageInfo.GetAllRegisteredPackages()</code>.</td>
+          </tr>
+          <tr>
+            <td class="priority">P1</td>
+            <td><code>package outdated</code></td>
+            <td>Shows installed vs latest compatible/recommended versions for dependency maintenance.</td>
+            <td>Use <code>PackageInfo.versions.latestCompatible</code>, <code>recommended</code>, and <code>isDeprecated</code>; support offline mode.</td>
+          </tr>
+          <tr>
+            <td class="priority">P1</td>
+            <td><code>package batch</code></td>
+            <td>Lets the bridge add and remove packages through one dependency solve.</td>
+            <td>Wrap <code>Client.AddAndRemove(add[], remove[])</code>; include a preview mode that prints intended manifest changes.</td>
+          </tr>
+          <tr>
+            <td class="priority">P1</td>
+            <td><code>package lockfile</code></td>
+            <td>Explains deterministic dependency state and detects source/version drift.</td>
+            <td>Read-only parser for <code>Packages/packages-lock.json</code>; summarize depths, sources, URLs, and packages missing from manifest/list.</td>
+          </tr>
+          <tr>
+            <td class="priority">P1</td>
+            <td><code>package manifest</code></td>
+            <td>Automates policy fields that do not have public <code>Client</code> methods.</td>
+            <td>Get/set <code>enableLockFile</code>, <code>resolutionStrategy</code>, <code>testables</code>, and <code>pinnedPackages</code> with JSON parsing and atomic writes.</td>
+          </tr>
+          <tr>
+            <td class="priority">P1</td>
+            <td><code>package registry</code></td>
+            <td>OpenUPM/internal registries are common setup blockers.</td>
+            <td>Read/add/remove <code>scopedRegistries</code> in manifest; validate URL/scopes; call <code>resolve</code>; do not store auth tokens in project files.</td>
+          </tr>
+          <tr>
+            <td class="priority">P2</td>
+            <td><code>package add-git</code>, <code>add-local</code>, <code>add-tarball</code></td>
+            <td>Reduces malformed identifiers and makes automation intent clearer.</td>
+            <td>Still calls <code>Client.Add</code>; validate Git URL syntax, <code>file:</code> prefix, local <code>package.json</code>, and <code>.tgz</code> extension.</td>
+          </tr>
+          <tr>
+            <td class="priority">P2</td>
+            <td><code>package pack</code></td>
+            <td>Supports local package CI and handoff without leaving Unity.</td>
+            <td>Wrap <code>Client.Pack(packageFolder, targetFolder)</code>; return generated tarball path.</td>
+          </tr>
+          <tr>
+            <td class="priority">P3</td>
+            <td><code>package clear-cache</code></td>
+            <td>Useful for cache repair and disk cleanup but disruptive.</td>
+            <td>Wrap <code>Client.ClearCache()</code>; require <code>--yes</code> or equivalent explicit confirmation.</td>
+          </tr>
+          <tr>
+            <td class="priority">P3</td>
+            <td><code>package asset-store-cache</code></td>
+            <td>Helps agents find already-downloaded <code>.unitypackage</code> files.</td>
+            <td>Read cache folders and pass selected files to existing <code>asset-ext import-package</code>; keep download/acquisition out of scope until proven.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Suggested Implementation Shape</h2>
+      <ul>
+        <li>Add a shared C# package request runner that enforces one active <code>Client</code> request and normalizes result serialization by request type.</li>
+        <li>Extend <code>PackageOperationParams</code> with arrays for <code>packagesToAdd</code> and <code>packagesToRemove</code>, fields for <code>packageFolder</code>/<code>targetFolder</code>, and manifest policy fields.</li>
+        <li>Add a C# manifest helper that reads/writes <code>Packages/manifest.json</code> atomically, preserving existing unknown fields.</li>
+        <li>Add a read-only lockfile parser using structured JSON, not string matching.</li>
+        <li>Expose the same surface in CLI first; MCP is deprecated in this repo, so MCP schema updates can be compatibility-only.</li>
+        <li>Tests: Python parameter shaping, C# model serialization expectations, manifest parser fixtures, lockfile parser fixtures, and handler tests for "pending request rejects second request".</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Source Notes</h2>
+      <ul>
+        <li><a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/PackageManager.Client.html">Unity Scripting API: PackageManager.Client</a></li>
+        <li><a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/PackageManager.Client.AddAndRemove.html">Unity Scripting API: Client.AddAndRemove</a></li>
+        <li><a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/PackageManager.PackageInfo.html">Unity Scripting API: PackageInfo</a></li>
+        <li><a href="https://docs.unity3d.com/6000.0/Documentation/ScriptReference/PackageManager.VersionsInfo.html">Unity Scripting API: VersionsInfo</a></li>
+        <li><a href="https://docs.unity3d.com/6000.4/Documentation/Manual/upm-manifestPrj.html">Unity Manual: Project manifest file</a></li>
+        <li><a href="https://docs.unity3d.com/6000.4/Documentation/Manual/upm-conflicts-auto.html">Unity Manual: Lock files</a></li>
+        <li><a href="https://docs.unity3d.com/2022.3/Documentation/Manual/AssetStorePackages.html">Unity Manual: Manage Asset Store packages in the Editor</a></li>
+        <li><a href="https://docs.unity3d.com/6000.4/Documentation/Manual/upm-ui-import.html">Unity Manual: Download and import an asset package</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    Prepared for Unity Bridge package-manager automation planning. This is a review/research artifact, not an implementation spec.
+  </footer>
+</body>
+</html>
