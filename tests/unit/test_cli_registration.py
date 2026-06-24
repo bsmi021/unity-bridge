@@ -7,6 +7,7 @@ import logging
 from unity_bridge import app as app_module
 from unity_bridge.app import app
 from unity_bridge.commands.hierarchy import component_app
+from unity_bridge.commands.material import material_app
 
 
 def _registered_group_names() -> set[str]:
@@ -19,6 +20,10 @@ def _registered_command_names() -> set[str]:
 
 def _component_command_names() -> set[str]:
     return {command.name for command in component_app.registered_commands}
+
+
+def _material_command_names() -> set[str]:
+    return {command.name for command in material_app.registered_commands}
 
 
 def test_failed_group_registration_is_logged_not_silent(caplog) -> None:
@@ -103,3 +108,21 @@ def test_component_extension_commands_are_imported() -> None:
     expected_commands = {"copy", "paste", "reset"}
 
     assert expected_commands <= _component_command_names()
+
+
+def test_material_keyword_commands_are_exposed_as_group() -> None:
+    """Material docs must only advertise subcommands that the root CLI exposes."""
+    expected_commands = {
+        "modify",
+        "create",
+        "duplicate",
+        "enable-keyword",
+        "disable-keyword",
+        "get-keywords",
+        "set-render-queue",
+        "copy-properties",
+    }
+
+    assert "material" in _registered_group_names()
+    assert "material" not in _registered_command_names()
+    assert expected_commands <= _material_command_names()

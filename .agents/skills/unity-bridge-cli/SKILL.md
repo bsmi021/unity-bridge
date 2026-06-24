@@ -1,52 +1,12 @@
 ---
 name: unity-bridge-cli
 description: >
-  Use this skill for ANY Unity Editor interaction from the command line. Trigger
-  on: unity-bridge, run tests, compile Unity, check hierarchy, get component,
-  set component, add component, remove component, enable component, disable
-  component, load scene, save scene, create scene, additive scene, unload scene,
-  move object scene, enter play mode, pause play mode, stop play mode, read
-  console, watch console, clear console, log message, take screenshot, build
-  project, build target, execute C# expression, script expression, TDD workflow,
-  is Unity running, health check, doctor diagnostics, install bridge, clean
-  orphaned files, stale temp files, operation status, durable operation ledger,
-  list packages, add package, add package from Git, add local package,
-  add tarball package, batch packages, remove package, search package,
-  bake lightmaps, lightmap settings, shader info, shader keywords, shader errors,
-  shader properties, undo, redo, undo history, import settings, reimport asset,
-  bulk import, import template, quality settings, scene setup, scene layout,
-  cross-scene references, asset dependencies, asset guid, create asset, delete
-  asset, copy asset, move asset, export unitypackage, select objects, clear
-  selection, transform position, transform rotation, transform scale, reparent,
-  sibling index, serialized property, editor prefs, session state, build scenes,
-  physics settings, gravity, collision matrix, quality level, tags, layers,
-  sorting layers, editor config, duplicate object, missing scripts, static flags,
-  create primitive, set active, activate deactivate, prefab instantiate, prefab
-  validate, prefab overrides, unpack prefab, destroy prefab, find prefab instances,
-  build profile, player settings, scripting defines, compile assemblies, compile
-  defines, compile which, compile optimization, animator state, animator params,
-  asset find, asset query, material modify, material create, material duplicate,
-  batch commands, MCP server, profiler metrics, focus gameobject, menu item,
-  refresh assets, editor selection, preview scene, play start scene, set layer,
-  set tag, component data, move to scene, folder create, folder list, embed
-  package, pack package, clear package cache, resolve packages, navmesh bake,
-  animation clip, terrain, tilemap,
-  addressables, reflection probes, occlusion culling, time settings, graphics
-  settings, environment fog, audio settings, game view, scene view camera,
-  clipboard, presets, scene templates, script info, deep serialize, window
-  management, input system, execution order, assembly lock, find references,
-  component copy, component paste, component reset, material keywords, UI Toolkit,
-  UXML, USS, UIDocument, PanelSettings, object identity, EntityId, GlobalObjectId,
-  Project Auditor, render pipeline, URP, HDRP, GraphicsStateCollection, PSO trace,
-  shader warmup, Graph Toolkit, scene state, scene overlays, gizmos, snap settings,
-  Unity Entities, ECS worlds, archetypes, systems, Adaptive Performance,
-  Multiplayer Play Mode, Unity Search, Quick Search, sync solution, cloud services,
-  Physics2D, Addressables profiles, Addressables labels, Addressables analyze,
-  InputActionAsset authoring, action maps, bindings, control schemes, package
-  source filters, or any request involving an open Unity Editor.
-  Also trigger when about to write raw JSON to .claude/unity/commands/ -- use
-  the CLI instead for retries, timeouts, caching, and error formatting.
-allowed-tools: Bash(unity-bridge *), Bash(unity-bridge), Read, Grep, Glob
+  Use for Unity Editor automation through the unity-bridge CLI. Trigger on
+  bridge health/status/doctor/install/clean, tests or compile checks,
+  scene/hierarchy/component/prefab/asset/material/shader/package/build/settings
+  workflows, profiler/editor utilities, operation ledger inspection, or MCP
+  compatibility queueing. Prefer CLI commands over raw .claude/unity JSON for
+  retries, timeouts, caching, and consistent output.
 ---
 
 # Unity Bridge CLI
@@ -77,6 +37,16 @@ Global flags go BEFORE the command name:
 1. **Check health**: `unity-bridge status`
 2. **Run command**: `unity-bridge [global flags] command [args]`
 3. **Parse result**: Check `success` field in JSON output
+
+## Codex Deployment And Scope
+
+- This repo ships the Codex skill from `.agents/skills/unity-bridge-cli`; `unity-bridge install` copies it into target Unity projects.
+- Keep the YAML description concise because Codex uses it for skill discovery. Put detailed command coverage in this body and the `references/` files.
+- Use the CLI first. It is the supported Codex interface for retries, timeouts, bridge health checks, caching, and formatted errors.
+- `unity-bridge serve` is deprecated MCP compatibility mode for existing integrations; do not choose it for new Codex work.
+- In MCP compatibility sessions where Unity is busy, submit work with `unity_submit_command` and poll with `unity_operation_status`; use `unity-bridge operation status COMMAND_ID` or `operation list` from the CLI.
+- If a changed skill is not visible in Codex, start a fresh Codex session before debugging the bridge behavior.
+- Before changing this skill or its references, verify the live CLI surface with `unity-bridge --help` and targeted command help.
 
 ## Decision Tree: "I need to..."
 
@@ -173,7 +143,7 @@ unity-bridge install [--check|--force] # Install/update C# bridge + project skil
 unity-bridge init                      # Create directory structure
 unity-bridge clean [--dry-run]         # Remove orphaned/stale bridge state files
 unity-bridge operation status COMMAND_ID | operation list
-unity-bridge serve                     # Start MCP server
+unity-bridge serve                     # Deprecated MCP compatibility server
 unity-bridge profiler --memory --cpu   # Performance snapshot
 
 # Hierarchy & GameObjects
@@ -351,7 +321,7 @@ Precedence: CLI flags > environment variables > config file > defaults.
 
 ## Domain Reference Files
 
-For full argument tables, types, defaults, and examples, read the appropriate reference:
+For detailed argument tables, types, defaults, and examples, read the appropriate reference:
 
 | I need... | Read this reference |
 |-----------|-------------------|
@@ -368,6 +338,7 @@ For full argument tables, types, defaults, and examples, read the appropriate re
 - Unity Editor must be open with ClaudeUnityBridge active.
 - If `unity-bridge status` shows unhealthy, run `unity-bridge doctor`.
 - `unity-bridge install` deploys both the C# bridge and this skill to the Unity project; the skill target is `.agents/skills/unity-bridge-cli`.
+- Runtime bridge files live under `.claude/unity/`; do not write raw command JSON there unless you are debugging the bridge protocol itself.
 - In-flight command lifecycle state lives under `.claude/unity/operations/`; use `unity-bridge operation status COMMAND_ID` or `operation list` to inspect accepted/running/recovered commands.
 - `unity-bridge clean` prunes orphaned command/response files, stale `*.tmp` bridge files, and old terminal operation records while preserving active operation records.
 - Asset paths use forward slashes relative to project root: `Assets/Scenes/Main.unity`.
@@ -376,3 +347,4 @@ For full argument tables, types, defaults, and examples, read the appropriate re
 - The `-t` flag on `prefs` and `console log` is `--type`, not the global `--timeout`.
 - `compile` is a query group (assemblies/defines/which/optimization). Use `test compile` to trigger compilation.
 - Timeouts vary by command (5s reads, 300s tests, 600s builds). Override with `-t SEC`.
+- `UNITY_BRIDGE_EDITOR_READY_TIMEOUT` controls editor readiness waits; `UNITY_BRIDGE_IN_FLIGHT_BUSY_GRACE` controls how long active in-flight work keeps the bridge marked busy.

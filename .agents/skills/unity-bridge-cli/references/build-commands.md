@@ -51,6 +51,57 @@ unity-bridge profile set Assets/Settings/BuildProfiles/High.asset
 unity-bridge profile info Assets/Settings/BuildProfiles/High.asset
 ```
 
+### `profile scenes` / `profile defines`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PROFILE_PATH` | positional | yes | Profile asset path |
+
+```bash
+unity-bridge profile scenes Assets/Settings/BuildProfiles/High.asset
+unity-bridge profile defines Assets/Settings/BuildProfiles/High.asset
+```
+
+### `profile set-scenes`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PROFILE_PATH` | positional | yes | Profile asset path |
+| `--scene` | TEXT (repeatable) | yes | Enabled scene path |
+| `--disabled-scene` | TEXT (repeatable) | no | Disabled scene path |
+
+```bash
+unity-bridge profile set-scenes Assets/Settings/BuildProfiles/High.asset --scene Assets/Scenes/Main.unity
+unity-bridge profile set-scenes Assets/Settings/BuildProfiles/High.asset --scene Assets/Scenes/Main.unity --disabled-scene Assets/Scenes/Debug.unity
+```
+
+### `profile set-defines`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PROFILE_PATH` | positional | yes | Profile asset path |
+| `--define` | TEXT (repeatable) | yes | Scripting define symbol |
+
+```bash
+unity-bridge profile set-defines Assets/Settings/BuildProfiles/High.asset --define USE_ADDRESSABLES --define ENABLE_LOGGING
+```
+
+### `profile build`
+
+Build through a Unity 6 build profile. Build output includes structured report data when Unity returns it.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `PROFILE_PATH` | positional | yes | Profile asset path |
+| `--output` | TEXT | yes | Build output path |
+| `--dev` | flag | no | Development build |
+| `--run` | flag | no | Auto-run player after build |
+
+```bash
+unity-bridge profile build Assets/Settings/BuildProfiles/High.asset --output builds/win64/
+unity-bridge profile build Assets/Settings/BuildProfiles/High.asset --output builds/win64/ --dev --run
+```
+
 ---
 
 ## build-scenes (registered)

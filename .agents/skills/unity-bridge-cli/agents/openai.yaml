@@ -1,0 +1,6 @@
+interface:
+  display_name: Unity Bridge CLI
+  short_description: Operate Unity through the bridge CLI.
+  default_prompt: Use $unity-bridge-cli to inspect bridge health, run Unity tests or compile checks, and report exact JSON results.
+policy:
+  allow_implicit_invocation: true

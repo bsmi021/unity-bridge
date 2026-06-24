@@ -208,7 +208,7 @@ def _register_optional_commands() -> None:
     _try_register_command("unity_bridge.commands.editor", "menu_cli", "menu")
     _try_register_command("unity_bridge.commands.editor", "screenshot_cli", "screenshot")
     _try_register_command("unity_bridge.commands.asset", "asset_cli", "asset")
-    _try_register_command("unity_bridge.commands.material", "material_cli", "material")
+    _try_register_group("unity_bridge.commands.material", "material_app", "material")
     _try_register_command("unity_bridge.commands.build", "build_cli", "build")
     _try_register_command("unity_bridge.commands.animator", "animator_cli", "animator")
     _try_register_group("unity_bridge.commands.settings", "settings_app", "settings")

@@ -159,6 +159,56 @@ unity-bridge addressables mark Assets/Prefabs/Enemy.prefab
 unity-bridge addressables set-address Assets/Prefabs/Enemy.prefab "enemies/basic"
 ```
 
+### `addressables profiles` / `addressables labels` / `addressables schemas`
+
+No arguments.
+
+```bash
+unity-bridge addressables profiles
+unity-bridge addressables labels
+unity-bridge addressables schemas
+```
+
+### `addressables set-profile`
+
+Set the active Addressables profile by id or by name.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `--id` | TEXT | no | Addressables profile id |
+| `--name` | TEXT | no | Addressables profile name |
+
+```bash
+unity-bridge addressables set-profile --name Default
+unity-bridge addressables set-profile --id 0123456789abcdef
+```
+
+### `addressables set-label`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `ASSET_PATH` | positional | yes | Addressable asset path |
+| `LABEL` | positional | yes | Label name |
+| `--enable/--disable` | flag pair | no | Add or remove the label |
+| `--force` | flag | no | Create missing label when supported |
+
+```bash
+unity-bridge addressables set-label Assets/Prefabs/Enemy.prefab Enemy --enable --force
+unity-bridge addressables set-label Assets/Prefabs/Enemy.prefab Deprecated --disable
+```
+
+### `addressables analyze`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `--rule` | TEXT | no | Analyze rule to run |
+| `--output` | TEXT | no | Output report path |
+
+```bash
+unity-bridge addressables analyze
+unity-bridge addressables analyze --rule "Check Duplicate Bundle Dependencies" --output Reports/addressables-analyze.json
+```
+
 ---
 
 ## reflection-probe

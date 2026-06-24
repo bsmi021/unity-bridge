@@ -227,23 +227,29 @@ unity-bridge import-settings template-apply mobile-tex Assets/Textures/other.png
 
 ---
 
-## material (registered -- positional ACTION)
+## material (registered group)
+
+### `material modify` / `material create` / `material duplicate`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `ACTION` | positional | yes | modify, create, duplicate, enable-keyword, disable-keyword, get-keywords, set-render-queue, copy-properties |
 | `PATH` | positional | yes | Material asset path |
-| `--properties` | JSON | no | JSON property overrides (for modify) |
+| `--properties` | JSON | no | JSON property overrides for `modify` |
 
 ```bash
 unity-bridge material modify Assets/Materials/Player.mat --properties '{"_Color":{"r":1}}'
 unity-bridge material create Assets/Materials/New.mat
 unity-bridge material duplicate Assets/Materials/Base.mat
+```
+
+### Material keyword, render queue, and copy subcommands
+
+```bash
 unity-bridge material enable-keyword Assets/Materials/Player.mat _EMISSION
 unity-bridge material disable-keyword Assets/Materials/Player.mat _EMISSION
 unity-bridge material get-keywords Assets/Materials/Player.mat
 unity-bridge material set-render-queue Assets/Materials/Player.mat 3000
-unity-bridge material copy-properties Assets/Materials/Source.mat Assets/Materials/Target.mat
+unity-bridge material copy-properties Assets/Materials/Target.mat Assets/Materials/Source.mat
 ```
 
 ---
