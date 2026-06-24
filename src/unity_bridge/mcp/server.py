@@ -20,6 +20,7 @@ from unity_bridge.commands.diagnostics import status as diagnostics_status
 from unity_bridge.commands.operation import operation_status
 from unity_bridge.core.bridge import DirectBridge
 from unity_bridge.core.cache import get_cache
+from unity_bridge.core.command_queue import CommandQueue
 from unity_bridge.core.config import BridgeConfig, load_config_file, save_config_file
 from unity_bridge.core.health import HealthMonitor
 from unity_bridge.core.project import detect_unity_project
@@ -59,6 +60,8 @@ _HELP_CONTENT: dict[str, str] = {
         "- `unity_read_console` - Read console logs\n\n"
         "## Diagnostics\n"
         "- `unity_health_check` - Check bridge health\n"
+        "- `unity_submit_command` - Queue command and return an operation ID immediately\n"
+        "- `unity_operation_status` - Inspect queued/running/completed operation state\n"
         "- `unity_profiler_sample` - Capture performance metrics\n"
         "- `unity_capture_screenshot` - Take screenshots\n\n"
         "## Utility\n"
@@ -78,8 +81,9 @@ _HELP_CONTENT: dict[str, str] = {
         "# Troubleshooting\n\n"
         "## Unity Bridge Not Responding\n"
         "1. Check `unity_health_check` output\n"
-        "2. Verify Unity is open and not frozen\n"
-        "3. Try `unity_refresh_assets` to trigger update"
+        "2. Use `unity_submit_command` for commands that should wait for editor readiness\n"
+        "3. Inspect the returned ID with `unity_operation_status`\n"
+        "4. Verify Unity is open and not frozen"
     ),
     "examples": (
         "# Example Commands\n\n"
@@ -105,6 +109,7 @@ _VALID_LOG_LEVELS = {
 # ---------------------------------------------------------------------------
 
 _bridge_instance: DirectBridge | None = None
+_command_queue_instance: CommandQueue | None = None
 
 
 def _get_bridge(project_root: Path) -> DirectBridge:
@@ -113,6 +118,14 @@ def _get_bridge(project_root: Path) -> DirectBridge:
     if _bridge_instance is None:
         _bridge_instance = DirectBridge(project_root)
     return _bridge_instance
+
+
+def _get_command_queue(project_root: Path) -> CommandQueue:
+    """Return or create the shared Python-side command queue."""
+    global _command_queue_instance
+    if _command_queue_instance is None:
+        _command_queue_instance = CommandQueue(project_root, bridge=_get_bridge(project_root))
+    return _command_queue_instance
 
 
 # ---------------------------------------------------------------------------
@@ -231,14 +244,20 @@ async def _handle_health_check(
     if arguments.get("waitForReady", False):
         try:
             monitor = HealthMonitor(project_root)
-            health = monitor.wait_for_ready(timeout_seconds=wait_timeout)
+            health = await asyncio.to_thread(
+                monitor.wait_for_ready,
+                timeout_seconds=wait_timeout,
+            )
             return {"success": True, "health": health.to_dict()}
         except Exception as exc:
             return {"success": True, "health": {"healthy": False, "reason": str(exc)}}
     if arguments.get("waitForHealthy", False):
         try:
             monitor = HealthMonitor(project_root)
-            health = monitor.wait_for_healthy(timeout_seconds=wait_timeout)
+            health = await asyncio.to_thread(
+                monitor.wait_for_healthy,
+                timeout_seconds=wait_timeout,
+            )
             return {"success": True, "health": health.to_dict()}
         except Exception as exc:
             return {"success": True, "health": {"healthy": False, "reason": str(exc)}}
@@ -256,6 +275,21 @@ async def _handle_operation_status(
     command_id = str(arguments.get("commandId", ""))
     result = await operation_status(project_root, command_id)
     return result.to_dict()
+
+
+async def _handle_submit_command(
+    arguments: dict[str, Any],
+    project_root: Path,
+) -> dict[str, Any]:
+    """Handle unity_submit_command without waiting for Unity readiness."""
+    command_type = str(arguments.get("commandType", ""))
+    if not command_type:
+        return {"success": False, "error": "commandType is required", "exit_code": 3}
+    raw_parameters = arguments.get("parameters", {})
+    parameters = raw_parameters if isinstance(raw_parameters, dict) else {}
+    timeout = float(arguments.get("timeout", 30.0))
+    queue = _get_command_queue(project_root)
+    return queue.submit(command_type, parameters, timeout).to_dict()
 
 
 async def _handle_batch(
@@ -391,6 +425,8 @@ async def _dispatch(
         return await _handle_health_check(arguments, project_root)
     if name == "unity_operation_status":
         return await _handle_operation_status(arguments, project_root)
+    if name == "unity_submit_command":
+        return await _handle_submit_command(arguments, project_root)
     if name == "unity_batch":
         return await _handle_batch(arguments, project_root)
 

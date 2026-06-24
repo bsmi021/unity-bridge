@@ -209,6 +209,40 @@ class TestCommandSerialization:
         assert record.retry_policy == "read_only"
         assert bridge._operation_store.events_path(captured_command_id).exists()
 
+    async def test_send_prepared_command_uses_existing_command_id(
+        self,
+        fake_project: Path,
+    ) -> None:
+        bridge = DirectBridge(fake_project)
+        written_commands: list[dict[str, Any]] = []
+
+        async def capture(command: dict, path: Path) -> None:
+            written_commands.append(command)
+            path.write_text(json.dumps(command), encoding="utf-8")
+
+        immediate = CommandResult(success=True, command_id="prepared-command")
+        with patch.object(bridge, "_write_command_file", side_effect=capture):
+            with patch.object(
+                bridge,
+                "_wait_for_response",
+                new_callable=AsyncMock,
+                return_value=immediate,
+            ):
+                result = await bridge.send_prepared_command(
+                    command_id="prepared-command",
+                    command_type="query-hierarchy",
+                    parameters={"maxDepth": 1},
+                    timeout=5.0,
+                    check_health=False,
+                    create_operation=False,
+                )
+
+        assert result.success is True
+        assert written_commands[0]["commandId"] == "prepared-command"
+        assert written_commands[0]["commandType"] == "query-hierarchy"
+        assert json.loads(written_commands[0]["parametersJson"]) == {"maxDepth": 1}
+        assert bridge._operation_store.load("prepared-command") is None
+
 
 # ---------------------------------------------------------------------------
 # Response parsing
@@ -391,6 +425,50 @@ class TestHealthGating:
         assert result.success is True
         mock_monitor.wait_for_ready.assert_called_once()
         write.assert_called_once()
+
+    async def test_readiness_wait_runs_off_event_loop(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project)
+        mock_monitor = MagicMock()
+        bridge._health_monitor = mock_monitor
+        immediate = CommandResult(success=True, command_id="x")
+
+        with patch("unity_bridge.core.bridge.asyncio.to_thread", new_callable=AsyncMock) as wait:
+            wait.return_value = HealthStatus(healthy=True, ready=True)
+            with patch.object(bridge, "_write_command_file", new_callable=AsyncMock):
+                with patch.object(
+                    bridge,
+                    "_wait_for_response",
+                    new_callable=AsyncMock,
+                    return_value=immediate,
+                ):
+                    result = await bridge.send_command("query-hierarchy", check_health=True)
+
+        assert result.success is True
+        wait.assert_awaited_once()
+        assert wait.await_args.args[0] == mock_monitor.wait_for_ready
+
+    async def test_prepared_command_busy_editor_keeps_command_id(self, fake_project: Path) -> None:
+        bridge = DirectBridge(fake_project)
+        mock_monitor = MagicMock()
+        mock_monitor.wait_for_ready.return_value = HealthStatus(
+            healthy=True,
+            ready=False,
+            is_compiling=True,
+            busy_reason="compiling",
+        )
+        bridge._health_monitor = mock_monitor
+
+        with patch.object(bridge, "_write_command_file", new_callable=AsyncMock) as write:
+            result = await bridge.send_prepared_command(
+                command_id="prepared-command",
+                command_type="set-component-data",
+                check_health=True,
+            )
+
+        assert result.success is False
+        assert result.command_id == "prepared-command"
+        assert result.data["status"] == "editor_busy"
+        write.assert_not_called()
 
     async def test_skip_health_check(self, fake_project: Path) -> None:
         bridge = DirectBridge(fake_project)

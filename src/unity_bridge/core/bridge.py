@@ -151,11 +151,60 @@ class DirectBridge:
         timeout = self._effective_timeout(command_type, timeout)
         health = None
         if check_health and self._health_monitor:
-            health = self._wait_for_editor_ready()
+            health = await self._wait_for_editor_ready()
             if not health.ready:
                 return self._readiness_failure(health)
 
         command_id = str(uuid.uuid4())
+        return await self._send_command_now(
+            command_id=command_id,
+            command_type=command_type,
+            parameters=parameters,
+            timeout=timeout,
+            health=health,
+            create_operation=True,
+        )
+
+    async def send_prepared_command(
+        self,
+        *,
+        command_id: str,
+        command_type: str,
+        parameters: dict[str, Any] | None = None,
+        timeout: float = 30.0,
+        check_health: bool = True,
+        create_operation: bool = True,
+    ) -> CommandResult:
+        """Send an already identified command, optionally reusing an operation record."""
+        timeout = self._effective_timeout(command_type, timeout)
+        health = None
+        if check_health and self._health_monitor:
+            health = await self._wait_for_editor_ready()
+            if not health.ready:
+                result = self._readiness_failure(health)
+                result.command_id = command_id
+                return result
+
+        return await self._send_command_now(
+            command_id=command_id,
+            command_type=command_type,
+            parameters=parameters,
+            timeout=timeout,
+            health=health,
+            create_operation=create_operation,
+        )
+
+    async def _send_command_now(
+        self,
+        *,
+        command_id: str,
+        command_type: str,
+        parameters: dict[str, Any] | None,
+        timeout: float,
+        health: Any | None,
+        create_operation: bool,
+    ) -> CommandResult:
+        """Write a command file and wait for Unity, assuming readiness is resolved."""
         timestamp = datetime.now(timezone.utc).isoformat()
 
         command = {
@@ -167,16 +216,17 @@ class DirectBridge:
 
         command_file = self.commands_path / f"{command_id}-{command_type}.json"
         response_file = self.responses_path / f"{command_id}-{command_type}.json"
-        self._operation_store.create_queued(
-            command_id=command_id,
-            command_type=command_type,
-            parameters=parameters,
-            command_path=command_file,
-            response_path=response_file,
-            domain_generation=getattr(health, "domain_generation", None),
-            retry_policy=retry_policy_for_command(command_type),
-            idempotency_key=(parameters or {}).get("idempotencyKey"),
-        )
+        if create_operation:
+            self._operation_store.create_queued(
+                command_id=command_id,
+                command_type=command_type,
+                parameters=parameters,
+                command_path=command_file,
+                response_path=response_file,
+                domain_generation=getattr(health, "domain_generation", None),
+                retry_policy=retry_policy_for_command(command_type),
+                idempotency_key=(parameters or {}).get("idempotencyKey"),
+            )
 
         try:
             await self._write_command_file(command, command_file)
@@ -531,10 +581,11 @@ class DirectBridge:
         except json.JSONDecodeError:
             return raw
 
-    def _wait_for_editor_ready(self) -> Any:
+    async def _wait_for_editor_ready(self) -> Any:
         """Wait for editor readiness using the configured readiness timeout."""
         timeout = _editor_ready_timeout()
-        return self._health_monitor.wait_for_ready(
+        return await asyncio.to_thread(
+            self._health_monitor.wait_for_ready,
             timeout_seconds=timeout,
             poll_interval=self.EDITOR_READY_POLL_INTERVAL,
         )

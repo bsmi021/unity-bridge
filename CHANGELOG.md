@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings command modules (physics2d, audio, time, graphics, environment, lightmap) now build their `set` parameters via a shared `core/settings_params.py` helper, removing ~140 lines of duplicated flag/value boilerplate (bridge payloads unchanged).
 - Shared datetime/int parsing helpers consolidated into `core/timeutil.py` (previously duplicated in `core/health.py` and `core/operation.py`).
 - CLI command/group registration failures are now logged as warnings instead of being silently swallowed.
+- Editor readiness waits now run off the async event loop so MCP/control-plane calls can keep responding while Unity is compiling, importing, or reloading.
 
 ### Fixed
 - **C# bridge: PlayMode test runs and compiles now survive the domain reload they trigger (C5).** A new reload-surviving `BridgeTestRunReporter` (`[InitializeOnLoad]`, re-registers `TestRunnerApi` callbacks each domain load, persists the originating command id in `SessionState`) reports the final result back even though entering play mode reloads the domain and wipes in-memory state — previously PlayMode runs were unreportable and the caller timed out. `CompileCommandHandler` likewise persists the in-flight compile in `SessionState` and completes it on the next domain load (`CompletePendingCompileAfterReload`, run before ledger recovery), and `BridgeOperationLedger.RecoverAfterReload` now skips commands explicitly deferred across a reload instead of force-writing a spurious "interrupted" response. Assembly-reload-lock depth is `SessionState`-backed so a lock taken before a reload survives it. *(Needs in-Editor PlayMode verification.)*
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
 
 ### Added
+- Python-side queued command dispatch now persists queued command payloads outside Unity's command directory and dispatches them only after editor readiness returns; `unity_submit_command` returns an operation ID immediately for MCP clients that need a responsive control plane while Unity is busy.
 - Package Manager automation now exposes `package batch`, `package pack`, and
   `package clear-cache --yes`, with MCP schema fields for `packagesToAdd`,
   `packagesToRemove`, `packageFolder`, `targetFolder`, and `confirmClearCache`.

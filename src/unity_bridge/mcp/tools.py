@@ -203,6 +203,14 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "inputSchema": schemas_operations.operation_status(),
     },
     {
+        "name": "unity_submit_command",
+        "description": (
+            "Queue a Unity command and return immediately with an operation ID. "
+            "Dispatch begins when the editor is ready."
+        ),
+        "inputSchema": schemas_operations.submit_command(),
+    },
+    {
         "name": "unity_compile",
         "description": "Trigger script compilation and wait for completion.",
         "inputSchema": schemas.compile_scripts(),

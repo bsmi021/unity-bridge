@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from unity_bridge.core.health import HealthStatus
 from unity_bridge.core.operation import OperationStore
 from unity_bridge.mcp import schemas
-from unity_bridge.mcp.server import _handle_health_check, _handle_operation_status
+from unity_bridge.mcp.server import (
+    _handle_health_check,
+    _handle_operation_status,
+    _handle_submit_command,
+)
 from unity_bridge.core.protocol import TIMEOUT_DEFAULTS
 from unity_bridge.mcp.tools import TOOL_COMMAND_MAP, TOOL_DEFINITIONS
 
@@ -18,6 +22,7 @@ CLIENT_SIDE_TOOLS = {
     "unity_bridge_config",
     "unity_health_check",
     "unity_operation_status",
+    "unity_submit_command",
     "unity_batch",
     "unity_help",
 }
@@ -179,28 +184,38 @@ def test_health_check_schema_exposes_wait_for_ready() -> None:
 async def test_health_check_wait_for_ready_uses_readiness_gate(tmp_path: Path) -> None:
     ready = HealthStatus(healthy=True, ready=True)
 
-    with patch("unity_bridge.mcp.server.HealthMonitor") as monitor_type:
-        monitor_type.return_value.wait_for_ready.return_value = ready
+    with (
+        patch("unity_bridge.mcp.server.HealthMonitor") as monitor_type,
+        patch("unity_bridge.mcp.server.asyncio.to_thread", new_callable=AsyncMock) as wait,
+    ):
+        wait.return_value = ready
         result = await _handle_health_check({"waitForReady": True}, tmp_path)
 
     assert result["success"] is True
     assert result["health"]["ready"] is True
-    monitor_type.return_value.wait_for_ready.assert_called_once()
-    monitor_type.return_value.wait_for_healthy.assert_not_called()
+    wait.assert_awaited_once_with(
+        monitor_type.return_value.wait_for_ready,
+        timeout_seconds=30.0,
+    )
 
 
 async def test_health_check_wait_for_healthy_remains_liveness_only(tmp_path: Path) -> None:
     busy = HealthStatus(healthy=True, ready=False, is_compiling=True, busy_reason="compiling")
 
-    with patch("unity_bridge.mcp.server.HealthMonitor") as monitor_type:
-        monitor_type.return_value.wait_for_healthy.return_value = busy
+    with (
+        patch("unity_bridge.mcp.server.HealthMonitor") as monitor_type,
+        patch("unity_bridge.mcp.server.asyncio.to_thread", new_callable=AsyncMock) as wait,
+    ):
+        wait.return_value = busy
         result = await _handle_health_check({"waitForHealthy": True}, tmp_path)
 
     assert result["success"] is True
     assert result["health"]["healthy"] is True
     assert result["health"]["ready"] is False
-    monitor_type.return_value.wait_for_healthy.assert_called_once()
-    monitor_type.return_value.wait_for_ready.assert_not_called()
+    wait.assert_awaited_once_with(
+        monitor_type.return_value.wait_for_healthy,
+        timeout_seconds=30.0,
+    )
 
 
 async def test_operation_status_reads_persisted_operation(tmp_path: Path) -> None:
@@ -220,3 +235,72 @@ async def test_operation_status_reads_persisted_operation(tmp_path: Path) -> Non
     assert result["success"] is True
     assert result["data"]["commandId"] == "cmd-1"
     assert result["data"]["domainGeneration"] == 3
+
+
+def test_submit_command_tool_is_registered() -> None:
+    assert "unity_submit_command" in _tool_names()
+
+
+def test_submit_command_schema_requires_command_type() -> None:
+    from unity_bridge.mcp import schemas_operations
+
+    schema = schemas_operations.submit_command()
+
+    assert schema["required"] == ["commandType"]
+    assert "parameters" in schema["properties"]
+
+
+async def test_submit_command_queues_without_unity_round_trip(tmp_path: Path) -> None:
+    queued = {
+        "success": True,
+        "data": {"status": "queued", "commandId": "cmd-1"},
+        "command_id": "cmd-1",
+    }
+
+    with patch("unity_bridge.mcp.server._get_command_queue") as get_queue:
+        get_queue.return_value.submit.return_value.to_dict.return_value = queued
+        result = await _handle_submit_command(
+            {
+                "commandType": "query-hierarchy",
+                "parameters": {"maxDepth": 1},
+                "timeout": 5,
+            },
+            tmp_path,
+        )
+
+    assert result == queued
+    get_queue.return_value.submit.assert_called_once_with(
+        "query-hierarchy",
+        {"maxDepth": 1},
+        5.0,
+    )
+
+
+async def test_submit_command_requires_command_type(tmp_path: Path) -> None:
+    with patch("unity_bridge.mcp.server._get_command_queue") as get_queue:
+        result = await _handle_submit_command({}, tmp_path)
+
+    assert result == {"success": False, "error": "commandType is required", "exit_code": 3}
+    get_queue.assert_not_called()
+
+
+async def test_submit_command_ignores_non_object_parameters(tmp_path: Path) -> None:
+    queued = {
+        "success": True,
+        "data": {"status": "queued", "commandId": "cmd-1"},
+        "command_id": "cmd-1",
+    }
+
+    with patch("unity_bridge.mcp.server._get_command_queue") as get_queue:
+        get_queue.return_value.submit.return_value.to_dict.return_value = queued
+        result = await _handle_submit_command(
+            {
+                "commandType": "query-hierarchy",
+                "parameters": ["not", "an", "object"],
+                "timeout": 5,
+            },
+            tmp_path,
+        )
+
+    assert result is queued
+    get_queue.return_value.submit.assert_called_once_with("query-hierarchy", {}, 5.0)
