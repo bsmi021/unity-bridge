@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The MCP server interface (`mcp/`, `unity-bridge serve`, the `[mcp]` extra, and the MCP-only `ResponseCache`) is deprecated and no longer actively maintained. The supported interface is the `unity-bridge` CLI; `serve` now emits a deprecation notice but still starts.
 
 ### Changed
+- Refreshed `README.md` to describe the current CLI-first support model, deprecated MCP compatibility surface, Codex skill/agent metadata, live command counts, and material subcommands.
 - Parallel batch execution now classifies command safety by `parameters.operation`, not just command type, so operation-gated commands (`transform-operation`/`serialized-property`/`clipboard`/etc.) only run concurrently for their read-only operations.
 - The global `--timeout` flag and `UNITY_BRIDGE_TIMEOUT` now apply across the whole CLI (previously ignored by every command); a global override is treated as a blanket per-command timeout.
 - Settings command modules (physics2d, audio, time, graphics, environment, lightmap) now build their `set` parameters via a shared `core/settings_params.py` helper, removing ~140 lines of duplicated flag/value boilerplate (bridge payloads unchanged).

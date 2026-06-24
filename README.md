@@ -1,6 +1,10 @@
 # Unity Bridge
 
-CLI and MCP server for Unity Editor automation via a file-based bridge protocol. Control Unity from the command line -- run tests, inspect hierarchies, manage assets, trigger builds, and more. Every command is available as both a CLI subcommand and an MCP tool for AI assistant integration.
+CLI-first Unity Editor automation via a file-based bridge protocol. Control Unity from the command line: run tests, inspect hierarchies, manage assets, trigger builds, query editor state, and recover long-running operations through a durable operation ledger.
+
+**Status:** the supported interface is the `unity-bridge` CLI. The MCP server remains available as deprecated compatibility for existing integrations and control-plane helpers.
+
+**Last updated:** 2026-06-24.
 
 **Requirements:** Python 3.10+, Unity Editor running with the C# bridge installed.
 
@@ -10,8 +14,11 @@ CLI and MCP server for Unity Editor automation via a file-based bridge protocol.
 # Install core CLI + bridge
 pip install -e "."
 
-# Install with MCP server support
+# Install deprecated MCP server compatibility
 pip install -e ".[mcp]"
+
+# Install with test/lint tools
+pip install -e ".[dev]"
 
 # Install everything (MCP + file watcher + dev tools)
 pip install -e ".[all]"
@@ -34,7 +41,9 @@ unity-bridge hierarchy --depth 3
 
 The `install` command copies the C# bridge scripts into `Assets/Scripts/Editor/ClaudeCodeBridge/` inside your Unity project. The bridge runs as an Editor script via `EditorApplication.update` and requires no manual setup beyond installation.
 
-Packaged installs include the C# bridge scripts and the `unity-bridge-cli` skill bundle, so `unity-bridge install` works from both editable source installs and normal `pip install .` / wheel installs.
+Packaged installs include the C# bridge scripts and the `unity-bridge-cli` Codex skill bundle, so `unity-bridge install` works from both editable source installs and normal `pip install .` / wheel installs.
+
+Repo-local Codex metadata lives in `.agents/skills/unity-bridge-cli/` and `.codex/agents/`. The shipped skill is intentionally CLI-first: it routes agents through `unity-bridge` commands instead of raw `.claude/unity` JSON.
 
 ## Global CLI Flags
 
@@ -101,10 +110,10 @@ unity-bridge clean --dry-run
 > control-plane helpers for health, queued submission, and operation status.
 
 ```
-unity-bridge serve                            # Start MCP server mode (stdio transport)
+unity-bridge serve                            # Start deprecated MCP server mode (stdio transport)
 ```
 
-Requires the `mcp` extra: `pip install -e ".[mcp]"`. Used for Claude Code and other MCP-compatible AI assistant integrations.
+Requires the `mcp` extra: `pip install -e ".[mcp]"`. Existing MCP integrations can still use health/config/batch/help helpers plus queued command submission (`unity_submit_command`) and durable operation polling (`unity_operation_status`). New automation should use the CLI.
 
 ### Scene Management
 
@@ -290,10 +299,15 @@ unity-bridge import-settings template-apply mobile-texture "Assets/Textures/NewA
 ### Materials
 
 ```
-unity-bridge material ACTION PATH [--properties JSON]
+unity-bridge material modify PATH [--properties JSON]
+unity-bridge material create PATH
+unity-bridge material duplicate PATH
+unity-bridge material enable-keyword PATH KEYWORD
+unity-bridge material disable-keyword PATH KEYWORD
+unity-bridge material get-keywords PATH
+unity-bridge material set-render-queue PATH VALUE
+unity-bridge material copy-properties TARGET_PATH SOURCE_PATH
 ```
-
-Where `ACTION` is one of: `modify`, `create`, `duplicate`.
 
 ```bash
 # Example: create a new material
@@ -302,6 +316,9 @@ unity-bridge material create "Assets/Materials/NewMat.mat"
 # Example: modify material properties
 unity-bridge material modify "Assets/Materials/Player.mat" \
     --properties '{"_Color": {"r": 1, "g": 0, "b": 0, "a": 1}}'
+
+# Example: enable a shader keyword
+unity-bridge material enable-keyword "Assets/Materials/Player.mat" "_EMISSION"
 ```
 
 ### Shaders
@@ -611,7 +628,7 @@ unity-bridge snapshot diff before.json after.json
 
 ### Extended Command Groups (Phase 4-Unity 6.4)
 
-Beyond the core groups above, the CLI exposes 64 command groups covering the rest of the Unity Editor surface. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
+Beyond the core examples above, the live CLI exposes 92 top-level entries: 67 command groups and 25 top-level commands. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
 
 **Selection & editor state:** `select`, `prefs`, `editor-config`, `window`, `scene-state`
 **Transform & object manipulation:** `transform`, `property`, `hierarchy`, `component`, `object-identity`
@@ -621,8 +638,8 @@ Beyond the core groups above, the CLI exposes 64 command groups covering the res
 **Scene & asset tooling:** `scene-view`, `game-view`, `scene-template`, `clipboard`, `preset`, `deep-serialize`, `script-info`, `find-references`, `addressables`, `search`, `project-auditor`, `graph-toolkit`
 **Built-in package inspection:** `entities`, `adaptive-performance`, `multiplayer-playmode`
 **Graphics & geometry:** `navmesh`, `animation`, `animation-clip`, `terrain`, `tilemap`
-**Component lifecycle extensions:** `component copy`, `component paste`, `component reset`, `component-toggle`, `remove-component`
-**Profiling & diagnostics:** `profiler`, `profiler-control`, `console-log`, `cloud`, `physics2d`
+**Component and material lifecycle extensions:** `component copy`, `component paste`, `component reset`, `component remove`, `component enable`, `component disable`, `material`
+**Profiling & diagnostics:** `profiler`, `profiler-control`, `console log`, `cloud`, `physics2d`
 
 ```bash
 # Example: list all groups
@@ -665,7 +682,7 @@ Each command also gets durable lifecycle state in `<project>/.claude/unity/opera
 
 ### Dual Interface
 
-The CLI and MCP server share 100% of bridge command logic. Each command module exposes async core functions that return a `CommandResult`. The CLI wraps these with `asyncio.run()`, while MCP handlers `await` them directly. The MCP surface currently exposes 94 tools, including client-side helpers such as health/config/batch/help/operation-status.
+The CLI is the supported interface. The deprecated MCP compatibility server reuses the same async core functions where tools are mapped: the CLI wraps them with `asyncio.run()`, while MCP handlers `await` them directly. The MCP surface currently exposes 95 tools, including client-side helpers such as health/config/batch/help, queued submission, and operation status.
 
 ### Project Auto-Detection
 
@@ -699,8 +716,8 @@ unity-bridge/
 ├── src/unity_bridge/
 │   ├── app.py               # Typer entry point, AppState, global flags
 │   ├── core/                # Shared modules (bridge, config, health, operation, cache, retry, output)
-│   ├── commands/            # 77 command modules (one per domain)
-│   └── mcp/                 # MCP server layer (server, tools, schemas)
+│   ├── commands/            # 78 command modules (one per domain)
+│   └── mcp/                 # Deprecated MCP compatibility layer (server, tools, schemas)
 ├── ClaudeCodeBridge/        # C# Editor scripts installed into Unity
 ├── tests/                   # pytest suite (unit + integration)
 └── docs/                    # Tech specs
