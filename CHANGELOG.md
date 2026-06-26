@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `test history` can inspect them without re-running Unity.
 - `test rerun-failed` reruns only failed test names from the latest or a
   specified durable Unity test result artifact.
+- `test run --min-tests N` can fail successful Unity responses that executed
+  too few tests, preventing zero-test filters from being treated as proof.
 - `test run`/`unity_run_tests` now accept Unity Test Framework selectors for full
   test names, regex-style groups, categories, and assemblies.
 - Optional `coverage` CLI group, `code-coverage` bridge command, and `unity_code_coverage`

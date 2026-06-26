@@ -109,6 +109,44 @@ class TestRunTests:
         assert result.success is True
         assert result.data["passed"] == 5
 
+    async def test_min_tests_fails_zero_test_success(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        mock_bridge.send_command_with_retry.return_value = CommandResult(
+            success=True,
+            data={"total": 0, "passed": 0, "failed": 0},
+            command_id="cmd-zero",
+            execution_time_ms=12,
+        )
+
+        result = await run_tests(mock_bridge, min_tests=1)
+
+        assert result.success is False
+        assert result.exit_code == 1
+        assert result.command_id == "cmd-zero"
+        assert result.data["total"] == 0
+        assert "Expected at least 1 test" in result.error
+
+    async def test_min_tests_passes_when_threshold_met(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        expected = CommandResult(success=True, data={"total": 2, "passed": 2})
+        mock_bridge.send_command_with_retry.return_value = expected
+
+        result = await run_tests(mock_bridge, min_tests=1)
+
+        assert result is expected
+
+    async def test_min_tests_does_not_rewrite_bridge_failure(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        expected = CommandResult(success=False, error="Unity failed", exit_code=4)
+        mock_bridge.send_command_with_retry.return_value = expected
+
+        result = await run_tests(mock_bridge, min_tests=1)
+
+        assert result is expected
+
 
 class TestRunTestsCli:
     def test_cli_passes_rich_selectors(self, mock_bridge: MagicMock) -> None:
@@ -131,6 +169,8 @@ class TestRunTestsCli:
                 "Game.Editor.Tests",
                 "--timeout",
                 "45",
+                "--min-tests",
+                "1",
             ],
             mock_bridge,
         )
@@ -145,6 +185,12 @@ class TestRunTestsCli:
         assert params["categoryNames"] == ["Smoke", "Combat"]
         assert params["assemblyNames"] == ["Game.Editor.Tests"]
         assert _extract_kwarg(call_args, "timeout") == 45.0
+
+    def test_cli_help_exposes_min_tests(self, mock_bridge: MagicMock) -> None:
+        result = _run_test_cli(["run", "--help"], mock_bridge)
+
+        assert result.exit_code == 0
+        assert "--min-tests" in result.stdout
 
 
 class TestListAndCompileCli:

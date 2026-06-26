@@ -36,6 +36,7 @@ async def run_tests(
     group_names: list[str] | None = None,
     categories: list[str] | None = None,
     assemblies: list[str] | None = None,
+    min_tests: int = 0,
 ) -> CommandResult:
     """Run Unity Test Runner tests.
 
@@ -48,6 +49,7 @@ async def run_tests(
         group_names: Regex-style group names/namespaces to execute.
         categories: NUnit categories to include.
         assemblies: Test assembly names to include.
+        min_tests: Minimum number of executed tests required for success.
 
     Returns:
         CommandResult with test outcome data.
@@ -60,11 +62,12 @@ async def run_tests(
     _add_selector(params, "categoryNames", categories)
     _add_selector(params, "assemblyNames", assemblies)
 
-    return await bridge.send_command_with_retry(
+    result = await bridge.send_command_with_retry(
         command_type="run-tests",
         parameters=params,
         timeout=float(timeout),
     )
+    return _enforce_min_tests(result, min_tests)
 
 
 async def list_tests(
@@ -280,6 +283,10 @@ def test_run_cli(
             help="Test assembly name without .dll. Can be passed multiple times.",
         ),
     ] = None,
+    min_tests: Annotated[
+        int,
+        typer.Option("--min-tests", help="Minimum executed test count required for success."),
+    ] = 0,
 ) -> None:
     """Run tests via the Unity Test Runner."""
     from unity_bridge.core.output import print_result
@@ -295,6 +302,7 @@ def test_run_cli(
             group_names=group_names,
             categories=categories,
             assemblies=assemblies,
+            min_tests=min_tests,
         )
     )
     print_result(result, state.formatter)
@@ -459,6 +467,25 @@ def _add_selector(
     cleaned = [value for value in values if value]
     if cleaned:
         params[key] = cleaned
+
+
+def _enforce_min_tests(result: CommandResult, min_tests: int) -> CommandResult:
+    if min_tests <= 0 or not result.success or not isinstance(result.data, dict):
+        return result
+
+    total = result.data.get("total")
+    if not isinstance(total, int) or total >= min_tests:
+        return result
+
+    return CommandResult(
+        success=False,
+        data=result.data,
+        error=f"Expected at least {min_tests} test(s), but Unity reported {total}.",
+        command_id=result.command_id,
+        execution_time_ms=result.execution_time_ms,
+        exit_code=1,
+        cached=result.cached,
+    )
 
 
 def _test_results_dir(project_root: Path) -> Path:

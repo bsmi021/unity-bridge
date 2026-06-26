@@ -13,7 +13,7 @@ legacy `--filter` option.
 ```bash
 unity-bridge test run --platform EditMode --test-name Game.Tests.CombatTests.Attack
 unity-bridge test run --platform EditMode --group "^Game\\.Tests\\.Combat\\."
-unity-bridge test run --platform EditMode --category Smoke --assembly Game.Editor.Tests
+unity-bridge test run --platform EditMode --category Smoke --assembly Game.Editor.Tests --min-tests 1
 unity-bridge test results --last
 unity-bridge test failures --command-id 00000000-0000-0000-0000-000000000000
 unity-bridge test rerun-failed --last --platform EditMode
