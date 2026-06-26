@@ -7,6 +7,8 @@ Typer wrappers provide the CLI surface with ``asyncio.run()``.
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -18,6 +20,7 @@ from unity_bridge.core.bridge import CommandResult, DirectBridge
 # ---------------------------------------------------------------------------
 
 VALID_LIST_MODES = frozenset({"tests", "categories", "assemblies"})
+TEST_RESULTS_RELATIVE_PATH = Path(".claude") / "unity" / "test-results"
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -122,6 +125,71 @@ async def compile_scripts(
         parameters={"waitForCompletion": wait},
         timeout=float(timeout),
     )
+
+
+def read_test_result_artifact(
+    project_root: Path,
+    command_id: str | None = None,
+) -> CommandResult:
+    """Read a durable test result artifact from the Unity project."""
+    path = _test_result_artifact_path(project_root, command_id)
+    if not path.exists():
+        name = command_id or "latest"
+        return CommandResult(
+            success=False,
+            error=f"No test result artifact found for '{name}'.",
+            exit_code=2,
+        )
+
+    try:
+        return CommandResult(success=True, data=json.loads(path.read_text(encoding="utf-8")))
+    except json.JSONDecodeError as exc:
+        return CommandResult(
+            success=False,
+            error=f"Invalid test result artifact JSON: {exc}",
+            exit_code=5,
+        )
+
+
+def read_test_failures_artifact(
+    project_root: Path,
+    command_id: str | None = None,
+) -> CommandResult:
+    """Read failure records from a durable test result artifact."""
+    result = read_test_result_artifact(project_root, command_id)
+    if not result.success:
+        return result
+
+    payload = result.data or {}
+    test_result = _artifact_result_payload(payload)
+    return CommandResult(
+        success=True,
+        data={
+            "commandId": payload.get("commandId"),
+            "writtenAt": payload.get("writtenAt"),
+            "failed": test_result.get("failed", 0),
+            "failures": test_result.get("failures", []),
+        },
+    )
+
+
+def list_test_result_history(project_root: Path, max_results: int = 20) -> CommandResult:
+    """List durable test result artifacts newest-first."""
+    directory = _test_results_dir(project_root)
+    if not directory.exists():
+        return CommandResult(success=True, data={"count": 0, "results": []})
+
+    entries = []
+    for path in directory.glob("*.json"):
+        if path.name == "latest.json":
+            continue
+        artifact = _load_artifact_for_history(path)
+        if artifact is not None:
+            entries.append(artifact)
+
+    entries.sort(key=lambda item: item.get("writtenAt") or "", reverse=True)
+    limited = entries[: max(0, max_results)]
+    return CommandResult(success=True, data={"count": len(limited), "results": limited})
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +316,64 @@ def compile_cli(
     print_result(result, state.formatter)
 
 
+@test_app.command("results")
+def test_results_cli(
+    ctx: typer.Context,
+    command_id: Annotated[
+        str | None,
+        typer.Option("--command-id", help="Specific bridge command id to read."),
+    ] = None,
+    last: Annotated[
+        bool,
+        typer.Option("--last", help="Read the latest test result artifact."),
+    ] = False,
+) -> None:
+    """Read a durable test result artifact without contacting Unity."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    selected_id = None if last else command_id
+    result = read_test_result_artifact(state.project_root, selected_id)
+    print_result(result, state.formatter)
+
+
+@test_app.command("failures")
+def test_failures_cli(
+    ctx: typer.Context,
+    command_id: Annotated[
+        str | None,
+        typer.Option("--command-id", help="Specific bridge command id to read."),
+    ] = None,
+    last: Annotated[
+        bool,
+        typer.Option("--last", help="Read failures from the latest test result artifact."),
+    ] = False,
+) -> None:
+    """Read failure records from a durable test result artifact."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    selected_id = None if last else command_id
+    result = read_test_failures_artifact(state.project_root, selected_id)
+    print_result(result, state.formatter)
+
+
+@test_app.command("history")
+def test_history_cli(
+    ctx: typer.Context,
+    max_results: Annotated[
+        int,
+        typer.Option("--max-results", help="Maximum artifacts to list."),
+    ] = 20,
+) -> None:
+    """List durable test result artifacts newest-first."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = list_test_result_history(state.project_root, max_results=max_results)
+    print_result(result, state.formatter)
+
+
 def _add_selector(
     params: dict[str, object],
     key: str,
@@ -258,3 +384,36 @@ def _add_selector(
     cleaned = [value for value in values if value]
     if cleaned:
         params[key] = cleaned
+
+
+def _test_results_dir(project_root: Path) -> Path:
+    return Path(project_root) / TEST_RESULTS_RELATIVE_PATH
+
+
+def _test_result_artifact_path(project_root: Path, command_id: str | None) -> Path:
+    filename = f"{command_id}.json" if command_id else "latest.json"
+    return _test_results_dir(project_root) / filename
+
+
+def _artifact_result_payload(payload: dict[str, object]) -> dict:
+    result = payload.get("result")
+    return result if isinstance(result, dict) else payload
+
+
+def _load_artifact_for_history(path: Path) -> dict[str, object] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+
+    result = _artifact_result_payload(payload)
+    return {
+        "commandId": payload.get("commandId") or path.stem,
+        "writtenAt": payload.get("writtenAt"),
+        "path": str(path),
+        "total": result.get("total", 0),
+        "passed": result.get("passed", 0),
+        "failed": result.get("failed", 0),
+        "skipped": result.get("skipped", 0),
+        "inconclusive": result.get("inconclusive", 0),
+    }

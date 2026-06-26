@@ -94,6 +94,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 {
                     var parsed = RunTestsCommandHandler.ParseTestResults(result);
                     parsed.durationSeconds = ElapsedSeconds();
+                    WriteTestResultArtifact(commandId, parsed);
                     ClaudeUnityBridge.WriteResponseStatic(
                         BridgeResponse.Success(commandId, "run-tests", JsonUtility.ToJson(parsed)));
                     Diag($"RunFinished: wrote success response ({parsed.passed}/{parsed.total} passed)");
@@ -110,6 +111,36 @@ namespace BWS.Editor.ClaudeCodeBridge
                     Clear();
                 }
             }
+        }
+
+        private static void WriteTestResultArtifact(string commandId, RunTestsResult result)
+        {
+            try
+            {
+                var root = Directory.GetParent(Application.dataPath).FullName;
+                var dir = Path.Combine(root, ".claude", "unity", "test-results");
+                var artifact = new TestResultArtifact
+                {
+                    commandId = commandId,
+                    writtenAt = DateTime.UtcNow.ToString("O"),
+                    result = result
+                };
+                var json = JsonUtility.ToJson(artifact, true);
+                BridgeOperationLedger.WriteAtomic(Path.Combine(dir, $"{commandId}.json"), json);
+                BridgeOperationLedger.WriteAtomic(Path.Combine(dir, "latest.json"), json);
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogWarning($"Failed to write test result artifact: {ex.Message}");
+            }
+        }
+
+        [Serializable]
+        private class TestResultArtifact
+        {
+            public string commandId;
+            public string writtenAt;
+            public RunTestsResult result;
         }
     }
 }

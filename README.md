@@ -405,6 +405,9 @@ unity-bridge compile optimization --set Release
 unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--timeout N]
 unity-bridge test list [--platform PLATFORM] [--filter PATTERN] [--categories] [--assemblies]
 unity-bridge test compile [--wait/--no-wait] [--timeout N]
+unity-bridge test results [--last|--command-id ID]
+unity-bridge test failures [--last|--command-id ID]
+unity-bridge test history [--max-results N]
 unity-bridge coverage availability
 unity-bridge coverage install [--version VERSION]
 unity-bridge coverage start|pause|resume|stop
@@ -424,6 +427,9 @@ unity-bridge test list --platform PlayMode --categories
 
 # Example: trigger a compilation and wait
 unity-bridge test compile --wait
+
+# Example: inspect the last persisted test result without re-running Unity
+unity-bridge test results --last
 
 # Example: check optional Code Coverage package/API support
 unity-bridge coverage availability
