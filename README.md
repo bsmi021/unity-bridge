@@ -403,6 +403,7 @@ unity-bridge compile optimization --set Release
 
 ```
 unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N]
+unity-bridge test cancel [--command-id ID] [--timeout N]
 unity-bridge test preflight [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N]
 unity-bridge test list [--platform PLATFORM] [--filter PATTERN] [--categories] [--assemblies]
 unity-bridge test compile [--wait/--no-wait] [--timeout N]
@@ -446,6 +447,9 @@ unity-bridge test events --last --max-events 50
 
 # Example: rerun only the tests that failed in the last persisted result
 unity-bridge test rerun-failed --last --platform EditMode
+
+# Example: cancel an active bridge-initiated test run
+unity-bridge test cancel --command-id <run-tests-command-id>
 
 # Example: check optional Code Coverage package/API support
 unity-bridge coverage availability

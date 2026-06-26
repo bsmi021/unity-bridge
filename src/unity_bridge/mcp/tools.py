@@ -19,6 +19,7 @@ from unity_bridge.mcp.tools_ext import TOOL_COMMAND_MAP_EXT, get_tool_definition
 
 TOOL_COMMAND_MAP: dict[str, str] = {
     "unity_run_tests": "run-tests",
+    "unity_cancel_tests": "cancel-tests",
     "unity_query_hierarchy": "query-hierarchy",
     "unity_get_component_data": "get-component-data",
     "unity_set_component_data": "set-component-data",
@@ -91,6 +92,11 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "10x-30x faster than batch mode when Unity is open."
         ),
         "inputSchema": schemas.run_tests(),
+    },
+    {
+        "name": "unity_cancel_tests",
+        "description": "Cancel an active bridge-initiated Unity test run.",
+        "inputSchema": schemas.cancel_tests(),
     },
     {
         "name": "unity_query_hierarchy",

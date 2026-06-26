@@ -21,6 +21,7 @@ namespace BWS.Editor.ClaudeCodeBridge
     public static class BridgeTestRunReporter
     {
         internal const string CommandIdKey = "UnityBridge.RunTests.CommandId";
+        private const string RunGuidKey = "UnityBridge.RunTests.RunGuid";
         private const string StartTicksKey = "UnityBridge.RunTests.StartTicks";
         private const string StartedCountKey = "UnityBridge.RunTests.StartedCount";
         private const string FinishedCountKey = "UnityBridge.RunTests.FinishedCount";
@@ -64,13 +65,53 @@ namespace BWS.Editor.ClaudeCodeBridge
             SessionState.SetString(StartTicksKey, DateTime.UtcNow.Ticks.ToString());
             ResetProgressState();
             Diag($"BeginRunAndExecute: cmdId={commandId}; mode={filter?.testMode}");
-            _api.Execute(new ExecutionSettings(filter));
-            Diag("BeginRunAndExecute: Execute() returned");
+            var runGuid = _api.Execute(new ExecutionSettings(filter));
+            SessionState.SetString(RunGuidKey, runGuid ?? "");
+            Diag($"BeginRunAndExecute: Execute() returned runGuid={runGuid}");
+        }
+
+        public static CancelTestsResult CancelRun(string targetCommandId = null)
+        {
+            var commandId = SessionState.GetString(CommandIdKey, "");
+            var runGuid = SessionState.GetString(RunGuidKey, "");
+            if (string.IsNullOrEmpty(commandId))
+                return CancelResult(targetCommandId, runGuid, false, false, "No bridge test run is active");
+            if (!string.IsNullOrEmpty(targetCommandId) && targetCommandId != commandId)
+                return CancelResult(commandId, runGuid, false, false, "No matching bridge test run is active");
+            if (string.IsNullOrEmpty(runGuid))
+                return CancelResult(commandId, runGuid, false, false, "Active test run has no Unity run guid");
+
+            var cancelRequested = TestRunnerApi.CancelTestRun(runGuid);
+            var activeRun = cancelRequested;
+            var message = cancelRequested
+                ? "Unity test run cancellation requested"
+                : "Unity test run was not active or was already canceling";
+            if (cancelRequested)
+                WriteTestProgress(commandId, "cancel_requested", SessionState.GetString(CurrentTestKey, ""));
+            return CancelResult(commandId, runGuid, activeRun, cancelRequested, message);
+        }
+
+        private static CancelTestsResult CancelResult(
+            string commandId,
+            string runGuid,
+            bool activeRun,
+            bool cancelRequested,
+            string message)
+        {
+            return new CancelTestsResult
+            {
+                targetCommandId = commandId,
+                runGuid = runGuid,
+                activeRun = activeRun,
+                cancelRequested = cancelRequested,
+                message = message
+            };
         }
 
         private static void Clear()
         {
             SessionState.EraseString(CommandIdKey);
+            SessionState.EraseString(RunGuidKey);
             SessionState.EraseString(StartTicksKey);
             SessionState.EraseInt(StartedCountKey);
             SessionState.EraseInt(FinishedCountKey);

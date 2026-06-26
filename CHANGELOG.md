@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs, including started/running/finished events.
 - `test preflight` performs test discovery and selector validation before a run,
   failing early when too few tests would execute.
+- `test cancel`/`unity_cancel_tests` requests cancellation of an active
+  bridge-initiated Unity Test Runner run and records cancel progress artifacts.
 - `test rerun-failed` reruns only failed test names from the latest or a
   specified durable Unity test result artifact.
 - `test run --min-tests N` can fail successful Unity responses that executed

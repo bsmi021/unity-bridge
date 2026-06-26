@@ -14,6 +14,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             // Core handlers
             registerHandler(new RunTestsCommandHandler());
+            registerHandler(new CancelTestsCommandHandler());
             registerHandler(new QueryHierarchyCommandHandler());
             registerHandler(new GetComponentDataCommandHandler());
             registerHandler(new SetComponentDataCommandHandler());

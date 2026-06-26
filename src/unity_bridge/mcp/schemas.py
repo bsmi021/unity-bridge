@@ -53,6 +53,23 @@ def run_tests() -> dict[str, Any]:
     }
 
 
+def cancel_tests() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "targetCommandId": {
+                "type": "string",
+                "description": "Optional run-tests bridge command id to cancel",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+                "default": 10,
+            },
+        },
+    }
+
+
 def query_hierarchy() -> dict[str, Any]:
     return {
         "type": "object",

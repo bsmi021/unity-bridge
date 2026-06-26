@@ -83,6 +83,28 @@ namespace BWS.Editor.ClaudeCodeBridge
     }
 
     /// <summary>
+    /// Parameters for the cancel-tests command.
+    /// </summary>
+    [Serializable]
+    public class CancelTestsParams
+    {
+        public string targetCommandId; // Optional originating run-tests bridge command id
+    }
+
+    /// <summary>
+    /// Result data for the cancel-tests command.
+    /// </summary>
+    [Serializable]
+    public class CancelTestsResult
+    {
+        public string targetCommandId;
+        public string runGuid;
+        public bool activeRun;
+        public bool cancelRequested;
+        public string message;
+    }
+
+    /// <summary>
     /// Result data for the run-tests command.
     /// </summary>
     [Serializable]

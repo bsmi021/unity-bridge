@@ -33,6 +33,7 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "execute-script": 30,
     # Long operations
     "run-tests": 300,
+    "cancel-tests": 10,
     "code-coverage": 120,
     "compile": 120,
     "asset-operation": 60,

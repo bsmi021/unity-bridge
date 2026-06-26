@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 from typer.testing import CliRunner
 
-from unity_bridge.commands.testing import compile_scripts, run_tests, test_app
+from unity_bridge.commands.testing import cancel_tests, compile_scripts, run_tests, test_app
 from unity_bridge.core.bridge import CommandResult
 from unity_bridge.core.output import OutputFormatter
 
@@ -191,6 +191,47 @@ class TestRunTestsCli:
 
         assert result.exit_code == 0
         assert "--min-tests" in result.stdout
+
+
+class TestCancelTests:
+    async def test_cancel_tests_dispatches_target_command(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        result = await cancel_tests(mock_bridge, command_id="run-cmd", timeout=7)
+
+        assert result.success is True
+        call_args = mock_bridge.send_command_with_retry.call_args
+        assert _extract_command_type(call_args) == "cancel-tests"
+        assert _extract_parameters(call_args) == {"targetCommandId": "run-cmd"}
+        assert _extract_kwarg(call_args, "timeout") == 7.0
+
+    async def test_cancel_tests_allows_current_run_target(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        await cancel_tests(mock_bridge)
+
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params == {}
+
+
+class TestCancelTestsCli:
+    def test_cancel_cli_dispatches_command_id(self, mock_bridge: MagicMock) -> None:
+        result = _run_test_cli(
+            ["cancel", "--command-id", "run-cmd", "--timeout", "9"],
+            mock_bridge,
+        )
+
+        assert result.exit_code == 0
+        call_args = mock_bridge.send_command_with_retry.call_args
+        assert _extract_command_type(call_args) == "cancel-tests"
+        assert _extract_parameters(call_args) == {"targetCommandId": "run-cmd"}
+        assert _extract_kwarg(call_args, "timeout") == 9.0
+
+    def test_cancel_help_is_exposed(self, mock_bridge: MagicMock) -> None:
+        result = _run_test_cli(["cancel", "--help"], mock_bridge)
+
+        assert result.exit_code == 0
+        assert "--command-id" in result.stdout
 
 
 class TestPreflightTests:
@@ -377,6 +418,18 @@ class TestTestResultArtifacts:
         assert result.exit_code == 2
         assert "No test result artifact found" in result.error
 
+    def test_invalid_result_artifact_returns_structured_failure(self, tmp_path) -> None:
+        mod = _import_testing()
+        path = tmp_path / ".claude" / "unity" / "test-results" / "bad.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not-json}", encoding="utf-8")
+
+        result = mod.read_test_result_artifact(tmp_path, command_id="bad")
+
+        assert result.success is False
+        assert result.exit_code == 5
+        assert "Invalid test result artifact JSON" in result.error
+
     def test_failures_extracts_failure_records(self, tmp_path) -> None:
         mod = _import_testing()
         _write_artifact(tmp_path, "latest.json", command_id="cmd-fail", failed=1)
@@ -415,6 +468,25 @@ class TestTestResultArtifacts:
         assert result.success is True
         assert [item["commandId"] for item in result.data["results"]] == ["cmd-new", "cmd-old"]
 
+    def test_history_without_artifact_directory_returns_empty_result(self, tmp_path) -> None:
+        mod = _import_testing()
+
+        result = mod.list_test_result_history(tmp_path)
+
+        assert result.success is True
+        assert result.data == {"count": 0, "results": []}
+
+    def test_history_skips_invalid_artifact_json(self, tmp_path) -> None:
+        mod = _import_testing()
+        path = tmp_path / ".claude" / "unity" / "test-results" / "bad.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not-json}", encoding="utf-8")
+
+        result = mod.list_test_result_history(tmp_path)
+
+        assert result.success is True
+        assert result.data == {"count": 0, "results": []}
+
 
 class TestTestProgressArtifacts:
     def test_reads_latest_progress_artifact(self, tmp_path) -> None:
@@ -444,6 +516,18 @@ class TestTestProgressArtifacts:
         assert result.success is False
         assert result.exit_code == 2
         assert "No test progress artifact found" in result.error
+
+    def test_invalid_progress_artifact_returns_structured_failure(self, tmp_path) -> None:
+        mod = _import_testing()
+        path = tmp_path / ".claude" / "unity" / "test-progress" / "bad.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not-json}", encoding="utf-8")
+
+        result = mod.read_test_progress_artifact(tmp_path, command_id="bad")
+
+        assert result.success is False
+        assert result.exit_code == 5
+        assert "Invalid test progress artifact JSON" in result.error
 
 
 class TestTestProgressEvents:
@@ -492,6 +576,17 @@ class TestTestProgressEvents:
 
         assert [event["state"] for event in result.data["events"]] == ["one", "two"]
 
+    def test_event_log_skips_blank_lines(self, tmp_path) -> None:
+        mod = _import_testing()
+        path = tmp_path / ".claude" / "unity" / "test-progress" / "cmd-progress.events.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('\n{"state": "started"}\n', encoding="utf-8")
+
+        result = mod.read_test_progress_events(tmp_path, command_id="cmd-progress")
+
+        assert result.success is True
+        assert result.data["events"] == [{"state": "started"}]
+
     def test_missing_event_log_returns_structured_failure(self, tmp_path) -> None:
         mod = _import_testing()
 
@@ -500,6 +595,20 @@ class TestTestProgressEvents:
         assert result.success is False
         assert result.exit_code == 2
         assert "No test progress event log found" in result.error
+
+    def test_latest_event_log_without_command_id_returns_structured_failure(
+        self, tmp_path
+    ) -> None:
+        mod = _import_testing()
+        path = tmp_path / ".claude" / "unity" / "test-progress" / "latest.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"state": "running"}), encoding="utf-8")
+
+        result = mod.read_test_progress_events(tmp_path)
+
+        assert result.success is False
+        assert result.exit_code == 2
+        assert "No test progress command id was available" in result.error
 
     def test_invalid_event_log_returns_structured_failure(self, tmp_path) -> None:
         mod = _import_testing()
@@ -674,6 +783,13 @@ class TestRunTestsSchema:
         assert properties["categoryNames"]["type"] == "array"
         assert properties["assemblyNames"]["type"] == "array"
 
+    def test_cancel_tests_schema_exposes_target_command_id(self) -> None:
+        from unity_bridge.mcp.schemas import cancel_tests as cancel_tests_schema
+
+        schema = cancel_tests_schema()
+        assert schema["properties"]["targetCommandId"]["type"] == "string"
+        assert schema["properties"]["timeout"]["default"] == 10
+
 
 class TestRunTestsBridgeSource:
     def test_csharp_handler_maps_rich_selectors_to_unity_filter(self) -> None:
@@ -726,6 +842,38 @@ class TestRunTestsBridgeSource:
         assert "TestProgressArtifact" in source
         assert "TestProgressEvent" in source
         assert ".events.jsonl" in source
+
+    def test_csharp_cancel_handler_is_registered(self) -> None:
+        source = (
+            _repo_root()
+            .joinpath("ClaudeCodeBridge", "BridgeCommandRegistry.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "registerHandler(new CancelTestsCommandHandler())" in source
+
+    def test_csharp_cancel_handler_calls_reporter_cancel(self) -> None:
+        source = (
+            _repo_root()
+            .joinpath("ClaudeCodeBridge", "CancelTestsCommandHandler.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert 'public string CommandType => "cancel-tests"' in source
+        assert "BridgeTestRunReporter.CancelRun" in source
+        assert "targetCommandId" in source
+
+    def test_csharp_reporter_persists_run_guid_and_cancel_progress(self) -> None:
+        source = (
+            _repo_root()
+            .joinpath("ClaudeCodeBridge", "BridgeTestRunReporter.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "RunGuidKey" in source
+        assert "SessionState.SetString(RunGuidKey" in source
+        assert "TestRunnerApi.CancelTestRun(runGuid)" in source
+        assert 'WriteTestProgress(commandId, "cancel_requested"' in source
 
 
 # ---------------------------------------------------------------------------
