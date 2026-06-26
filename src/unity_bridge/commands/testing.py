@@ -192,6 +192,44 @@ def list_test_result_history(project_root: Path, max_results: int = 20) -> Comma
     return CommandResult(success=True, data={"count": len(limited), "results": limited})
 
 
+async def rerun_failed_tests(
+    bridge: DirectBridge,
+    project_root: Path,
+    command_id: str | None = None,
+    platform: str = "EditMode",
+    timeout: int = 300,
+) -> CommandResult:
+    """Rerun failed tests from a durable test result artifact."""
+    failures = read_test_failures_artifact(project_root, command_id)
+    if not failures.success:
+        return failures
+
+    payload = failures.data or {}
+    test_names = _failed_test_names(payload.get("failures", []))
+    if not test_names:
+        return CommandResult(
+            success=True,
+            data={
+                "commandId": payload.get("commandId"),
+                "rerunCount": 0,
+                "testNames": [],
+                "message": "No failed tests found to rerun.",
+            },
+        )
+
+    result = await run_tests(
+        bridge,
+        platform=platform,
+        timeout=timeout,
+        test_names=test_names,
+    )
+    if isinstance(result.data, dict):
+        result.data.setdefault("rerunSourceCommandId", payload.get("commandId"))
+        result.data.setdefault("rerunCount", len(test_names))
+        result.data.setdefault("rerunTestNames", test_names)
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Typer CLI wrappers
 # ---------------------------------------------------------------------------
@@ -374,6 +412,43 @@ def test_history_cli(
     print_result(result, state.formatter)
 
 
+@test_app.command("rerun-failed")
+def test_rerun_failed_cli(
+    ctx: typer.Context,
+    command_id: Annotated[
+        str | None,
+        typer.Option("--command-id", help="Specific bridge command id to read."),
+    ] = None,
+    last: Annotated[
+        bool,
+        typer.Option("--last", help="Read failures from the latest test result artifact."),
+    ] = False,
+    platform: Annotated[
+        str,
+        typer.Option("--platform", "-P", help="Test platform: EditMode or PlayMode."),
+    ] = "EditMode",
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Timeout in seconds."),
+    ] = 300,
+) -> None:
+    """Rerun failed tests from a durable test result artifact."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    selected_id = None if last else command_id
+    result = asyncio.run(
+        rerun_failed_tests(
+            state.bridge,
+            state.project_root,
+            command_id=selected_id,
+            platform=platform,
+            timeout=timeout,
+        )
+    )
+    print_result(result, state.formatter)
+
+
 def _add_selector(
     params: dict[str, object],
     key: str,
@@ -417,3 +492,20 @@ def _load_artifact_for_history(path: Path) -> dict[str, object] | None:
         "skipped": result.get("skipped", 0),
         "inconclusive": result.get("inconclusive", 0),
     }
+
+
+def _failed_test_names(failures: object) -> list[str]:
+    if not isinstance(failures, list):
+        return []
+
+    names = []
+    seen = set()
+    for failure in failures:
+        if not isinstance(failure, dict):
+            continue
+        name = failure.get("testName")
+        if not isinstance(name, str) or not name or name in seen:
+            continue
+        names.append(name)
+        seen.add(name)
+    return names

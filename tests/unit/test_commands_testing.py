@@ -244,6 +244,70 @@ class TestTestResultArtifacts:
         assert [item["commandId"] for item in result.data["results"]] == ["cmd-new", "cmd-old"]
 
 
+class TestRerunFailedTests:
+    async def test_reruns_failed_test_names_from_latest_artifact(
+        self, tmp_path, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+        _write_artifact(tmp_path, "latest.json", command_id="cmd-fail", failed=1)
+
+        result = await mod.rerun_failed_tests(mock_bridge, tmp_path)
+
+        assert result.success is True
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["testNames"] == ["Game.Tests.CombatTests.AttackFails"]
+        assert params["testPlatform"] == "EditMode"
+
+    async def test_rerun_failed_deduplicates_and_omits_blank_names(
+        self, tmp_path, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+        _write_artifact(
+            tmp_path,
+            "cmd-fail.json",
+            command_id="cmd-fail",
+            failures=[
+                {"testName": "Game.Tests.A.Fails"},
+                {"testName": ""},
+                {"testName": "Game.Tests.A.Fails"},
+                {"testName": "Game.Tests.B.Fails"},
+            ],
+        )
+
+        await mod.rerun_failed_tests(mock_bridge, tmp_path, command_id="cmd-fail")
+
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["testNames"] == ["Game.Tests.A.Fails", "Game.Tests.B.Fails"]
+
+    async def test_rerun_failed_noops_without_failures(
+        self, tmp_path, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+        _write_artifact(tmp_path, "latest.json", command_id="cmd-pass", failed=0)
+
+        result = await mod.rerun_failed_tests(mock_bridge, tmp_path)
+
+        assert result.success is True
+        assert result.data == {
+            "commandId": "cmd-pass",
+            "rerunCount": 0,
+            "testNames": [],
+            "message": "No failed tests found to rerun.",
+        }
+        mock_bridge.send_command_with_retry.assert_not_called()
+
+    async def test_rerun_failed_propagates_missing_artifact(
+        self, tmp_path, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+
+        result = await mod.rerun_failed_tests(mock_bridge, tmp_path, command_id="missing")
+
+        assert result.success is False
+        assert result.exit_code == 2
+        mock_bridge.send_command_with_retry.assert_not_called()
+
+
 class TestTestResultArtifactCli:
     def test_results_cli_reads_latest_from_project_root(
         self, tmp_path, mock_bridge: MagicMock
@@ -276,6 +340,31 @@ class TestTestResultArtifactCli:
 
         assert result.exit_code == 0
         assert '"count": 1' in result.stdout
+
+    def test_rerun_failed_cli_dispatches_specific_artifact(
+        self, tmp_path, mock_bridge: MagicMock
+    ) -> None:
+        _write_artifact(tmp_path, "cmd-fail.json", command_id="cmd-fail", failed=1)
+
+        result = _run_test_cli(
+            [
+                "rerun-failed",
+                "--command-id",
+                "cmd-fail",
+                "--platform",
+                "PlayMode",
+                "--timeout",
+                "45",
+            ],
+            mock_bridge,
+            project_root=tmp_path,
+        )
+
+        assert result.exit_code == 0
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["testNames"] == ["Game.Tests.CombatTests.AttackFails"]
+        assert params["testPlatform"] == "PlayMode"
+        assert _extract_kwarg(mock_bridge.send_command_with_retry.call_args, "timeout") == 45.0
 
 
 class TestRunTestsSchema:
@@ -419,12 +508,15 @@ def _write_artifact(
     command_id: str,
     failed: int = 0,
     written_at: str = "2026-06-26T10:00:00Z",
+    failures: list[dict[str, str]] | None = None,
 ) -> None:
     path = project_root / ".claude" / "unity" / "test-results" / filename
     path.parent.mkdir(parents=True, exist_ok=True)
-    failures = []
-    if failed:
-        failures.append(
+    failure_records = failures
+    if failure_records is None:
+        failure_records = []
+    if failed and not failure_records:
+        failure_records.append(
             {
                 "testName": "Game.Tests.CombatTests.AttackFails",
                 "errorMessage": "Expected damage",
@@ -438,7 +530,7 @@ def _write_artifact(
             "total": 1,
             "passed": 0 if failed else 1,
             "failed": failed,
-            "failures": failures,
+            "failures": failure_records,
             "testCases": [],
         },
     }
