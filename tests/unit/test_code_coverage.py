@@ -215,8 +215,19 @@ class TestCodeCoverageCSharpContract:
 
         assert "using UnityEditor.TestTools.CodeCoverage" not in source
         assert "FindType(\"UnityEditor.TestTools.CodeCoverage.CodeCoverage\")" in source
-        assert "PackageInfo.FindForPackageName" in source
+        assert "PackageManagerInfo.FindForPackageName" in source
         assert "com.unity.testtools.codecoverage" in source
+
+    def test_handler_qualifies_package_info_to_avoid_unityeditor_ambiguity(self) -> None:
+        source = (ROOT / "ClaudeCodeBridge" / "CodeCoverageCommandHandler.cs").read_text(
+            encoding="utf-8"
+        )
+
+        assert "using PackageManagerInfo = UnityEditor.PackageManager.PackageInfo;" in source
+        assert "PackageManagerInfo.FindForPackageName" in source
+        assert "PackageInfo info" not in source
+        assert "static PackageInfo FindPackageInfo" not in source
+        assert "IsPackageAvailable(PackageInfo" not in source
 
     def test_handler_supports_report_artifacts_without_package_api(self) -> None:
         source = (ROOT / "ClaudeCodeBridge" / "CodeCoverageCommandHandler.cs").read_text(

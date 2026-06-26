@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
+using PackageManagerInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace BWS.Editor.ClaudeCodeBridge
 {
@@ -78,7 +79,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         private static CodeCoverageResult Availability(string operation)
         {
             Type apiType = FindType("UnityEditor.TestTools.CodeCoverage.CodeCoverage");
-            PackageInfo info = FindPackageInfo();
+            PackageManagerInfo info = FindPackageInfo();
             var result = BaseResult(operation, apiType, info);
             result.message = result.apiAvailable
                 ? "Unity Code Coverage API is available."
@@ -138,7 +139,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             BridgeCommand command, string operation, string methodName)
         {
             Type apiType = FindType("UnityEditor.TestTools.CodeCoverage.CodeCoverage");
-            PackageInfo info = FindPackageInfo();
+            PackageManagerInfo info = FindPackageInfo();
             if (apiType == null) return Reply(command, Unavailable(operation));
 
             MethodInfo method = apiType.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
@@ -184,7 +185,10 @@ namespace BWS.Editor.ClaudeCodeBridge
             return result;
         }
 
-        private static CodeCoverageResult BaseResult(string operation, Type apiType, PackageInfo info)
+        private static CodeCoverageResult BaseResult(
+            string operation,
+            Type apiType,
+            PackageManagerInfo info)
         {
             return new CodeCoverageResult
             {
@@ -225,13 +229,13 @@ namespace BWS.Editor.ClaudeCodeBridge
             return null;
         }
 
-        private static PackageInfo FindPackageInfo()
+        private static PackageManagerInfo FindPackageInfo()
         {
-            try { return PackageInfo.FindForPackageName(PackageName); }
+            try { return PackageManagerInfo.FindForPackageName(PackageName); }
             catch { return null; }
         }
 
-        private static bool IsPackageAvailable(PackageInfo info)
+        private static bool IsPackageAvailable(PackageManagerInfo info)
         {
             if (info != null) return true;
             string root = ProjectRoot();
