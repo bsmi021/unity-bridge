@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Completed Unity test runs now persist durable JSON artifacts under
   `.claude/unity/test-results`; `test results`, `test failures`, and
   `test history` can inspect them without re-running Unity.
+- Bridge-initiated test runs now persist progress snapshots/events under
+  `.claude/unity/test-progress`; `test progress` can inspect long-running
+  test commands without waiting for the terminal result.
 - `test rerun-failed` reruns only failed test names from the latest or a
   specified durable Unity test result artifact.
 - `test run --min-tests N` can fail successful Unity responses that executed

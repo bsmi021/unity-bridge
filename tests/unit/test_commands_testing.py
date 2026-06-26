@@ -290,6 +290,36 @@ class TestTestResultArtifacts:
         assert [item["commandId"] for item in result.data["results"]] == ["cmd-new", "cmd-old"]
 
 
+class TestTestProgressArtifacts:
+    def test_reads_latest_progress_artifact(self, tmp_path) -> None:
+        mod = _import_testing()
+        _write_progress(tmp_path, "latest.json", command_id="cmd-progress", finished=3)
+
+        result = mod.read_test_progress_artifact(tmp_path)
+
+        assert result.success is True
+        assert result.data["commandId"] == "cmd-progress"
+        assert result.data["finished"] == 3
+
+    def test_reads_specific_progress_artifact(self, tmp_path) -> None:
+        mod = _import_testing()
+        _write_progress(tmp_path, "cmd-progress.json", command_id="cmd-progress")
+
+        result = mod.read_test_progress_artifact(tmp_path, command_id="cmd-progress")
+
+        assert result.success is True
+        assert result.data["state"] == "running"
+
+    def test_missing_progress_artifact_returns_structured_failure(self, tmp_path) -> None:
+        mod = _import_testing()
+
+        result = mod.read_test_progress_artifact(tmp_path, command_id="missing")
+
+        assert result.success is False
+        assert result.exit_code == 2
+        assert "No test progress artifact found" in result.error
+
+
 class TestRerunFailedTests:
     async def test_reruns_failed_test_names_from_latest_artifact(
         self, tmp_path, mock_bridge: MagicMock
@@ -387,6 +417,17 @@ class TestTestResultArtifactCli:
         assert result.exit_code == 0
         assert '"count": 1' in result.stdout
 
+    def test_progress_cli_reads_latest_from_project_root(
+        self, tmp_path, mock_bridge: MagicMock
+    ) -> None:
+        _write_progress(tmp_path, "latest.json", command_id="cmd-progress", finished=2)
+
+        result = _run_test_cli(["progress"], mock_bridge, project_root=tmp_path)
+
+        assert result.exit_code == 0
+        assert '"command_id": "cmd-progress"' in result.stdout
+        assert '"finished": 2' in result.stdout
+
     def test_rerun_failed_cli_dispatches_specific_artifact(
         self, tmp_path, mock_bridge: MagicMock
     ) -> None:
@@ -461,6 +502,19 @@ class TestRunTestsBridgeSource:
         assert "test-results" in source
         assert "latest.json" in source
         assert "BridgeOperationLedger.WriteAtomic" in source
+
+    def test_csharp_reporter_writes_progress_artifacts(self) -> None:
+        source = (
+            _repo_root()
+            .joinpath("ClaudeCodeBridge", "BridgeTestRunReporter.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "WriteTestProgress(commandId, \"started\"" in source
+        assert "WriteTestProgress(commandId, \"running\"" in source
+        assert "WriteTestProgress(commandId, \"finished\"" in source
+        assert "test-progress" in source
+        assert "TestProgressArtifact" in source
 
 
 # ---------------------------------------------------------------------------
@@ -579,5 +633,30 @@ def _write_artifact(
             "failures": failure_records,
             "testCases": [],
         },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_progress(
+    project_root,
+    filename: str,
+    command_id: str,
+    state: str = "running",
+    finished: int = 0,
+) -> None:
+    path = project_root / ".claude" / "unity" / "test-progress" / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "commandId": command_id,
+        "writtenAt": "2026-06-26T10:00:00Z",
+        "state": state,
+        "currentTest": "Game.Tests.CombatTests.Attack",
+        "started": 3,
+        "finished": finished,
+        "passed": finished,
+        "failed": 0,
+        "skipped": 0,
+        "inconclusive": 0,
+        "durationSeconds": 1.25,
     }
     path.write_text(json.dumps(payload), encoding="utf-8")

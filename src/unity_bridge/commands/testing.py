@@ -21,6 +21,7 @@ from unity_bridge.core.bridge import CommandResult, DirectBridge
 
 VALID_LIST_MODES = frozenset({"tests", "categories", "assemblies"})
 TEST_RESULTS_RELATIVE_PATH = Path(".claude") / "unity" / "test-results"
+TEST_PROGRESS_RELATIVE_PATH = Path(".claude") / "unity" / "test-progress"
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -193,6 +194,30 @@ def list_test_result_history(project_root: Path, max_results: int = 20) -> Comma
     entries.sort(key=lambda item: item.get("writtenAt") or "", reverse=True)
     limited = entries[: max(0, max_results)]
     return CommandResult(success=True, data={"count": len(limited), "results": limited})
+
+
+def read_test_progress_artifact(
+    project_root: Path,
+    command_id: str | None = None,
+) -> CommandResult:
+    """Read a durable test progress artifact from the Unity project."""
+    path = _test_progress_artifact_path(project_root, command_id)
+    if not path.exists():
+        name = command_id or "latest"
+        return CommandResult(
+            success=False,
+            error=f"No test progress artifact found for '{name}'.",
+            exit_code=2,
+        )
+
+    try:
+        return CommandResult(success=True, data=json.loads(path.read_text(encoding="utf-8")))
+    except json.JSONDecodeError as exc:
+        return CommandResult(
+            success=False,
+            error=f"Invalid test progress artifact JSON: {exc}",
+            exit_code=5,
+        )
 
 
 async def rerun_failed_tests(
@@ -420,6 +445,27 @@ def test_history_cli(
     print_result(result, state.formatter)
 
 
+@test_app.command("progress")
+def test_progress_cli(
+    ctx: typer.Context,
+    command_id: Annotated[
+        str | None,
+        typer.Option("--command-id", help="Specific bridge command id to read."),
+    ] = None,
+    last: Annotated[
+        bool,
+        typer.Option("--last", help="Read the latest test progress artifact."),
+    ] = False,
+) -> None:
+    """Read a durable test progress artifact without contacting Unity."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    selected_id = None if last else command_id
+    result = read_test_progress_artifact(state.project_root, selected_id)
+    print_result(result, state.formatter)
+
+
 @test_app.command("rerun-failed")
 def test_rerun_failed_cli(
     ctx: typer.Context,
@@ -495,6 +541,15 @@ def _test_results_dir(project_root: Path) -> Path:
 def _test_result_artifact_path(project_root: Path, command_id: str | None) -> Path:
     filename = f"{command_id}.json" if command_id else "latest.json"
     return _test_results_dir(project_root) / filename
+
+
+def _test_progress_dir(project_root: Path) -> Path:
+    return Path(project_root) / TEST_PROGRESS_RELATIVE_PATH
+
+
+def _test_progress_artifact_path(project_root: Path, command_id: str | None) -> Path:
+    filename = f"{command_id}.json" if command_id else "latest.json"
+    return _test_progress_dir(project_root) / filename
 
 
 def _artifact_result_payload(payload: dict[str, object]) -> dict:
