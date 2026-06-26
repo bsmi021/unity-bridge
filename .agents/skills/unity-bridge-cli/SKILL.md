@@ -178,7 +178,7 @@ unity-bridge prefab validate|instantiate|destroy|status|find-instances|unpack PA
 unity-bridge prefab overrides list|apply|revert PATH [-t TARGET]
 
 # Testing & TDD
-unity-bridge test run [--platform P] [--filter F] [--timeout N]
+unity-bridge test run [--platform P] [--filter F] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--timeout N]
 unity-bridge test list [--categories] [--assemblies] | compile [--no-wait]
 unity-bridge coverage availability | install [--version V]
 unity-bridge coverage start|pause|resume|stop | find-reports | summarize [PATH]

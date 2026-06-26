@@ -5,6 +5,19 @@ input system, script info, deep serialize, find references, execution order, and
 
 ---
 
+## testing selectors
+
+`test run` supports Unity Test Framework selector fields in addition to the
+legacy `--filter` option.
+
+```bash
+unity-bridge test run --platform EditMode --test-name Game.Tests.CombatTests.Attack
+unity-bridge test run --platform EditMode --group "^Game\\.Tests\\.Combat\\."
+unity-bridge test run --platform EditMode --category Smoke --assembly Game.Editor.Tests
+```
+
+---
+
 ## coverage
 
 Optional Unity Code Coverage package utility. The bridge compiles without

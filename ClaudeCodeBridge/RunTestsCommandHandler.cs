@@ -45,10 +45,10 @@ namespace BWS.Editor.ClaudeCodeBridge
                     testMode = testMode
                 };
 
-                if (!string.IsNullOrEmpty(parameters.testFilter))
-                {
-                    filter.testNames = new[] { parameters.testFilter };
-                }
+                filter.testNames = MergeSelectors(parameters.testNames, parameters.testFilter);
+                filter.groupNames = NonEmptyArray(parameters.groupNames);
+                filter.categoryNames = NonEmptyArray(parameters.categoryNames);
+                filter.assemblyNames = NonEmptyArray(parameters.assemblyNames);
 
                 // Start the run via the reload-surviving reporter. It persists the
                 // command id in SessionState and writes the terminal response when
@@ -145,6 +145,24 @@ namespace BWS.Editor.ClaudeCodeBridge
                     }
                 }
             }
+        }
+
+        private static string[] MergeSelectors(string[] selectors, string legacyFilter)
+        {
+            var merged = new List<string>();
+            if (selectors != null)
+                merged.AddRange(selectors.Where(s => !string.IsNullOrEmpty(s)));
+            if (!string.IsNullOrEmpty(legacyFilter))
+                merged.Add(legacyFilter);
+            return merged.Count > 0 ? merged.ToArray() : null;
+        }
+
+        private static string[] NonEmptyArray(string[] values)
+        {
+            if (values == null)
+                return null;
+            var cleaned = values.Where(v => !string.IsNullOrEmpty(v)).ToArray();
+            return cleaned.Length > 0 ? cleaned : null;
         }
 
     }

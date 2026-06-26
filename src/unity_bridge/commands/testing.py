@@ -29,6 +29,10 @@ async def run_tests(
     platform: str = "EditMode",
     filter_pattern: str | None = None,
     timeout: int = 300,
+    test_names: list[str] | None = None,
+    group_names: list[str] | None = None,
+    categories: list[str] | None = None,
+    assemblies: list[str] | None = None,
 ) -> CommandResult:
     """Run Unity Test Runner tests.
 
@@ -37,6 +41,10 @@ async def run_tests(
         platform: Test platform — ``EditMode`` or ``PlayMode``.
         filter_pattern: Optional filter to restrict which tests run.
         timeout: Maximum seconds to wait for results.
+        test_names: Full test names to execute.
+        group_names: Regex-style group names/namespaces to execute.
+        categories: NUnit categories to include.
+        assemblies: Test assembly names to include.
 
     Returns:
         CommandResult with test outcome data.
@@ -44,6 +52,10 @@ async def run_tests(
     params: dict[str, object] = {"testPlatform": platform}
     if filter_pattern is not None:
         params["testFilter"] = filter_pattern
+    _add_selector(params, "testNames", test_names)
+    _add_selector(params, "groupNames", group_names)
+    _add_selector(params, "categoryNames", categories)
+    _add_selector(params, "assemblyNames", assemblies)
 
     return await bridge.send_command_with_retry(
         command_type="run-tests",
@@ -134,12 +146,51 @@ def test_run_cli(
         int,
         typer.Option("--timeout", help="Timeout in seconds."),
     ] = 300,
+    test_names: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--test-name",
+            help="Full test name to execute. Can be passed multiple times.",
+        ),
+    ] = None,
+    group_names: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--group",
+            help="Regex-style fixture/namespace group to execute. Can be passed multiple times.",
+        ),
+    ] = None,
+    categories: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--category",
+            help="NUnit category to include. Can be passed multiple times.",
+        ),
+    ] = None,
+    assemblies: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--assembly",
+            help="Test assembly name without .dll. Can be passed multiple times.",
+        ),
+    ] = None,
 ) -> None:
     """Run tests via the Unity Test Runner."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(run_tests(state.bridge, platform, filter_pattern, timeout))
+    result = asyncio.run(
+        run_tests(
+            state.bridge,
+            platform=platform,
+            filter_pattern=filter_pattern,
+            timeout=timeout,
+            test_names=test_names,
+            group_names=group_names,
+            categories=categories,
+            assemblies=assemblies,
+        )
+    )
     print_result(result, state.formatter)
 
 
@@ -195,3 +246,15 @@ def compile_cli(
     state = ctx.obj
     result = asyncio.run(compile_scripts(state.bridge, wait, timeout))
     print_result(result, state.formatter)
+
+
+def _add_selector(
+    params: dict[str, object],
+    key: str,
+    values: list[str] | None,
+) -> None:
+    if not values:
+        return
+    cleaned = [value for value in values if value]
+    if cleaned:
+        params[key] = cleaned

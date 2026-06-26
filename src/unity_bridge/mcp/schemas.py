@@ -23,6 +23,26 @@ def run_tests() -> dict[str, Any]:
                 "type": "string",
                 "description": "Optional test filter pattern (e.g., 'CombatTests')",
             },
+            "testNames": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Full test names to execute",
+            },
+            "groupNames": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Regex-style fixture or namespace groups to execute",
+            },
+            "categoryNames": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "NUnit categories to include",
+            },
+            "assemblyNames": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Test assembly names without .dll",
+            },
             "timeout": {
                 "type": "integer",
                 "description": "Command timeout in seconds",

@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
 
 ### Added
+- `test run`/`unity_run_tests` now accept Unity Test Framework selectors for full
+  test names, regex-style groups, categories, and assemblies.
 - Optional `coverage` CLI group, `code-coverage` bridge command, and `unity_code_coverage`
   MCP tool for Code Coverage package availability/install, recording control, and report
   discovery/summarization without requiring `com.unity.testtools.codecoverage` at compile time.
