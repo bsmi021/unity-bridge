@@ -408,6 +408,7 @@ unity-bridge test compile [--wait/--no-wait] [--timeout N]
 unity-bridge test results [--last|--command-id ID]
 unity-bridge test failures [--last|--command-id ID]
 unity-bridge test progress [--last|--command-id ID]
+unity-bridge test events [--last|--command-id ID] [--max-events N]
 unity-bridge test rerun-failed [--last|--command-id ID] [--platform PLATFORM] [--timeout N]
 unity-bridge test history [--max-results N]
 unity-bridge coverage availability
@@ -435,6 +436,9 @@ unity-bridge test results --last
 
 # Example: inspect progress for a long-running test command
 unity-bridge test progress --last
+
+# Example: inspect structured per-test progress events
+unity-bridge test events --last --max-events 50
 
 # Example: rerun only the tests that failed in the last persisted result
 unity-bridge test rerun-failed --last --platform EditMode

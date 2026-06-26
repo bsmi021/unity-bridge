@@ -220,6 +220,37 @@ def read_test_progress_artifact(
         )
 
 
+def read_test_progress_events(
+    project_root: Path,
+    command_id: str | None = None,
+    max_events: int = 100,
+) -> CommandResult:
+    """Read durable JSONL test progress events from the Unity project."""
+    selected_id = command_id
+    if selected_id is None:
+        progress = read_test_progress_artifact(project_root)
+        if not progress.success:
+            return progress
+        selected_id = (progress.data or {}).get("commandId")
+
+    if not isinstance(selected_id, str) or not selected_id:
+        return CommandResult(
+            success=False,
+            error="No test progress command id was available.",
+            exit_code=2,
+        )
+
+    path = _test_progress_events_path(project_root, selected_id)
+    if not path.exists():
+        return CommandResult(
+            success=False,
+            error=f"No test progress event log found for '{selected_id}'.",
+            exit_code=2,
+        )
+
+    return _read_progress_events_file(path, selected_id, max_events)
+
+
 async def rerun_failed_tests(
     bridge: DirectBridge,
     project_root: Path,
@@ -466,6 +497,35 @@ def test_progress_cli(
     print_result(result, state.formatter)
 
 
+@test_app.command("events")
+def test_events_cli(
+    ctx: typer.Context,
+    command_id: Annotated[
+        str | None,
+        typer.Option("--command-id", help="Specific bridge command id to read."),
+    ] = None,
+    last: Annotated[
+        bool,
+        typer.Option("--last", help="Read events for the latest test progress artifact."),
+    ] = False,
+    max_events: Annotated[
+        int,
+        typer.Option("--max-events", help="Maximum events to return."),
+    ] = 100,
+) -> None:
+    """Read durable test progress events without contacting Unity."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    selected_id = None if last else command_id
+    result = read_test_progress_events(
+        state.project_root,
+        command_id=selected_id,
+        max_events=max_events,
+    )
+    print_result(result, state.formatter)
+
+
 @test_app.command("rerun-failed")
 def test_rerun_failed_cli(
     ctx: typer.Context,
@@ -552,6 +612,10 @@ def _test_progress_artifact_path(project_root: Path, command_id: str | None) -> 
     return _test_progress_dir(project_root) / filename
 
 
+def _test_progress_events_path(project_root: Path, command_id: str) -> Path:
+    return _test_progress_dir(project_root) / f"{command_id}.events.jsonl"
+
+
 def _artifact_result_payload(payload: dict[str, object]) -> dict:
     result = payload.get("result")
     return result if isinstance(result, dict) else payload
@@ -574,6 +638,32 @@ def _load_artifact_for_history(path: Path) -> dict[str, object] | None:
         "skipped": result.get("skipped", 0),
         "inconclusive": result.get("inconclusive", 0),
     }
+
+
+def _read_progress_events_file(path: Path, command_id: str, max_events: int) -> CommandResult:
+    events = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            return CommandResult(
+                success=False,
+                error=f"Invalid test progress event JSON on line {line_number}: {exc}",
+                exit_code=5,
+            )
+        if len(events) >= max(0, max_events):
+            break
+    return CommandResult(
+        success=True,
+        data={
+            "commandId": command_id,
+            "path": str(path),
+            "count": len(events),
+            "events": events,
+        },
+    )
 
 
 def _failed_test_names(failures: object) -> list[str]:

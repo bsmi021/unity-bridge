@@ -320,6 +320,74 @@ class TestTestProgressArtifacts:
         assert "No test progress artifact found" in result.error
 
 
+class TestTestProgressEvents:
+    def test_reads_specific_event_log(self, tmp_path) -> None:
+        mod = _import_testing()
+        _write_progress_events(
+            tmp_path,
+            "cmd-progress",
+            [
+                {"state": "started", "testName": ""},
+                {"state": "running", "testName": "Game.Tests.A"},
+            ],
+        )
+
+        result = mod.read_test_progress_events(tmp_path, command_id="cmd-progress")
+
+        assert result.success is True
+        assert result.data["commandId"] == "cmd-progress"
+        assert result.data["count"] == 2
+        assert result.data["events"][1]["testName"] == "Game.Tests.A"
+
+    def test_reads_latest_event_log_via_progress_artifact(self, tmp_path) -> None:
+        mod = _import_testing()
+        _write_progress(tmp_path, "latest.json", command_id="cmd-progress")
+        _write_progress_events(tmp_path, "cmd-progress", [{"state": "finished"}])
+
+        result = mod.read_test_progress_events(tmp_path)
+
+        assert result.success is True
+        assert result.data["commandId"] == "cmd-progress"
+        assert result.data["events"] == [{"state": "finished"}]
+
+    def test_event_log_respects_max_events(self, tmp_path) -> None:
+        mod = _import_testing()
+        _write_progress_events(
+            tmp_path,
+            "cmd-progress",
+            [{"state": "one"}, {"state": "two"}, {"state": "three"}],
+        )
+
+        result = mod.read_test_progress_events(
+            tmp_path,
+            command_id="cmd-progress",
+            max_events=2,
+        )
+
+        assert [event["state"] for event in result.data["events"]] == ["one", "two"]
+
+    def test_missing_event_log_returns_structured_failure(self, tmp_path) -> None:
+        mod = _import_testing()
+
+        result = mod.read_test_progress_events(tmp_path, command_id="missing")
+
+        assert result.success is False
+        assert result.exit_code == 2
+        assert "No test progress event log found" in result.error
+
+    def test_invalid_event_log_returns_structured_failure(self, tmp_path) -> None:
+        mod = _import_testing()
+        path = tmp_path / ".claude" / "unity" / "test-progress" / "cmd.events.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not-json}\n", encoding="utf-8")
+
+        result = mod.read_test_progress_events(tmp_path, command_id="cmd")
+
+        assert result.success is False
+        assert result.exit_code == 5
+        assert "Invalid test progress event JSON" in result.error
+
+
 class TestRerunFailedTests:
     async def test_reruns_failed_test_names_from_latest_artifact(
         self, tmp_path, mock_bridge: MagicMock
@@ -428,6 +496,21 @@ class TestTestResultArtifactCli:
         assert '"command_id": "cmd-progress"' in result.stdout
         assert '"finished": 2' in result.stdout
 
+    def test_events_cli_reads_specific_event_log(
+        self, tmp_path, mock_bridge: MagicMock
+    ) -> None:
+        _write_progress_events(tmp_path, "cmd-progress", [{"state": "started"}])
+
+        result = _run_test_cli(
+            ["events", "--command-id", "cmd-progress", "--max-events", "1"],
+            mock_bridge,
+            project_root=tmp_path,
+        )
+
+        assert result.exit_code == 0
+        assert '"command_id": "cmd-progress"' in result.stdout
+        assert '"count": 1' in result.stdout
+
     def test_rerun_failed_cli_dispatches_specific_artifact(
         self, tmp_path, mock_bridge: MagicMock
     ) -> None:
@@ -515,6 +598,8 @@ class TestRunTestsBridgeSource:
         assert "WriteTestProgress(commandId, \"finished\"" in source
         assert "test-progress" in source
         assert "TestProgressArtifact" in source
+        assert "TestProgressEvent" in source
+        assert ".events.jsonl" in source
 
 
 # ---------------------------------------------------------------------------
@@ -660,3 +745,10 @@ def _write_progress(
         "durationSeconds": 1.25,
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_progress_events(project_root, command_id: str, events: list[dict[str, str]]) -> None:
+    path = project_root / ".claude" / "unity" / "test-progress" / f"{command_id}.events.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = "".join(f"{json.dumps(event)}\n" for event in events)
+    path.write_text(content, encoding="utf-8")

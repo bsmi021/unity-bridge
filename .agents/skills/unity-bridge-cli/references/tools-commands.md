@@ -17,6 +17,7 @@ unity-bridge test run --platform EditMode --category Smoke --assembly Game.Edito
 unity-bridge test results --last
 unity-bridge test failures --command-id 00000000-0000-0000-0000-000000000000
 unity-bridge test progress --last
+unity-bridge test events --last --max-events 50
 unity-bridge test rerun-failed --last --platform EditMode
 unity-bridge test history --max-results 5
 ```
