@@ -403,6 +403,7 @@ unity-bridge compile optimization --set Release
 
 ```
 unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N]
+unity-bridge test preflight [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N]
 unity-bridge test list [--platform PLATFORM] [--filter PATTERN] [--categories] [--assemblies]
 unity-bridge test compile [--wait/--no-wait] [--timeout N]
 unity-bridge test results [--last|--command-id ID]
@@ -421,6 +422,9 @@ unity-bridge coverage summarize [PATH]
 ```bash
 # Example: run EditMode tests matching a pattern
 unity-bridge test run --platform EditMode --filter "Combat*"
+
+# Example: verify a filtered run would select at least one test
+unity-bridge test preflight --platform EditMode --filter "Combat*" --min-tests 1
 
 # Example: run a smoke category from one test assembly
 unity-bridge test run --platform EditMode --category Smoke --assembly Game.Editor.Tests --min-tests 1

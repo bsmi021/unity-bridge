@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -128,6 +129,56 @@ async def compile_scripts(
         command_type="compile",
         parameters={"waitForCompletion": wait},
         timeout=float(timeout),
+    )
+
+
+async def preflight_tests(
+    bridge: DirectBridge,
+    platform: str = "EditMode",
+    filter_pattern: str | None = None,
+    timeout: int = 30,
+    test_names: list[str] | None = None,
+    group_names: list[str] | None = None,
+    categories: list[str] | None = None,
+    assemblies: list[str] | None = None,
+    min_tests: int = 1,
+) -> CommandResult:
+    """Discover and validate tests before running them."""
+    group_patterns = _compile_group_patterns(group_names)
+    if isinstance(group_patterns, CommandResult):
+        return group_patterns
+
+    discovery = await list_tests(
+        bridge,
+        mode="tests",
+        platform=platform,
+        filter_pattern=filter_pattern,
+        timeout=float(timeout),
+    )
+    if not discovery.success:
+        return _preflight_discovery_failure(discovery)
+
+    tests = _discovered_tests(discovery.data)
+    selected = _select_preflight_tests(
+        tests,
+        test_names=test_names,
+        group_patterns=group_patterns,
+        categories=categories,
+        assemblies=assemblies,
+    )
+    return _preflight_result(
+        discovery,
+        tests,
+        selected,
+        platform=platform,
+        filter_pattern=filter_pattern,
+        min_tests=min_tests,
+        selectors={
+            "testNames": test_names or [],
+            "groupNames": group_names or [],
+            "categoryNames": categories or [],
+            "assemblyNames": assemblies or [],
+        },
     )
 
 
@@ -350,6 +401,74 @@ def test_run_cli(
     state = ctx.obj
     result = asyncio.run(
         run_tests(
+            state.bridge,
+            platform=platform,
+            filter_pattern=filter_pattern,
+            timeout=timeout,
+            test_names=test_names,
+            group_names=group_names,
+            categories=categories,
+            assemblies=assemblies,
+            min_tests=min_tests,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@test_app.command("preflight")
+def test_preflight_cli(
+    ctx: typer.Context,
+    platform: Annotated[
+        str,
+        typer.Option("--platform", "-P", help="Test platform: EditMode or PlayMode."),
+    ] = "EditMode",
+    filter_pattern: Annotated[
+        str | None,
+        typer.Option("--filter", "-f", help="Filter pattern for test names."),
+    ] = None,
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Discovery timeout in seconds."),
+    ] = 30,
+    test_names: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--test-name",
+            help="Full test name expected to be discoverable. Can be passed multiple times.",
+        ),
+    ] = None,
+    group_names: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--group",
+            help="Regex-style fixture/namespace group expected. Can be passed multiple times.",
+        ),
+    ] = None,
+    categories: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--category",
+            help="NUnit category expected to be discoverable. Can be passed multiple times.",
+        ),
+    ] = None,
+    assemblies: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--assembly",
+            help="Test assembly name expected. Can be passed multiple times.",
+        ),
+    ] = None,
+    min_tests: Annotated[
+        int,
+        typer.Option("--min-tests", help="Minimum selected test count required."),
+    ] = 1,
+) -> None:
+    """Discover and validate tests before running them."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        preflight_tests(
             state.bridge,
             platform=platform,
             filter_pattern=filter_pattern,
@@ -592,6 +711,155 @@ def _enforce_min_tests(result: CommandResult, min_tests: int) -> CommandResult:
         exit_code=1,
         cached=result.cached,
     )
+
+
+def _compile_group_patterns(group_names: list[str] | None) -> list[re.Pattern] | CommandResult:
+    compiled = []
+    for pattern in group_names or []:
+        try:
+            compiled.append(re.compile(pattern))
+        except re.error as exc:
+            return CommandResult(
+                success=False,
+                error=f"Invalid group regex '{pattern}': {exc}",
+                exit_code=3,
+            )
+    return compiled
+
+
+def _preflight_discovery_failure(discovery: CommandResult) -> CommandResult:
+    return CommandResult(
+        success=False,
+        data={
+            "readyToRun": False,
+            "checks": [
+                {
+                    "name": "test_discovery",
+                    "success": False,
+                    "error": discovery.error,
+                }
+            ],
+        },
+        error=f"Test preflight failed during discovery: {discovery.error}",
+        command_id=discovery.command_id,
+        execution_time_ms=discovery.execution_time_ms,
+        exit_code=discovery.exit_code,
+        cached=discovery.cached,
+    )
+
+
+def _discovered_tests(data: object) -> list[dict[str, object]]:
+    if not isinstance(data, dict):
+        return []
+    tests = data.get("tests")
+    if not isinstance(tests, list):
+        return []
+    return [test for test in tests if isinstance(test, dict)]
+
+
+def _select_preflight_tests(
+    tests: list[dict[str, object]],
+    *,
+    test_names: list[str] | None,
+    group_patterns: list[re.Pattern],
+    categories: list[str] | None,
+    assemblies: list[str] | None,
+) -> list[dict[str, object]]:
+    selected = []
+    for test in tests:
+        if _matches_preflight_selectors(
+            test,
+            test_names=test_names,
+            group_patterns=group_patterns,
+            categories=categories,
+            assemblies=assemblies,
+        ):
+            selected.append(test)
+    return selected
+
+
+def _matches_preflight_selectors(
+    test: dict[str, object],
+    *,
+    test_names: list[str] | None,
+    group_patterns: list[re.Pattern],
+    categories: list[str] | None,
+    assemblies: list[str] | None,
+) -> bool:
+    full_name = str(test.get("fullName") or "")
+    if test_names and full_name not in set(test_names):
+        return False
+    if group_patterns and not any(pattern.search(full_name) for pattern in group_patterns):
+        return False
+    if categories and not set(categories).intersection(_test_categories(test)):
+        return False
+    return not (assemblies and test.get("assembly") not in set(assemblies))
+
+
+def _test_categories(test: dict[str, object]) -> set[str]:
+    value = test.get("categories")
+    if isinstance(value, list):
+        return {item for item in value if isinstance(item, str)}
+    if isinstance(value, str):
+        return {item for item in value.split(";") if item}
+    return set()
+
+
+def _preflight_result(
+    discovery: CommandResult,
+    tests: list[dict[str, object]],
+    selected: list[dict[str, object]],
+    *,
+    platform: str,
+    filter_pattern: str | None,
+    min_tests: int,
+    selectors: dict[str, list[str]],
+) -> CommandResult:
+    required = max(0, min_tests)
+    ready = len(selected) >= required
+    payload = _preflight_payload(tests, selected, platform, filter_pattern, required, selectors)
+    if ready:
+        return CommandResult(
+            success=True,
+            data=payload,
+            command_id=discovery.command_id,
+            execution_time_ms=discovery.execution_time_ms,
+            cached=discovery.cached,
+        )
+    return CommandResult(
+        success=False,
+        data=payload,
+        error=f"Test preflight selected {len(selected)} test(s); expected at least {required}.",
+        command_id=discovery.command_id,
+        execution_time_ms=discovery.execution_time_ms,
+        exit_code=1,
+        cached=discovery.cached,
+    )
+
+
+def _preflight_payload(
+    tests: list[dict[str, object]],
+    selected: list[dict[str, object]],
+    platform: str,
+    filter_pattern: str | None,
+    min_tests: int,
+    selectors: dict[str, list[str]],
+) -> dict[str, object]:
+    ready = len(selected) >= min_tests
+    return {
+        "readyToRun": ready,
+        "platform": platform,
+        "filter": filter_pattern,
+        "selectors": selectors,
+        "discoveredCount": len(tests),
+        "selectedCount": len(selected),
+        "minTests": min_tests,
+        "sampleTests": [str(test.get("fullName") or "") for test in selected[:10]],
+        "checks": [
+            {"name": "test_discovery", "success": True},
+            {"name": "min_tests", "success": ready},
+        ],
+    }
 
 
 def _test_results_dir(project_root: Path) -> Path:

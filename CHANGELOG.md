@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   test commands without waiting for the terminal result.
 - `test events` reads structured per-test progress JSONL for bridge-initiated
   runs, including started/running/finished events.
+- `test preflight` performs test discovery and selector validation before a run,
+  failing early when too few tests would execute.
 - `test rerun-failed` reruns only failed test names from the latest or a
   specified durable Unity test result artifact.
 - `test run --min-tests N` can fail successful Unity responses that executed

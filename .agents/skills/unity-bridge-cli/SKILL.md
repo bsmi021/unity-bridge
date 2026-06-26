@@ -179,6 +179,7 @@ unity-bridge prefab overrides list|apply|revert PATH [-t TARGET]
 
 # Testing & TDD
 unity-bridge test run [--platform P] [--filter F] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N]
+unity-bridge test preflight [--platform P] [--filter F] [--min-tests N]
 unity-bridge test list [--categories] [--assemblies] | compile [--no-wait]
 unity-bridge test results|failures|progress|events [--last|--command-id ID] | rerun-failed [--last|--command-id ID] | history [--max-results N]
 unity-bridge coverage availability | install [--version V]

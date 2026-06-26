@@ -193,6 +193,132 @@ class TestRunTestsCli:
         assert "--min-tests" in result.stdout
 
 
+class TestPreflightTests:
+    async def test_preflight_reports_selected_tests(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+        mock_bridge.send_command_with_retry.return_value = CommandResult(
+            success=True,
+            data=_sample_discovered_tests(),
+        )
+
+        result = await mod.preflight_tests(
+            mock_bridge,
+            platform="EditMode",
+            categories=["Smoke"],
+            assemblies=["Game.Editor.Tests"],
+            min_tests=1,
+        )
+
+        assert result.success is True
+        assert result.data["readyToRun"] is True
+        assert result.data["discoveredCount"] == 2
+        assert result.data["selectedCount"] == 1
+        assert result.data["sampleTests"] == ["Game.Tests.CombatTests.AttackDealsDamage"]
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["mode"] == "tests"
+        assert params["testPlatform"] == "EditMode"
+
+    async def test_preflight_applies_test_name_and_group_selectors(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+        mock_bridge.send_command_with_retry.return_value = CommandResult(
+            success=True,
+            data=_sample_discovered_tests(),
+        )
+
+        result = await mod.preflight_tests(
+            mock_bridge,
+            test_names=["Game.Tests.CombatTests.AttackDealsDamage"],
+            group_names=["CombatTests"],
+        )
+
+        assert result.success is True
+        assert result.data["selectedCount"] == 1
+
+    async def test_preflight_fails_below_min_tests(self, mock_bridge: MagicMock) -> None:
+        mod = _import_testing()
+        mock_bridge.send_command_with_retry.return_value = CommandResult(
+            success=True,
+            data={"count": 0, "tests": []},
+            command_id="cmd-list",
+        )
+
+        result = await mod.preflight_tests(mock_bridge, min_tests=1)
+
+        assert result.success is False
+        assert result.exit_code == 1
+        assert result.command_id == "cmd-list"
+        assert result.data["readyToRun"] is False
+        assert "expected at least 1" in result.error
+
+    async def test_preflight_invalid_group_regex_fails_without_bridge_call(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+
+        result = await mod.preflight_tests(mock_bridge, group_names=["["])
+
+        assert result.success is False
+        assert result.exit_code == 3
+        mock_bridge.send_command_with_retry.assert_not_called()
+
+    async def test_preflight_propagates_discovery_failure(
+        self, mock_bridge: MagicMock
+    ) -> None:
+        mod = _import_testing()
+        mock_bridge.send_command_with_retry.return_value = CommandResult(
+            success=False,
+            error="Cannot retrieve test tree while scripts are compiling.",
+            exit_code=2,
+        )
+
+        result = await mod.preflight_tests(mock_bridge)
+
+        assert result.success is False
+        assert result.exit_code == 2
+        assert result.data["checks"][0]["name"] == "test_discovery"
+
+
+class TestPreflightCli:
+    def test_preflight_cli_passes_selectors(self, mock_bridge: MagicMock) -> None:
+        mock_bridge.send_command_with_retry.return_value = CommandResult(
+            success=True,
+            data=_sample_discovered_tests(),
+        )
+
+        result = _run_test_cli(
+            [
+                "preflight",
+                "--platform",
+                "EditMode",
+                "--filter",
+                "Combat",
+                "--test-name",
+                "Game.Tests.CombatTests.AttackDealsDamage",
+                "--group",
+                "CombatTests",
+                "--category",
+                "Smoke",
+                "--assembly",
+                "Game.Editor.Tests",
+                "--min-tests",
+                "1",
+                "--timeout",
+                "15",
+            ],
+            mock_bridge,
+        )
+
+        assert result.exit_code == 0
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["filter"] == "Combat"
+        assert _extract_kwarg(mock_bridge.send_command_with_retry.call_args, "timeout") == 15.0
+        assert '"ready_to_run": true' in result.stdout
+
+
 class TestListAndCompileCli:
     def test_list_cli_passes_categories_mode(self, mock_bridge: MagicMock) -> None:
         result = _run_test_cli(
@@ -752,3 +878,21 @@ def _write_progress_events(project_root, command_id: str, events: list[dict[str,
     path.parent.mkdir(parents=True, exist_ok=True)
     content = "".join(f"{json.dumps(event)}\n" for event in events)
     path.write_text(content, encoding="utf-8")
+
+
+def _sample_discovered_tests() -> dict:
+    return {
+        "count": 2,
+        "tests": [
+            {
+                "fullName": "Game.Tests.CombatTests.AttackDealsDamage",
+                "assembly": "Game.Editor.Tests",
+                "categories": ["Smoke", "Combat"],
+            },
+            {
+                "fullName": "Game.Tests.InventoryTests.AddsItem",
+                "assembly": "Game.Editor.Tests",
+                "categories": ["Inventory"],
+            },
+        ],
+    }
