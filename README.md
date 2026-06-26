@@ -405,6 +405,11 @@ unity-bridge compile optimization --set Release
 unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--timeout N]
 unity-bridge test list [--platform PLATFORM] [--filter PATTERN] [--categories] [--assemblies]
 unity-bridge test compile [--wait/--no-wait] [--timeout N]
+unity-bridge coverage availability
+unity-bridge coverage install [--version VERSION]
+unity-bridge coverage start|pause|resume|stop
+unity-bridge coverage find-reports [--path PATH] [--max-results N]
+unity-bridge coverage summarize [PATH]
 ```
 
 ```bash
@@ -416,6 +421,12 @@ unity-bridge test list --platform PlayMode --categories
 
 # Example: trigger a compilation and wait
 unity-bridge test compile --wait
+
+# Example: check optional Code Coverage package/API support
+unity-bridge coverage availability
+
+# Example: inspect an existing ReportGenerator summary
+unity-bridge coverage summarize CoverageResults/Report/Summary.json
 ```
 
 ### Play Mode

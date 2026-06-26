@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
 
 ### Added
+- Optional `coverage` CLI group, `code-coverage` bridge command, and `unity_code_coverage`
+  MCP tool for Code Coverage package availability/install, recording control, and report
+  discovery/summarization without requiring `com.unity.testtools.codecoverage` at compile time.
 - Python-side queued command dispatch now persists queued command payloads outside Unity's command directory and dispatches them only after editor readiness returns; `unity_submit_command` returns an operation ID immediately for MCP clients that need a responsive control plane while Unity is busy.
 - Package Manager automation now exposes `package batch`, `package pack`, and
   `package clear-cache --yes`, with MCP schema fields for `packagesToAdd`,

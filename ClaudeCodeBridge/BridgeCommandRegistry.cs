@@ -121,6 +121,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             // Unity 6.4: Identity & Audit
             registerHandler(new ObjectIdentityCommandHandler());
             registerHandler(new ProjectAuditorCommandHandler());
+            registerHandler(new CodeCoverageCommandHandler());
             registerHandler(new UIToolkitCommandHandler());
             registerHandler(new RenderPipelineCommandHandler());
             registerHandler(new GraphicsStateCommandHandler());

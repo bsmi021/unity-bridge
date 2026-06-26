@@ -5,6 +5,26 @@ input system, script info, deep serialize, find references, execution order, and
 
 ---
 
+## coverage
+
+Optional Unity Code Coverage package utility. The bridge compiles without
+`com.unity.testtools.codecoverage`; availability and report inspection return
+structured results even when the package is missing.
+
+```bash
+unity-bridge coverage availability
+unity-bridge coverage install
+unity-bridge coverage install --version 1.3.0
+unity-bridge coverage start
+unity-bridge coverage pause
+unity-bridge coverage resume
+unity-bridge coverage stop
+unity-bridge coverage find-reports --path CoverageResults --max-results 25
+unity-bridge coverage summarize CoverageResults/Report/Summary.json
+```
+
+---
+
 ## profiler
 
 ### Simple snapshot (registered)

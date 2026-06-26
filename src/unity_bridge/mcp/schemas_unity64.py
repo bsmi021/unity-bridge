@@ -73,3 +73,47 @@ def project_auditor() -> dict[str, Any]:
         },
         "required": ["operation"],
     }
+
+
+def code_coverage() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "operation": {
+                "type": "string",
+                "enum": [
+                    "availability",
+                    "install",
+                    "start-recording",
+                    "pause-recording",
+                    "resume-recording",
+                    "stop-recording",
+                    "find-reports",
+                    "summarize",
+                ],
+                "default": "availability",
+                "description": "Code Coverage package utility operation",
+            },
+            "identifier": {
+                "type": "string",
+                "description": "Package identifier for install operations",
+            },
+            "reportPath": {
+                "type": "string",
+                "description": "Coverage root, Summary.json, Summary.xml, or OpenCover XML path",
+            },
+            "maxResults": {
+                "type": "integer",
+                "description": "Maximum report artifacts to return",
+                "default": 50,
+                "minimum": 1,
+                "maximum": 1000,
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Command timeout in seconds",
+                "default": 120,
+            },
+        },
+        "required": ["operation"],
+    }

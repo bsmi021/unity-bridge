@@ -33,6 +33,7 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "execute-script": 30,
     # Long operations
     "run-tests": 300,
+    "code-coverage": 120,
     "compile": 120,
     "asset-operation": 60,
     "asset-extended-operation": 60,
@@ -156,6 +157,7 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "entities",  # inspection operations are read-only
     "adaptive-performance",  # inspection operations are read-only
     "multiplayer-playmode",  # inspection operations are read-only
+    "code-coverage",  # operation-gated; report inspection only
 }
 
 # Commands that appear in PARALLEL_SAFE_COMMANDS but mix read-only and
@@ -173,6 +175,7 @@ OPERATION_GATED_PARALLEL_SAFE: dict[str, frozenset[str]] = {
     "input-system": frozenset(
         {"list-actions", "get-action-map", "export", "list-control-schemes"}
     ),
+    "code-coverage": frozenset({"availability", "find-reports", "summarize"}),
 }
 
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.

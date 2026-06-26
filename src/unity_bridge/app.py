@@ -259,6 +259,7 @@ def _register_optional_commands() -> None:
         "project_auditor_app",
         "project-auditor",
     )
+    _try_register_group("unity_bridge.commands.code_coverage", "coverage_app", "coverage")
     _try_register_group("unity_bridge.commands.ui_toolkit", "ui_toolkit_app", "ui-toolkit")
     _try_register_group(
         "unity_bridge.commands.render_pipeline",

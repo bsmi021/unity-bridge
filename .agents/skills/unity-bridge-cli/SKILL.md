@@ -76,6 +76,8 @@ Global flags go BEFORE the command name:
 **Test and compile:**
 - `test run --platform EditMode` -- run tests
 - `test compile` -- trigger compilation
+- `coverage availability` / `coverage summarize` -- inspect optional Code Coverage support and reports
+- `coverage install` -- add `com.unity.testtools.codecoverage` when a project is missing it
 - `tdd --filter CombatTests` -- full TDD cycle
 - `console read --types error` -- check for errors
 
@@ -178,6 +180,8 @@ unity-bridge prefab overrides list|apply|revert PATH [-t TARGET]
 # Testing & TDD
 unity-bridge test run [--platform P] [--filter F] [--timeout N]
 unity-bridge test list [--categories] [--assemblies] | compile [--no-wait]
+unity-bridge coverage availability | install [--version V]
+unity-bridge coverage start|pause|resume|stop | find-reports | summarize [PATH]
 unity-bridge tdd [--platform P] [--filter F] [--strict]
 
 # Console & Play Mode

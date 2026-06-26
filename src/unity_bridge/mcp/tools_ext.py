@@ -185,6 +185,13 @@ def get_tool_definitions() -> list[dict[str, Any]]:
             ),
             "inputSchema": schemas_unity64.project_auditor(),
         },
+        {
+            "name": "unity_code_coverage",
+            "description": (
+                "Check/install Unity Code Coverage, control recording, and inspect reports."
+            ),
+            "inputSchema": schemas_unity64.code_coverage(),
+        },
     ]
 
 
@@ -217,4 +224,5 @@ TOOL_COMMAND_MAP_EXT: dict[str, str] = {
     "unity_audio_settings": "audio-settings",
     "unity_object_identity": "object-identity",
     "unity_project_auditor": "project-auditor",
+    "unity_code_coverage": "code-coverage",
 }
