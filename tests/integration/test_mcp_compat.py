@@ -97,6 +97,7 @@ CLIENT_SIDE_TOOLS = {
     "unity_bridge_config",
     "unity_health_check",
     "unity_operation_status",
+    "unity_submit_command",
     "unity_batch",
     "unity_help",
 }
@@ -121,7 +122,7 @@ class TestMCPToolNames:
         # accidental bulk drop (or addition) of tools is caught rather than
         # silently passing a loose floor. Update deliberately if the (frozen)
         # surface ever changes.
-        assert len(_tool_names()) == 94
+        assert len(_tool_names()) == 97
 
     def test_no_tool_name_changes(self) -> None:
         """Verify none of the original tool names have been renamed."""
