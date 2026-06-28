@@ -4,7 +4,7 @@ CLI-first Unity Editor automation via a file-based bridge protocol. Control Unit
 
 **Status:** the supported interface is the `unity-bridge` CLI. The MCP server remains available as deprecated compatibility for existing integrations and control-plane helpers.
 
-**Last updated:** 2026-06-24.
+**Last updated:** 2026-06-28.
 
 **Requirements:** Python 3.10+, Unity Editor running with the C# bridge installed.
 
@@ -722,7 +722,7 @@ Each command also gets durable lifecycle state in `<project>/.claude/unity/opera
 
 ### Dual Interface
 
-The CLI is the supported interface. The deprecated MCP compatibility server reuses the same async core functions where tools are mapped: the CLI wraps them with `asyncio.run()`, while MCP handlers `await` them directly. The MCP surface currently exposes 95 tools, including client-side helpers such as health/config/batch/help, queued submission, and operation status.
+The CLI is the supported interface. The deprecated MCP compatibility server reuses the same async core functions where tools are mapped: the CLI wraps them with `asyncio.run()`, while MCP handlers `await` them directly. The MCP surface currently exposes 97 tools, including client-side helpers such as health/config/batch/help, queued submission, and operation status.
 
 ### Project Auto-Detection
 
@@ -738,6 +738,7 @@ python3 -m pytest tests/unit/                # Unit tests only
 python3 -m pytest tests/unit/test_bridge.py  # Single file
 python3 -m pytest -x --tb=short              # Stop on first failure
 python3 -m pytest --cov=unity_bridge         # With coverage report
+python3 -m pytest tests --cov=unity_bridge --cov-report=term-missing --cov-fail-under=90
 ```
 
 Unit tests mock `DirectBridge` and never require a running Unity instance. Integration tests are marked with `@pytest.mark.integration` and are automatically skipped when Unity is not available.

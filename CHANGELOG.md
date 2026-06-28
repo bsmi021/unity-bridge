@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
 
 ### Added
+- Added coverage-focused unit suites for CLI wrapper dispatch, diagnostics,
+  and output formatting, raising the full `tests/` coverage gate above 90%.
 - Completed Unity test runs now persist durable JSON artifacts under
   `.claude/unity/test-results`; `test results`, `test failures`, and
   `test history` can inspect them without re-running Unity.
@@ -100,6 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
 
 ### Fixed
+- Updated deprecated MCP compatibility tests to pin the current 97-tool surface
+  and explicitly classify `unity_submit_command` as a client-side handler.
 - Package Manager client requests are now serialized in the C# bridge so a
   second UPM request is rejected while one is pending, matching Unity's
   sequential `PackageManager.Client` requirement.
