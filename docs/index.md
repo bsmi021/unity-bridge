@@ -1,9 +1,10 @@
 # Unity Bridge Documentation Index
 
-Last updated: 2026-06-26
+Last updated: 2026-06-30
 
 ## Current Work
 
+- [Unity 6.4 capability delta analysis](unity-6.4-capability-delta-analysis.md)
 - [Code Coverage bridge utility feature spec](research/FeatureSpec_CodeCoverageBridgeUtility_2026-06-26.md)
 - [Unity 6.4 bridge implementation roadmap](unity-6-4-bridge-implementation.md)
 - [Phase 7 new gaps report](phase7-new-gaps-report.md)
