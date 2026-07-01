@@ -42,6 +42,8 @@ Packaged installs include the C# bridge scripts and the `unity-bridge-cli` Codex
 
 Repo-local Codex metadata lives in `.agents/skills/unity-bridge-cli/` and `.codex/agents/`. The shipped skill is intentionally CLI-first: it routes agents through `unity-bridge` commands instead of raw `.claude/unity` JSON.
 
+`.agents/skills/unity-bridge-cli/` is the canonical skill location, and Codex and GitHub Copilot both scan `.agents/skills` natively -- no extra step needed for them. Claude Code only scans `.claude/skills`, so pass `--include-claude` to `unity-bridge install` to additionally link `.claude/skills/unity-bridge-cli` back to the canonical directory (a symlink, or an NTFS junction on Windows when symlink privilege is unavailable) -- one physical skill, reused across agents.
+
 ## Global CLI Flags
 
 All commands accept these flags:
@@ -83,7 +85,7 @@ unity-bridge doctor --human
 ### Lifecycle
 
 ```
-unity-bridge install [--check] [--force]      # Install/update C# bridge files
+unity-bridge install [--check] [--force] [--include-claude]  # Install/update C# bridge files
 unity-bridge init                             # Create .claude/unity/ directory structure
 unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response files, stale temp files, and old terminal operation files
 ```
@@ -94,6 +96,9 @@ unity-bridge install --check
 
 # Example: force reinstall
 unity-bridge install --force
+
+# Example: also link the skill for Claude Code (Codex/Copilot need no extra step)
+unity-bridge install --include-claude
 
 # Example: preview what clean would delete
 unity-bridge clean --dry-run
@@ -713,6 +718,16 @@ The `unity-bridge` CLI is the only interface. Each command module exposes an asy
 The CLI walks up from the current working directory looking for `Assets/` + `ProjectSettings/` directories. Override with `--project` or the `UNITY_BRIDGE_PROJECT` environment variable.
 
 ## Development
+
+### Cloning on Windows
+
+This repo's `.claude/skills/unity-bridge-cli` is a real symlink to `.agents/skills/unity-bridge-cli` (the canonical skill copy), not a duplicate file tree. `core.symlinks` defaults to `false` on Git for Windows, which is a **per-clone setting a commit cannot carry** -- without it, git checks out the symlink as a plain text file containing the link target, and the skill silently disappears for Claude Code. Before cloning (or before your next checkout if already cloned):
+
+```bash
+git config core.symlinks true   # per-clone, run before checkout
+```
+
+You also need Windows Developer Mode enabled (or run as Administrator) for the symlink to actually resolve on disk -- otherwise `os.symlink` fails with `WinError 1314`.
 
 ### Running Tests
 

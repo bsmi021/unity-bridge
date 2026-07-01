@@ -102,6 +102,44 @@ def _get_skill_target_dir(project_root: Path) -> Path:
     return Path(project_root) / ".agents" / "skills" / _SKILL_NAME
 
 
+def _get_claude_skill_link_dir(project_root: Path) -> Path:
+    """Return the Claude Code skill path -- a link, never a separate copy.
+
+    Codex and GitHub Copilot scan ``.agents/skills`` directly, so only
+    Claude Code (which scans ``.claude/skills``) needs this.
+    """
+    return Path(project_root) / ".claude" / "skills" / _SKILL_NAME
+
+
+def _is_claude_link_up_to_date(link_dir: Path, skill_target_dir: Path) -> bool:
+    """Return True when the Claude Code link already points at the canonical skill dir."""
+    from unity_bridge.core.skill_links import is_directory_link
+
+    if not is_directory_link(link_dir):
+        return False
+    try:
+        return link_dir.resolve() == skill_target_dir.resolve()
+    except OSError:
+        return False
+
+
+def _claude_link_result(included: bool, link_dir: Path, action: str) -> dict[str, object]:
+    """Return normalized Claude Code skill-link data."""
+    return {"included": included, "action": action, "path": str(link_dir)}
+
+
+def _check_claude_link_status(project_root: Path) -> dict[str, object]:
+    """Check Claude Code skill-link status without mutating files."""
+    from unity_bridge.core.skill_links import is_directory_link
+
+    link_dir = _get_claude_skill_link_dir(project_root)
+    skill_target_dir = _get_skill_target_dir(project_root)
+    linked = is_directory_link(link_dir) and _is_claude_link_up_to_date(
+        link_dir, skill_target_dir
+    )
+    return {"path": str(link_dir), "linked": linked}
+
+
 def _copy_skill_files(source_dir: Path, target_dir: Path, project_root: Path) -> dict[str, str]:
     """Replace the project-local skill with the bundled skill files."""
     _validate_skill_target(target_dir, project_root)
@@ -188,6 +226,7 @@ async def install(
     project_root: Path | None = None,
     check: bool = False,
     force: bool = False,
+    include_claude: bool = False,
 ) -> CommandResult:
     """Install or update the C# bridge files.
 
@@ -195,8 +234,13 @@ async def install(
         project_root: Unity project root (auto-detected if None).
         check: If True, report status without making changes.
         force: If True, force reinstall regardless of version.
+        include_claude: If True, additionally link ``.claude/skills/<name>``
+            to the canonical ``.agents/skills/<name>`` directory for Claude
+            Code, which (unlike Codex and GitHub Copilot) does not scan
+            ``.agents/skills`` natively.
     """
     from unity_bridge.core.project import find_unity_project_root, get_bridge_paths
+    from unity_bridge.core.skill_links import SkillLinkError, create_directory_link
 
     bridge_version = _get_bridge_version()
     root = project_root or find_unity_project_root(Path.cwd())
@@ -205,6 +249,7 @@ async def install(
 
     target_dir = get_bridge_paths(root).editor_bridge_dir
     skill_target_dir = _get_skill_target_dir(root)
+    claude_link_dir = _get_claude_skill_link_dir(root)
     skill_source_dir = _get_skill_source_dir()
     source_dir = _get_bridge_source_dir()
 
@@ -226,13 +271,19 @@ async def install(
     bridge_up_to_date = existing is not None and _is_bridge_up_to_date(source_dir, target_dir)
     skill_had_existing = (skill_target_dir / "SKILL.md").is_file()
     skill_up_to_date = _is_skill_up_to_date(skill_source_dir, skill_target_dir)
-    if not force and bridge_up_to_date and skill_up_to_date:
+    claude_link_up_to_date = not include_claude or _is_claude_link_up_to_date(
+        claude_link_dir, skill_target_dir
+    )
+    if not force and bridge_up_to_date and skill_up_to_date and claude_link_up_to_date:
         return CommandResult(
             success=True,
             data={
                 "action": "up_to_date",
                 "version": bridge_version,
                 "skill": _skill_result("up_to_date", skill_target_dir, 0),
+                "claude_link": _claude_link_result(
+                    include_claude, claude_link_dir, "up_to_date" if include_claude else "skipped"
+                ),
             },
         )
 
@@ -250,6 +301,19 @@ async def install(
     if force or not skill_up_to_date:
         skill_checksums = _copy_skill_files(skill_source_dir, skill_target_dir, root)
 
+    claude_link_action = "skipped"
+    if include_claude:
+        try:
+            claude_link_action = create_directory_link(claude_link_dir, skill_target_dir)
+        except SkillLinkError as exc:
+            return CommandResult(
+                success=False,
+                error=(
+                    "Bridge and skill files installed, but could not link "
+                    f".claude/skills/{_SKILL_NAME}: {exc}"
+                ),
+            )
+
     action = _install_action(existing is not None, bool(checksums), bool(skill_checksums))
     skill_action = "up_to_date"
     if skill_checksums:
@@ -262,6 +326,7 @@ async def install(
             "files_copied": len(checksums),
             "target_dir": str(target_dir),
             "skill": _skill_result(skill_action, skill_target_dir, len(skill_checksums)),
+            "claude_link": _claude_link_result(include_claude, claude_link_dir, claude_link_action),
         },
     )
 
@@ -344,6 +409,7 @@ def _check_skill_status(project_root: Path, skill_source_dir: Path | None) -> di
         "installed": installed,
         "status": status,
         "target_dir": str(target_dir),
+        "claude_link": _check_claude_link_status(project_root),
     }
 
 
@@ -505,12 +571,23 @@ def install_cli(
         bool,
         typer.Option("--force", help="Force reinstall."),
     ] = False,
+    include_claude: Annotated[
+        bool,
+        typer.Option(
+            "--include-claude",
+            help=(
+                "Also link .claude/skills/unity-bridge-cli to the canonical "
+                ".agents/skills copy, for Claude Code. Codex and GitHub "
+                "Copilot need no extra step -- both read .agents/skills directly."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Install or update the C# bridge files."""
     from unity_bridge.core.output import print_result
 
     effective_root = project or (ctx.obj.config.project_root if ctx.obj else None)
-    result = asyncio.run(install(effective_root, check, force))
+    result = asyncio.run(install(effective_root, check, force, include_claude))
     print_result(result, ctx.obj.formatter)
 
 

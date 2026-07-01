@@ -445,3 +445,105 @@ class TestInstall:
 
         assert result.success is False
         assert "not found" in result.error
+
+
+# ---------------------------------------------------------------------------
+# install --include-claude (Claude Code skill link)
+# ---------------------------------------------------------------------------
+
+
+class TestInstallIncludeClaude:
+    async def test_default_does_not_create_claude_link(
+        self, fake_project: Path, tmp_path: Path
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        bridge_source = _create_fake_bridge_source(tmp_path)
+        skill_source = _create_fake_skill_source(tmp_path)
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=bridge_source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            result = await lifecycle.install(fake_project)
+
+        assert result.success is True
+        assert result.data["claude_link"]["included"] is False
+        assert not (fake_project / ".claude" / "skills" / "unity-bridge-cli").exists()
+
+    async def test_include_claude_creates_link(
+        self, fake_project: Path, tmp_path: Path
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        bridge_source = _create_fake_bridge_source(tmp_path)
+        skill_source = _create_fake_skill_source(tmp_path)
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=bridge_source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            result = await lifecycle.install(fake_project, include_claude=True)
+
+        assert result.success is True
+        assert result.data["claude_link"]["included"] is True
+        assert result.data["claude_link"]["action"] in ("symlink", "junction")
+        link_dir = fake_project / ".claude" / "skills" / "unity-bridge-cli"
+        assert (link_dir / "SKILL.md").is_file()
+        from unity_bridge.core.skill_links import is_directory_link
+
+        assert is_directory_link(link_dir)
+
+    async def test_include_claude_idempotent(
+        self, fake_project: Path, tmp_path: Path
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        bridge_source = _create_fake_bridge_source(tmp_path)
+        skill_source = _create_fake_skill_source(tmp_path)
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=bridge_source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            await lifecycle.install(fake_project, include_claude=True)
+            result = await lifecycle.install(fake_project, include_claude=True)
+
+        assert result.success is True
+        assert result.data["action"] == "up_to_date"
+        assert result.data["claude_link"]["action"] == "up_to_date"
+
+    async def test_include_claude_reports_conflict_without_deleting_content(
+        self, fake_project: Path, tmp_path: Path
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        bridge_source = _create_fake_bridge_source(tmp_path)
+        skill_source = _create_fake_skill_source(tmp_path)
+        conflict_dir = fake_project / ".claude" / "skills" / "unity-bridge-cli"
+        conflict_dir.mkdir(parents=True)
+        sentinel = conflict_dir / "user_notes.md"
+        sentinel.write_text("my notes", encoding="utf-8")
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=bridge_source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            result = await lifecycle.install(fake_project, include_claude=True)
+
+        assert result.success is False
+        assert "claude" in result.error.lower()
+        assert sentinel.exists()
+
+    async def test_check_reports_claude_link_status(
+        self, fake_project: Path, tmp_path: Path
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        bridge_source = _create_fake_bridge_source(tmp_path)
+        skill_source = _create_fake_skill_source(tmp_path)
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=bridge_source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            await lifecycle.install(fake_project, include_claude=True)
+            result = await lifecycle.install(fake_project, check=True)
+
+        assert result.success is True
+        assert result.data["skill"]["claude_link"]["linked"] is True
