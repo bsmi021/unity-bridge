@@ -1,6 +1,6 @@
 # Unity 6.4 Capability Delta Analysis
 
-Last updated: 2026-06-30
+Last updated: 2026-07-01
 
 ## Purpose
 
@@ -153,40 +153,37 @@ upgrade:
 | **Adaptive Performance redesigned scaler UI** — add/remove/configure ScriptableObject-based scalers directly in a profile (Unity 6.4) | `WhatsNewUnity64.html` | Bridge's `adaptive-performance` handler is read-only (scaler profile listing). This is primarily an Editor-UI change; underlying scripting API change not confirmed — low priority unless scripting surface is independently verified to have changed. |
 | **ECS Core packages** (Entities/Collections/Mathematics/Entities Graphics ship with Editor by default, Unity 6.4) | `WhatsNewUnity64.html` | Packaging change only — bridge's `entities` handler already covers world/system/entity-count inspection with reflection-safe optional handling. No action required. |
 
-### 4.3 Confirmed unchanged / still genuinely open
+### 4.3 Package-provided Editor systems — resolved (follow-up research, 2026-07-01)
 
-The research could find **no evidence** that Unity 6.4 or 6.5 closed any of
-the five specific gap areas the 2026-06-09 audit flagged:
+Section 4.3 originally left Shader Graph, VFX Graph, Timeline, Cinemachine,
+Localization, and Memory Profiler as an open "absence-of-evidence, not a
+confirmed negative" finding, because the first research pass only checked
+the Editor's generic "What's New" pages, which don't cover package-scoped
+API changes. A dedicated follow-up ran primary-source searches directly
+against each package's Scripting API reference and changelog
+(`docs.unity3d.com/Packages/<id>@<version>/api/...`), with 3-vote
+adversarial verification on every central claim. All nine open items are
+now resolved with direct evidence:
 
-- **C# script AST editing** (Roslyn-based) — no first-party API found.
-- **Adaptive Probe Volume baking scripting API** — APV itself is confirmed
-  **not new** in 6.4 (it dates to 6.0/6.1); manual probe repositioning and
-  Light-Probe-Group→APV conversion remain explicitly unsupported per
-  Unity's own docs. No new baking scripting API surfaced.
-- **Per-sample Profiler drill-down** (`HierarchyFrameDataView`/
-  `RawFrameDataView`) — no changes found.
-- **Memory Profiler package API** — no changes found.
-- **Code Coverage package API** (`com.unity.testtools.codecoverage`) — no
-  changes found in the Editor manual's "What's New" pages.
+| Subsystem | Verdict | Evidence |
+|---|---|---|
+| **Timeline** (`com.unity.timeline`) | **Buildable now — full authoring** | `TimelineAsset.CreateTrack<T>()` (4 overloads incl. parented tracks), `TrackAsset.CreateClip<T>()`/`CreateDefaultClip()`/`GetClips()`/`DeleteClip()`, `PlayableDirector.time` + `.Evaluate()` for scrubbing — all public, stable since package 1.6, present in 1.8.12 (the version bundled with Unity 6.4). Zero claims refuted. |
+| **Cinemachine** (`com.unity.cinemachine` 3.x) | **Buildable now — full authoring** | `Unity.Cinemachine.CinemachineCamera` (renamed from `CinemachineVirtualCamera` in 3.x), `Priority`/`PrioritySettings`, `Lens`/`LensSettings`, `Follow`/`LookAt`/`Target`, `GetCinemachineComponent`, `CinemachineBrain` for active-camera/blend introspection. Zero claims refuted (3/3 confirmed each). Full scene enumeration needs a standard hierarchy walk (existing bridge pattern) since `CinemachineCore.GetVirtualCamera` only tracks currently-active cameras. |
+| **Localization** (`com.unity.localization`) | **Buildable now — full authoring** | `LocalizationEditorSettings` for Locale/StringTableCollection CRUD, `StringTable.AddEntry`, static `Csv`/`Xliff` classes for import/export. Zero claims refuted. Editor-assembly-only (`UnityEditor.Localization.*`), which is fine for a bridge handler. |
+| **Memory Profiler** (core `Unity.Profiling.Memory.MemoryProfiler`, no package needed) | **Buildable now — capture only** | `MemoryProfiler.TakeSnapshot(string path, Action<string,bool> finishCallback, CaptureFlags captureFlags)` confirmed exact (the repo's own speculative citation matched verbatim) — ships with Unity core since at least 6000.0, present through 6.4/6.5. Async/callback-based, writes a `.snap` file. The `com.unity.memoryprofiler` package's *own* namespace was checked and confirmed to contain no capture/load/diff API (only a metadata-tagging helper) — load/diff/compare of existing snapshots remains a genuine capability gap. Batch-mode support is undocumented either way (not confirmed, not denied). |
+| **VFX Graph** (`com.unity.visualeffectgraph`) | **Read-only only** | `VisualEffectAsset.GetEvents()`/`GetExposedProperties()` are public and asset-only (no scene/play mode needed) — confirmed against `UnityCsReference` source and ScriptReference, zero claims refuted. True graph authoring (add/remove nodes, systems, blocks) and even system-name enumeration are internal-only or require instantiating a live `VisualEffect` component in a scene. |
+| **Shader Graph** (`com.unity.shadergraph`) | **Not implementable** | No public API for node enumeration, property get/set, or compile/save exists across six independent fetches spanning package versions 3.3–17.5. `ShaderGraphImporter` covers only the asset-import pipeline. This is a genuine Unity-side capability gap, not a research shortfall. |
+| **Code Coverage** (`com.unity.testtools.codecoverage`) 6.4/6.5 delta | **No bridge changes needed** | The only package release in the 6.4/6.5 window (1.3.0, 2026-01-22) was fixes/behavior-only (removed an unused `CoverageFormat` class, changed `pathFilters` inclusion/exclusion ordering semantics, bug fixes) — zero new flags/formats/hooks. The existing `CodeCoverageCommandHandler.cs`/`code_coverage.py` already cover the stable surface. One follow-up: review whether the bridge's `pathFilters` handling assumes exclusions apply before inclusions, since 1.3.0 changed that ordering. |
+| **`Unity.Hierarchy` namespace** (Unity 6.5 core) | **Real, but marginal value for this bridge** | The namespace is real: `Unity.Hierarchy.Editor.HierarchyWindow` (the class behind Unity 6.5's actual shipped Hierarchy window) exposes `SetSearchText()`, `UpdateEditorSelection()`, a `View` property, and customization events. A separate, unrelated generic tree data structure (`Hierarchy`/`HierarchyFlattened`/`HierarchyViewModel`) also exists but is not tied to the real window. `HierarchyWindow` inherits `EditorWindow`, so it needs a live Editor GUI session (consistent with how this bridge already runs, via `EditorApplication.update` — not literal `-batchmode`). Practical verdict: this offers narrow value (search-box/selection-sync on the real window) that the bridge's existing `query-hierarchy`/`get-selection` commands already substantially cover — low priority. |
 
-This is an **absence-of-evidence finding, not a confirmed negative** — the
-Editor manual's "What's New" pages don't cover package-scoped changelogs in
-detail. A follow-up pass should check the package-level changelogs directly
-(`com.unity.testtools.codecoverage`, Memory Profiler package docs,
-`com.unity.shadergraph`, `com.unity.vfx`, `com.unity.timeline`,
-`com.unity.cinemachine`, `com.unity.localization`) before concluding these
-gaps are truly unaddressable in the current Unity release line. This repo's
-own recent commits ("raise bridge coverage above ninety percent", "Fix code
-coverage PackageInfo ambiguity") suggest active engagement with the Code
-Coverage package specifically, making it the best candidate for a focused
-follow-up.
-
-One additional unresolved lead, flagged at lower confidence: a Unity 6.5
-"What's New" claim about new public Hierarchy Window APIs under a
-`Unity.Hierarchy` namespace (`HierarchyModule`/`HierarchyCoreModule`) was
-adversarially refuted on *framing* (overstating novelty), but all three
-verifiers independently confirmed the underlying primary-source quote is
-real. Worth a direct, narrow follow-up rather than treating as closed.
+**What changed from the original (incorrect) assumption**: three subsystems
+previously assumed to be permanent "zero coverage" gaps — Timeline,
+Cinemachine, Localization — turn out to have full, stable, public authoring
+APIs and are genuinely buildable today. Memory Profiler snapshot *capture*
+is also buildable (the repo's own speculative API citation was confirmed
+exact). Shader Graph is now a **confirmed** dead end rather than an open
+question, which matters because it stops future research/build effort
+being spent re-litigating it.
 
 ## 5. Recommended Priorities
 
@@ -218,33 +215,39 @@ ranked by leverage:
    escape hatch (cheapest way to eliminate "not implemented" dead-ends for
    any future Unity API the bridge hasn't dedicated a handler to yet).
 
-### P2 — Package-provided Editor systems (largest remaining surface area)
-10. Shader Graph / VFX Graph / Timeline / Cinemachine / Localization — zero
-    coverage; each requires a dedicated handler with package-presence
-    detection (pattern already established for Entities/Adaptive
-    Performance).
-11. Memory Profiler package snapshot capture, per-sample Profiler
-    drill-down, Adaptive Probe Volume scripting API — confirmed still
-    absent from Unity itself as of 6.4/6.5; revisit if/when Unity ships
-    first-party APIs for these.
-
-### Follow-up research (not yet resolved)
-- Direct package-changelog check for Code Coverage, Memory Profiler, Shader
-  Graph, VFX Graph, Timeline, Cinemachine, Localization (the Editor "What's
-  New" pages don't cover package-scoped API changes). **This is the
-  biggest limitation of this report**: the web-research workflow's own
-  brief was to enumerate capabilities in these five package-provided
-  systems, and it surfaced version/release facts (ECS packaging, Project
-  Auditor, Rendering Statistics, EntityId) instead — by its own admission,
-  Shader Graph, VFX Graph, Timeline, Cinemachine, and Localization "were
-  not substantively researched." If controlling these systems matters for
-  the "complete control" goal, they need a dedicated, narrower research
-  pass (and likely a Unity Editor instance to introspect against directly,
-  since these are package APIs rather than core Editor manual content).
-- Verify the `Unity.Hierarchy` / `HierarchyModule` / `HierarchyCoreModule`
-  claim directly against Unity 6.5 Scripting API reference — adversarial
-  review confirmed the underlying primary-source quote is real but flagged
-  the claim's framing as overreach; worth a narrow, direct check.
+### P2 — Package-provided Editor systems (resolved by follow-up research, §4.3)
+10. **Buildable now — build these**: `timeline-operation` (create-track,
+    create-clip, get-clips, delete-clip, director time/evaluate),
+    `cinemachine-operation` (camera CRUD, priority, lens, follow/lookat,
+    brain/blend introspection via existing hierarchy-walk pattern for full
+    scene enumeration since `CinemachineCore` only tracks active cameras),
+    `localization-operation` (locale CRUD, string-table-collection CRUD,
+    string entry add/update, CSV/XLIFF import-export), and a
+    `memory-profiler` command wrapping the confirmed-exact
+    `Unity.Profiling.Memory.MemoryProfiler.TakeSnapshot` (capture only —
+    load/diff of existing `.snap` files has no public API and stays a gap).
+11. **Buildable now, narrow scope**: `vfx-asset-info` — read-only, exposing
+    only `VisualEffectAsset.GetEvents()`/`GetExposedProperties()`. Do not
+    attempt VFX graph authoring or system-name enumeration (would require
+    instantiating a scene GameObject — a heavier pattern needing separate
+    design sign-off).
+12. **Confirmed not implementable — stop researching**: Shader Graph. No
+    public node/property/compile API exists at any checked version
+    (3.3–17.5). Documented here so future passes don't re-spend budget.
+13. **Low priority / marginal value**: `Unity.Hierarchy` namespace
+    (`HierarchyWindow.SetSearchText`/`UpdateEditorSelection`) — real API,
+    but duplicates value the bridge's existing `query-hierarchy`/
+    `get-selection` commands already provide; only worth building if a
+    concrete need for hierarchy-window search-box/selection-sync surfaces.
+14. **No action**: Code Coverage — the only 6.4/6.5-window package release
+    (1.3.0) was fixes-only; existing handler already covers the stable
+    surface. One follow-up code-review item: verify the bridge's
+    `pathFilters` handling against 1.3.0's inclusion/exclusion ordering
+    change.
+15. Per-sample Profiler drill-down (`HierarchyFrameDataView`/
+    `RawFrameDataView`) and Adaptive Probe Volume baking scripting API —
+    still confirmed absent from Unity itself as of 6.4/6.5 (unchanged from
+    §4.1); revisit only if/when Unity ships first-party APIs for these.
 
 ## Appendix A: Current Bridge Capability Inventory (source-derived)
 
