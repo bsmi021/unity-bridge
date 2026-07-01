@@ -50,8 +50,11 @@ def test_skill_mentions_cli_only_interface_and_operation_polling() -> None:
     skill = _read(SKILL_PATH)
 
     assert "Use the CLI first" in skill
-    assert "the MCP server has been fully retired" in skill
-    assert "there is no MCP compatibility mode" in skill
+    # This repo's own internal MCP interface (mcp/ package + serve command)
+    # is retired; the unrelated third-party unity-mcp server is a separate,
+    # optional supplemental tool documented in its own section.
+    assert "internal MCP interface (a `mcp/` package + `serve` command) has been fully retired" in skill
+    assert "unity-bridge vs. unity-mcp" in skill
     assert "unity-bridge operation status COMMAND_ID" in skill
     assert ".claude/unity/" in skill
     assert "UNITY_BRIDGE_EDITOR_READY_TIMEOUT" in skill

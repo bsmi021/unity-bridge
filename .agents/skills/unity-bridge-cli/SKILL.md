@@ -8,6 +8,7 @@ description: >
   Timeline/Cinemachine/Localization/Memory Profiler/VFX asset inspection.
   Prefer CLI commands over raw .claude/unity JSON for retries, timeouts,
   caching, and consistent output.
+allowed-tools: Bash(unity-bridge *), Bash(unity-bridge), Read, Grep, Glob, mcp__unity-mcp__*
 ---
 
 # Unity Bridge CLI
@@ -43,10 +44,55 @@ Global flags go BEFORE the command name:
 
 - This repo ships the Codex skill from `.agents/skills/unity-bridge-cli`; `unity-bridge install` copies it into target Unity projects.
 - Keep the YAML description concise because Codex uses it for skill discovery. Put detailed command coverage in this body and the `references/` files.
-- Use the CLI first. It is the only Codex interface for retries, timeouts, bridge health checks, caching, and formatted errors — the MCP server has been fully retired, there is no MCP compatibility mode.
+- Use the CLI first for anything it covers. It is the only interface with retries, timeouts, bridge health checks, caching, and formatted errors. This repo's own internal MCP interface (a `mcp/` package + `serve` command) has been fully retired — do not reintroduce it. The unrelated third-party `unity-mcp` MCP server (tools prefixed `mcp__unity-mcp__`) may be connected in this environment as a supplemental tool for the specific capability gaps listed in "unity-bridge vs. unity-mcp" below; it bypasses this project's ledger/retry/caching guarantees, so only reach for it when the CLI genuinely cannot do the task.
 - If Unity is busy, poll with `unity-bridge operation status COMMAND_ID` or `operation list`.
 - If a changed skill is not visible in Codex, start a fresh Codex session before debugging the bridge behavior.
 - Before changing this skill or its references, verify the live CLI surface with `unity-bridge --help` and targeted command help.
+
+## unity-bridge vs. unity-mcp (external MCP server)
+
+The third-party `unity-mcp` MCP server (tools prefixed `mcp__unity-mcp__`)
+may be connected in this environment. It is a **different, independently
+maintained Unity automation server** -- not this project's own retired
+internal MCP interface (see "Codex Deployment And Scope" above).
+
+**Default to the `unity-bridge` CLI for everything it covers.** It gives
+retries, timeouts, a durable operation ledger with reload recovery, caching,
+and consistent JSON. `unity-mcp` mutating calls have none of that.
+
+**Escalate to `unity-mcp` only for capabilities `unity-bridge` genuinely
+lacks** (verified in `docs/unity-bridge-audit-and-gap-analysis.md` and
+`docs/unity-6.4-capability-delta-analysis.md` -- re-check those if this table
+looks stale):
+
+| Need | unity-mcp tool(s) | Why not unity-bridge |
+|---|---|---|
+| Write/edit a C# script's body (create, AST-aware method insert/replace, apply text edits) | `Unity_CreateScript`, `Unity_DeleteScript`, `Unity_ManageScript`, `Unity_ScriptApplyEdits`, `Unity_ApplyTextEdits`, `Unity_ValidateScript`, `Unity_FindInFile`, `Unity_Grep` | `script-info` / `script` commands are read-only/info + arbitrary-expression execution only; no script CRUD |
+| Return a screenshot inline, or capture multiple camera angles at once | `Unity_Camera_Capture`, `Unity_SceneView_Capture2DScene`, `Unity_SceneView_CaptureMultiAngleSceneView` | `screenshot` only writes a PNG to disk and returns a path |
+| Drill into why a frame is slow (per-sample time, GC allocation source, bottom-up/top-time trees) | `Unity_Profiler_Get*` tools | `profiler` reports aggregate counters only |
+| Generate a texture/material/sprite/animation from an AI prompt | `Unity_AssetGeneration_*` tools | unity-bridge has no generative capability |
+| Bring a 3D model file from outside the project into Assets | `Unity_ImportExternalModel` | `asset-ext copy`/`move` only operate on paths already inside the project; `asset-ext import-package` only handles `.unitypackage` files -- neither ingests an arbitrary external file |
+| Get a file's content hash before writing, to detect concurrent edits | `Unity_GetSha` | no SHA/precondition support |
+| Browse console logs / artifacts as MCP resources rather than one-shot reads | `Unity_ListResources`, `Unity_ReadResource` | unity-bridge has no resources model |
+
+Note: editing an already-imported asset's importer settings (texture, model, or
+**audio** import properties like `forceToMono`) is *not* a gap -- `import-settings
+set` already reaches `TextureImporter`/`ModelImporter`/`AudioImporter` fields.
+
+For anything not in this table -- hierarchy, components, transforms, scenes,
+prefabs, testing, console, playmode, compilation, assets, materials, shaders,
+build, settings, packages, undo, lightmaps, and everything else in the
+Quick-Scan below -- use `unity-bridge`, even though `unity-mcp` also exposes
+overlapping tools (`ManageGameObject`, `ManageScene`, `ManageAsset`,
+`ManageShader`, `ManageEditor`, `PackageManager_*`, etc.). Those overlapping
+`unity-mcp` tools bypass this project's operation ledger and retry logic, so
+they are a strictly worse choice whenever `unity-bridge` already covers the
+task.
+
+**After any mutating `unity-mcp` call** (especially script edits), verify
+with `unity-bridge test compile` and `unity-bridge console read -T error` --
+`unity-mcp` writes bypass the bridge's reload-recovery and won't show up in
+`operation status`.
 
 ## Decision Tree: "I need to..."
 
@@ -122,6 +168,11 @@ Global flags go BEFORE the command name:
 - `playmode play` / `pause` / `stop` -- play mode
 - `refresh` -- refresh asset database
 - `undo perform` / `undo redo` -- undo/redo
+
+**Edit script bodies, get inline/multi-angle screenshots, drill into
+per-sample profiler data, or generate assets from a prompt:** unity-bridge
+does not support these -- see "unity-bridge vs. unity-mcp" above for the
+matching `mcp__unity-mcp__*` tool.
 - `object-identity selection` / `object-identity resolve --asset-path PATH` -- IDs
 - `project-auditor run --output PATH` -- run Project Auditor if available
 - `search query "t:Material"` -- query Unity Search
@@ -156,7 +207,7 @@ Global flags go BEFORE the command name:
 unity-bridge status                    # Quick alive/dead check
 unity-bridge doctor                    # Full 9-check diagnostics
 unity-bridge version                   # CLI versions
-unity-bridge install [--check|--force] # Install/update C# bridge + project skill
+unity-bridge install [--check|--force|--include-claude] # Install/update C# bridge + project skill
 unity-bridge init                      # Create directory structure
 unity-bridge clean [--dry-run]         # Remove orphaned/stale bridge state files
 unity-bridge operation status COMMAND_ID | operation list
@@ -377,7 +428,7 @@ For detailed argument tables, types, defaults, and examples, read the appropriat
 
 - Unity Editor must be open with ClaudeUnityBridge active.
 - If `unity-bridge status` shows unhealthy, run `unity-bridge doctor`.
-- `unity-bridge install` deploys both the C# bridge and this skill to the Unity project; the skill target is `.agents/skills/unity-bridge-cli`.
+- `unity-bridge install` deploys both the C# bridge and this skill to the Unity project; the canonical skill target is `.agents/skills/unity-bridge-cli`. Codex and GitHub Copilot both scan `.agents/skills` natively, so no further step is needed for them. Claude Code only scans `.claude/skills`, so pass `--include-claude` to also create `.claude/skills/unity-bridge-cli` as a symlink (or an NTFS junction on Windows when symlink privilege is unavailable) back to the canonical directory -- one physical skill, reused across agents.
 - Runtime bridge files live under `.claude/unity/`; do not write raw command JSON there unless you are debugging the bridge protocol itself.
 - In-flight command lifecycle state lives under `.claude/unity/operations/`; use `unity-bridge operation status COMMAND_ID` or `operation list` to inspect accepted/running/recovered commands.
 - `unity-bridge clean` prunes orphaned command/response files, stale `*.tmp` bridge files, and old terminal operation records while preserving active operation records.
