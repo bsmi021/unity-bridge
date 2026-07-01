@@ -13,6 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from unity_bridge.core.timeutil import (
+    optional_int as _optional_int,
+    parse_iso_datetime as _parse_datetime,
+)
+
 logger = logging.getLogger("unity_bridge.health")
 
 
@@ -278,15 +283,6 @@ class HealthMonitor:
         )
 
 
-def _parse_datetime(timestamp_str: str) -> datetime:
-    """Parse heartbeat ISO timestamp into an aware UTC datetime."""
-    normalized = timestamp_str.replace("Z", "+00:00")
-    ts = datetime.fromisoformat(normalized)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    return ts
-
-
 def _heartbeat_busy_reason(
     heartbeat: dict[str, Any],
     include_last_busy: bool,
@@ -339,13 +335,3 @@ def _normalize_busy_reason(reason: str) -> str:
         "assetdatabase_update": "updating",
     }
     return aliases.get(normalized, normalized)
-
-
-def _optional_int(value: Any) -> int | None:
-    """Best-effort int parsing for optional heartbeat counters."""
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None

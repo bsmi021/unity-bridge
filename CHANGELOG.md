@@ -7,7 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **The MCP server interface has been fully retired.** Deleted `src/unity_bridge/mcp/` (server, tool definitions, all schema modules), `src/unity_bridge/commands/serve.py`, the `serve` CLI command, the `mcp` optional-dependency extra, and all MCP-only tests. The `unity-bridge` CLI is now the sole interface — there is no MCP compatibility layer, deprecated or otherwise.
+
+### Changed
+- Refreshed `README.md` to describe the CLI-only support model, Codex skill/agent metadata, live command counts, and material subcommands.
+- Parallel batch execution now classifies command safety by `parameters.operation`, not just command type, so operation-gated commands (`transform-operation`/`serialized-property`/`clipboard`/etc.) only run concurrently for their read-only operations.
+- The global `--timeout` flag and `UNITY_BRIDGE_TIMEOUT` now apply across the whole CLI (previously ignored by every command); a global override is treated as a blanket per-command timeout.
+- Settings command modules (physics2d, audio, time, graphics, environment, lightmap) now build their `set` parameters via a shared `core/settings_params.py` helper, removing ~140 lines of duplicated flag/value boilerplate (bridge payloads unchanged).
+- Shared datetime/int parsing helpers consolidated into `core/timeutil.py` (previously duplicated in `core/health.py` and `core/operation.py`).
+- CLI command/group registration failures are now logged as warnings instead of being silently swallowed.
+- Editor readiness waits now run off the async event loop so MCP/control-plane calls can keep responding while Unity is compiling, importing, or reloading.
+
+### Fixed
+- **`unity-bridge install` (no `--force`) now detects and restores bridge files that are missing or drifted on disk, instead of trusting version-string equality alone.** Previously, if the installed manifest's version matched the current package version, `install` reported `up_to_date` and skipped copying even when a `.cs` file had been deleted or edited out from under it — new files added in a package update with no version bump would silently never reach an already-installed project. The up-to-date check is now checksum-based (mirroring the pattern the project skill installer already used), falling back to version comparison only when the source directory can't be located.
+- Code Coverage bridge handler now aliases `UnityEditor.PackageManager.PackageInfo`
+  explicitly, avoiding Unity 6 compile ambiguity with `UnityEditor.PackageInfo`.
+- **C# bridge: PlayMode test runs and compiles now survive the domain reload they trigger (C5).** A new reload-surviving `BridgeTestRunReporter` (`[InitializeOnLoad]`, re-registers `TestRunnerApi` callbacks each domain load, persists the originating command id in `SessionState`) reports the final result back even though entering play mode reloads the domain and wipes in-memory state — previously PlayMode runs were unreportable and the caller timed out. `CompileCommandHandler` likewise persists the in-flight compile in `SessionState` and completes it on the next domain load (`CompletePendingCompileAfterReload`, run before ledger recovery), and `BridgeOperationLedger.RecoverAfterReload` now skips commands explicitly deferred across a reload instead of force-writing a spurious "interrupted" response. Assembly-reload-lock depth is `SessionState`-backed so a lock taken before a reload survives it. *(Needs in-Editor PlayMode verification.)*
+- **C# bridge: the `compile` handler no longer freezes the Unity Editor.** The blocking `Thread.Sleep` busy-wait on `EditorApplication.isCompiling` (which ran on the main thread Unity needs to drive compilation) was replaced with a non-blocking `EditorApplication.update` poll that returns `running` immediately and writes the terminal response when compilation finishes, never started (nothing to compile), or times out. A compile-triggered domain reload is handled by the existing operation-ledger recovery. *(Needs in-Editor compile verification — no Unity available at change time.)*
+- **C# bridge: `HeartbeatGenerator` now writes atomically** via the shared `WriteAtomic` (temp + fsync + replace) instead of delete-then-move, removing the window where a health check could observe a missing heartbeat file.
+- **C# bridge:** command files are now processed in submission (creation-time) order rather than the unspecified filesystem order; `_processedCommandFiles` is bounded to currently-present files instead of growing for the whole session; `isHealthy` no longer depends on the no-op file watcher; and `bridge-log.jsonl` is size-rotated at 5 MB.
+- A plain command timeout now reports exit code 4 (Timeout) instead of 1.
+- The operation ledger guards against the cross-process (Python/C#) write race: illegal transitions are rejected gracefully instead of raising, and a concurrently-written terminal state is no longer clobbered by a later non-terminal write.
+- Non-idempotent commands that Unity has already accepted are no longer re-sent on retry (preventing duplicate side effects) unless an `idempotencyKey` is supplied.
+- `unity-bridge clean` now reaps response files orphaned by timed-out/terminal operations.
+- The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
+
 ### Added
+- `timeline` CLI group for Timeline package automation: create/list top-level tracks, create/list/delete clips, and evaluate a PlayableDirector (requires com.unity.timeline).
+- `cinemachine` CLI command group for Cinemachine virtual camera inspection and control: list cameras, get camera info, set priority/lens/follow/look-at, and get the active camera.
+- `localization` CLI command group for managing locales, string table collections, entries, and CSV/XLIFF import-export via the Unity Localization package.
+- `memory-profiler` command: capture a Unity Memory Profiler snapshot to disk via `MemoryProfiler.TakeSnapshot` (take-snapshot only; load/diff out of scope).
+- `unity-bridge vfx get-info` for read-only VisualEffectAsset inspection (event names, exposed properties) via reflection, with no compile-time dependency on the optional VFX Graph package.
+- Added coverage-focused unit suites for CLI wrapper dispatch, diagnostics,
+  and output formatting, raising the full `tests/` coverage gate above 90%.
+- Completed Unity test runs now persist durable JSON artifacts under
+  `.claude/unity/test-results`; `test results`, `test failures`, and
+  `test history` can inspect them without re-running Unity.
+- Bridge-initiated test runs now persist progress snapshots/events under
+  `.claude/unity/test-progress`; `test progress` can inspect long-running
+  test commands without waiting for the terminal result.
+- `test events` reads structured per-test progress JSONL for bridge-initiated
+  runs, including started/running/finished events.
+- `test preflight` performs test discovery and selector validation before a run,
+  failing early when too few tests would execute.
+- `test cancel`/`unity_cancel_tests` requests cancellation of an active
+  bridge-initiated Unity Test Runner run and records cancel progress artifacts.
+- `test rerun-failed` reruns only failed test names from the latest or a
+  specified durable Unity test result artifact.
+- `test run --min-tests N` can fail successful Unity responses that executed
+  too few tests, preventing zero-test filters from being treated as proof.
+- `test run`/`unity_run_tests` now accept Unity Test Framework selectors for full
+  test names, regex-style groups, categories, and assemblies.
+- Optional `coverage` CLI group, `code-coverage` bridge command, and `unity_code_coverage`
+  MCP tool for Code Coverage package availability/install, recording control, and report
+  discovery/summarization without requiring `com.unity.testtools.codecoverage` at compile time.
+- Python-side queued command dispatch now persists queued command payloads outside Unity's command directory and dispatches them only after editor readiness returns; `unity_submit_command` returns an operation ID immediately for MCP clients that need a responsive control plane while Unity is busy.
+- Package Manager automation now exposes `package batch`, `package pack`, and
+  `package clear-cache --yes`, with MCP schema fields for `packagesToAdd`,
+  `packagesToRemove`, `packageFolder`, `targetFolder`, and `confirmClearCache`.
 - Editor readiness health state distinguishes bridge liveness from command readiness and waits before writing command files.
 - Durable bridge operation state machine with per-command JSON snapshots, JSONL transition logs, Unity domain-generation tracking, atomic C# response writes, reload recovery, stale terminal ledger cleanup, and `operation status` / `unity_operation_status` inspection surfaces.
 - **Unity 6.4 Phase 5: Built-in core packages** — 3 command groups + MCP tools:
@@ -50,6 +108,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 17 new unit tests (`tests/unit/test_phase7_query_report.py`)
 
 ### Fixed
+- Updated deprecated MCP compatibility tests to pin the current 97-tool surface
+  and explicitly classify `unity_submit_command` as a client-side handler.
+- Package Manager client requests are now serialized in the C# bridge so a
+  second UPM request is rejected while one is pending, matching Unity's
+  sequential `PackageManager.Client` requirement.
+- Unity bridge response and operation JSON parsing now tolerates UTF-8 BOM-prefixed files, and the C# atomic writer now emits UTF-8 without BOM for bridge JSON files.
+- Hardened bridge operation ledger writes with unique temp files, bounded retry/backoff, and clearer response-vs-ledger failure logging so transient Bridge state file locks do not masquerade as Unity compile/build failures.
+- `unity-bridge clean` now prunes stale bridge `*.tmp` files from command, response, and operation state directories while still preserving active operation records.
 - Packaged command-line installs now bundle `ClaudeCodeBridge/`, so `unity-bridge install` deploys the current C# bridge scripts from normal wheel installs as well as editable source installs.
 - Restored `unity-bridge playmode stop` by sending canonical `operation` payloads and accepting legacy `action` aliases in the C# bridge handler.
 - Applied the advertised `package list --source` filter in the C# Package Manager handler, including source validation and filtered list responses.

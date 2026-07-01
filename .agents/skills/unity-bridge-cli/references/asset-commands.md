@@ -102,14 +102,82 @@ unity-bridge asset-ext export Assets/Prefabs/ -o export.unitypackage
 unity-bridge asset-ext import-package downloaded.unitypackage
 ```
 
-### `asset-ext reserialize` (not yet registered)
+---
+
+## package
+
+Unity Package Manager operations. JSON output reports operation, package data,
+and command status. Package Manager client operations must run sequentially, so
+do not batch these through `unity-bridge batch --parallel`.
+
+### `package list`
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `--offline` | flag | no | Use cached data only |
+| `--include-indirect` | flag | no | Include transitive dependencies |
+| `--source` / `-s` | TEXT | no | Filter: registry, git, embedded, local |
 
 ```bash
-unity-bridge asset-ext reserialize
-unity-bridge asset-ext reserialize --paths "Assets/Prefabs/Player.prefab"
+unity-bridge package list
+unity-bridge package list --include-indirect --source git
 ```
 
----
+### `package search`
+
+Searches by package ID/name, not free-text keywords. Use `--all` to list all
+discoverable packages.
+
+```bash
+unity-bridge package search com.unity.inputsystem
+unity-bridge package search ignored --all
+```
+
+### `package add`
+
+Accepts Unity Package Manager identifiers:
+
+```bash
+unity-bridge package add com.unity.inputsystem
+unity-bridge package add com.unity.inputsystem@1.7.0
+unity-bridge package add https://github.com/company/package.git#v1.2.3
+unity-bridge package add file:/C:/Packages/com.company.tools
+unity-bridge package add file:/C:/Packages/com.company.tools-1.0.0.tgz
+```
+
+### `package batch`
+
+Runs one dependency resolution pass for multiple additions/removals.
+
+```bash
+unity-bridge package batch --add com.unity.inputsystem --remove com.unity.timeline
+unity-bridge package batch --add com.unity.addressables --add com.unity.localization
+```
+
+### `package remove` / `package info` / `package embed` / `package resolve`
+
+```bash
+unity-bridge package remove com.unity.timeline
+unity-bridge package info com.unity.inputsystem
+unity-bridge package embed com.unity.inputsystem
+unity-bridge package resolve
+```
+
+### `package pack`
+
+Creates a registry-format `.tgz` from a folder containing `package.json`.
+
+```bash
+unity-bridge package pack Packages/com.company.tools Build/Packages
+```
+
+### `package clear-cache`
+
+Clears Unity's global package cache. This is disruptive and requires `--yes`.
+
+```bash
+unity-bridge package clear-cache --yes
+```
 
 ## import-settings (registered)
 
@@ -159,23 +227,29 @@ unity-bridge import-settings template-apply mobile-tex Assets/Textures/other.png
 
 ---
 
-## material (registered -- positional ACTION)
+## material (registered group)
+
+### `material modify` / `material create` / `material duplicate`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `ACTION` | positional | yes | modify, create, duplicate, enable-keyword, disable-keyword, get-keywords, set-render-queue, copy-properties |
 | `PATH` | positional | yes | Material asset path |
-| `--properties` | JSON | no | JSON property overrides (for modify) |
+| `--properties` | JSON | no | JSON property overrides for `modify` |
 
 ```bash
 unity-bridge material modify Assets/Materials/Player.mat --properties '{"_Color":{"r":1}}'
 unity-bridge material create Assets/Materials/New.mat
 unity-bridge material duplicate Assets/Materials/Base.mat
+```
+
+### Material keyword, render queue, and copy subcommands
+
+```bash
 unity-bridge material enable-keyword Assets/Materials/Player.mat _EMISSION
 unity-bridge material disable-keyword Assets/Materials/Player.mat _EMISSION
 unity-bridge material get-keywords Assets/Materials/Player.mat
 unity-bridge material set-render-queue Assets/Materials/Player.mat 3000
-unity-bridge material copy-properties Assets/Materials/Source.mat Assets/Materials/Target.mat
+unity-bridge material copy-properties Assets/Materials/Target.mat Assets/Materials/Source.mat
 ```
 
 ---
@@ -214,7 +288,7 @@ unity-bridge shader keywords "Standard" --global
 
 ---
 
-## find-references (not yet registered)
+## find-references
 
 ```bash
 unity-bridge find-references Assets/Prefabs/Enemy.prefab
@@ -222,7 +296,7 @@ unity-bridge find-references Assets/Prefabs/Enemy.prefab
 
 ---
 
-## preset (not yet registered)
+## preset
 
 ```bash
 unity-bridge preset create Assets/Materials/Lit.mat Assets/Presets/LitMat.preset

@@ -1,4 +1,4 @@
-"""Package Manager commands: list, search, add, remove, info, embed, resolve."""
+"""Package Manager commands for Unity Package Manager operations."""
 
 from __future__ import annotations
 
@@ -19,10 +19,13 @@ VALID_OPERATIONS = frozenset(
         "search",
         "search-all",
         "add",
+        "batch",
         "remove",
         "info",
         "embed",
         "resolve",
+        "pack",
+        "clear-cache",
     }
 )
 
@@ -39,6 +42,11 @@ async def package_operation(
     package_name: str | None = None,
     query: str | None = None,
     source: str | None = None,
+    packages_to_add: list[str] | None = None,
+    packages_to_remove: list[str] | None = None,
+    package_folder: str | None = None,
+    target_folder: str | None = None,
+    confirm_clear_cache: bool = False,
     offline_mode: bool = False,
     include_indirect: bool = False,
     timeout: float = 60.0,
@@ -47,11 +55,16 @@ async def package_operation(
 
     Args:
         bridge: Active bridge connection.
-        action: Operation — list, search, search-all, add, remove, info, embed, resolve.
+        action: Package operation to perform.
         identifier: Package identifier for add (name@version or git URL).
         package_name: Package name for remove/info/embed.
         query: Search query for search operation.
         source: Filter by source type for list (registry, git, embedded, local).
+        packages_to_add: Package identifiers for batch add/remove.
+        packages_to_remove: Package names for batch add/remove.
+        package_folder: Folder containing package.json for pack.
+        target_folder: Folder where pack writes the .tgz file.
+        confirm_clear_cache: Required confirmation flag for clear-cache.
         offline_mode: Use cached data only for list.
         include_indirect: Include transitive dependencies for list.
         timeout: Command timeout in seconds.
@@ -76,6 +89,16 @@ async def package_operation(
         params["query"] = query
     if source is not None:
         params["source"] = source
+    if packages_to_add is not None:
+        params["packagesToAdd"] = packages_to_add
+    if packages_to_remove is not None:
+        params["packagesToRemove"] = packages_to_remove
+    if package_folder is not None:
+        params["packageFolder"] = package_folder
+    if target_folder is not None:
+        params["targetFolder"] = target_folder
+    if confirm_clear_cache:
+        params["confirmClearCache"] = True
     if offline_mode:
         params["offlineMode"] = True
     if include_indirect:
@@ -158,6 +181,36 @@ def package_add_cli(
     print_result(result, state.formatter)
 
 
+@package_app.command("batch")
+def package_batch_cli(
+    ctx: typer.Context,
+    add: Annotated[
+        list[str] | None,
+        typer.Option("--add", help="Package identifier to add; repeat for multiple."),
+    ] = None,
+    remove: Annotated[
+        list[str] | None,
+        typer.Option("--remove", help="Package name to remove; repeat for multiple."),
+    ] = None,
+) -> None:
+    """Add and remove packages in one dependency resolution pass."""
+    from unity_bridge.core.output import print_result
+
+    if not add and not remove:
+        raise typer.BadParameter("Pass at least one --add or --remove value.")
+
+    state = ctx.obj
+    result = asyncio.run(
+        package_operation(
+            state.bridge,
+            "batch",
+            packages_to_add=add,
+            packages_to_remove=remove,
+        )
+    )
+    print_result(result, state.formatter)
+
+
 @package_app.command("remove")
 def package_remove_cli(
     ctx: typer.Context,
@@ -194,6 +247,48 @@ def package_embed_cli(
 
     state = ctx.obj
     result = asyncio.run(package_operation(state.bridge, "embed", package_name=name))
+    print_result(result, state.formatter)
+
+
+@package_app.command("pack")
+def package_pack_cli(
+    ctx: typer.Context,
+    package_folder: Annotated[str, typer.Argument(help="Folder containing package.json")],
+    target_folder: Annotated[str, typer.Argument(help="Folder to write the .tgz file into")],
+) -> None:
+    """Pack a UPM package folder into a .tgz tarball."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        package_operation(
+            state.bridge,
+            "pack",
+            package_folder=package_folder,
+            target_folder=target_folder,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@package_app.command("clear-cache")
+def package_clear_cache_cli(
+    ctx: typer.Context,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Confirm clearing the global Unity package cache."),
+    ] = False,
+) -> None:
+    """Clear Unity's global Package Manager cache."""
+    from unity_bridge.core.output import print_result
+
+    if not yes:
+        raise typer.BadParameter("Pass --yes to clear Unity's global package cache.")
+
+    state = ctx.obj
+    result = asyncio.run(
+        package_operation(state.bridge, "clear-cache", confirm_clear_cache=True)
+    )
     print_result(result, state.formatter)
 
 

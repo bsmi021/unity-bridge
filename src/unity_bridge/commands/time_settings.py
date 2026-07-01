@@ -8,6 +8,19 @@ from typing import Annotated
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.settings_params import SettingField, build_set_params
+
+_TIME_FIELDS = [
+    SettingField("fixed_delta", ("fixedDeltaTime",), "setFixedDeltaTime"),
+    SettingField("maximum_delta", ("maximumDeltaTime",), "setMaximumDeltaTime"),
+    SettingField("time_scale", ("timeScale",), "setTimeScale"),
+    SettingField(
+        "max_particle_delta",
+        ("maximumParticleDeltaTime",),
+        "setMaximumParticleDeltaTime",
+    ),
+    SettingField("capture_delta", ("captureDeltaTime",), "setCaptureDeltaTime"),
+]
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -51,24 +64,7 @@ async def time_set(
         capture_delta: Capture framerate timestep (0 = variable).
         timeout: Timeout in seconds.
     """
-    params: dict[str, object] = {"operation": "set"}
-
-    if fixed_delta is not None:
-        params["fixedDeltaTime"] = fixed_delta
-        params["setFixedDeltaTime"] = True
-    if maximum_delta is not None:
-        params["maximumDeltaTime"] = maximum_delta
-        params["setMaximumDeltaTime"] = True
-    if time_scale is not None:
-        params["timeScale"] = time_scale
-        params["setTimeScale"] = True
-    if max_particle_delta is not None:
-        params["maximumParticleDeltaTime"] = max_particle_delta
-        params["setMaximumParticleDeltaTime"] = True
-    if capture_delta is not None:
-        params["captureDeltaTime"] = capture_delta
-        params["setCaptureDeltaTime"] = True
-
+    params = build_set_params("set", _TIME_FIELDS, locals())
     return await bridge.send_command_with_retry(
         command_type="time-settings",
         parameters=params,

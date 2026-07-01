@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using UnityEditor;
 using UnityEngine;
 
@@ -22,7 +23,10 @@ namespace BWS.Editor.ClaudeCodeBridge
         private const string StateFailed = "failed";
         private const string StateInterrupted = "interrupted";
         private const string StateAbandoned = "abandoned";
+        private const int AtomicWriteMaxAttempts = 5;
+        private const int AtomicWriteInitialDelayMs = 25;
 
+        private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false, true);
         private static readonly string ProjectRoot = Directory.GetParent(Application.dataPath).FullName;
         private static readonly string OperationsPath =
             Path.Combine(ProjectRoot, ".claude", "unity", "operations");
@@ -155,9 +159,21 @@ namespace BWS.Editor.ClaudeCodeBridge
         private static bool ShouldInterruptAfterReload(OperationRecord record)
         {
             if (ResponseExists(record)) return false;
+            // Commands that intentionally span a domain reload (a PlayMode test
+            // run, or a compile that triggered the reload) own their own
+            // completion and must not be force-interrupted here, or the caller
+            // would receive a spurious "interrupted" before the real result.
+            if (IsDeferredAcrossReload(record.commandId)) return false;
             return record.state == StateAccepted
                 || record.state == StateRunning
                 || record.state == StateRecovering;
+        }
+
+        private static bool IsDeferredAcrossReload(string commandId)
+        {
+            if (string.IsNullOrEmpty(commandId)) return false;
+            return commandId == SessionState.GetString(BridgeTestRunReporter.CommandIdKey, "")
+                || commandId == SessionState.GetString(CompileCommandHandler.PendingCommandIdKey, "");
         }
 
         private static bool ResponseExists(OperationRecord record)
@@ -213,7 +229,10 @@ namespace BWS.Editor.ClaudeCodeBridge
                     domainGeneration = record.domainGeneration
                 };
                 string path = Path.Combine(OperationsPath, record.commandId + ".events.jsonl");
-                File.AppendAllText(path, JsonUtility.ToJson(evt, false) + Environment.NewLine);
+                File.AppendAllText(
+                    path,
+                    JsonUtility.ToJson(evt, false) + Environment.NewLine,
+                    Utf8NoBom);
             }
             catch (Exception ex)
             {
@@ -224,16 +243,76 @@ namespace BWS.Editor.ClaudeCodeBridge
         public static void WriteAtomic(string path, string content)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
-            string tempPath = path + ".tmp";
-            File.WriteAllText(tempPath, content);
+            Exception lastException = null;
+
+            for (int attempt = 1; attempt <= AtomicWriteMaxAttempts; attempt++)
+            {
+                string tempPath = CreateTempPath(path);
+                try
+                {
+                    WriteTempFile(tempPath, content);
+                    ReplaceOrMove(tempPath, path);
+                    return;
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    lastException = ex;
+                    TryDeleteTemp(tempPath);
+                    if (attempt >= AtomicWriteMaxAttempts)
+                        break;
+
+                    BridgeLogger.LogWarning(
+                        $"Atomic write attempt {attempt}/{AtomicWriteMaxAttempts} failed for '{path}': {ex.Message}");
+                    Thread.Sleep(RetryDelayMs(attempt));
+                }
+            }
+
+            throw new IOException(
+                $"Atomic write failed for '{path}' after {AtomicWriteMaxAttempts} attempts: {lastException?.Message}",
+                lastException);
+        }
+
+        private static string CreateTempPath(string path)
+        {
+            return $"{path}.{Guid.NewGuid():N}.tmp";
+        }
+
+        private static void WriteTempFile(string tempPath, string content)
+        {
+            using var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+            using var writer = new StreamWriter(stream, Utf8NoBom);
+            writer.Write(content);
+            writer.Flush();
+            stream.Flush(true);
+        }
+
+        private static void ReplaceOrMove(string tempPath, string path)
+        {
             if (File.Exists(path))
             {
                 File.Replace(tempPath, path, null);
+                return;
             }
-            else
+
+            File.Move(tempPath, path);
+        }
+
+        private static void TryDeleteTemp(string tempPath)
+        {
+            try
             {
-                File.Move(tempPath, path);
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
             }
+            catch
+            {
+                // Best-effort cleanup; stale temp files are pruned by the CLI clean command.
+            }
+        }
+
+        private static int RetryDelayMs(int attempt)
+        {
+            return AtomicWriteInitialDelayMs * (1 << Math.Min(attempt - 1, 4));
         }
 
         private static string ResponsePath(string commandId, string commandType)

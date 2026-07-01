@@ -87,6 +87,9 @@ namespace BWS.Editor.ClaudeCodeBridge
             SetupFileWatcher();
             if (!_recoveryScanned)
             {
+                // Complete a compile that finished by triggering this reload,
+                // before generic recovery would mark it interrupted.
+                CompileCommandHandler.CompletePendingCompileAfterReload();
                 BridgeOperationLedger.RecoverAfterReload();
                 _recoveryScanned = true;
             }
@@ -130,8 +133,9 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 isInitialized = inst._isInitialized,
                 isWatcherActive = inst._commandWatcher != null && inst._commandWatcher.EnableRaisingEvents,
-                isHealthy = inst._isInitialized && inst._commandWatcher != null
-                    && inst._commandWatcher.EnableRaisingEvents,
+                // Health reflects the poll-driven processing loop, not the file
+                // watcher (which only logs — all processing happens in Update).
+                isHealthy = inst._isInitialized,
                 handlerCount = inst._commandHandlers.Count,
                 processedCount = inst._processedCommandFiles.Count,
                 playModeState = inst._lastPlayModeState.ToString(),
@@ -250,8 +254,22 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             try
             {
-                var commandFiles = Directory.GetFiles(COMMANDS_PATH, "*.json")
+                var present = Directory.GetFiles(COMMANDS_PATH, "*.json");
+
+                // Bound memory: a processed command file is deleted immediately,
+                // so drop tracking entries whose files no longer exist instead of
+                // letting the set grow unbounded for the editor session.
+                if (_processedCommandFiles.Count > 0)
+                {
+                    _processedCommandFiles.IntersectWith(present);
+                }
+
+                // Process in submission order (creation time), not the
+                // unspecified order Directory.GetFiles returns, so ordered
+                // sequences (e.g. add-component then set-component-data) run FIFO.
+                var commandFiles = present
                     .Where(f => !_processedCommandFiles.Contains(f))
+                    .OrderBy(GetCommandFileOrderKey)
                     .ToList();
 
                 foreach (var commandFile in commandFiles)
@@ -264,6 +282,12 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 BridgeLogger.LogError($"Error processing commands: {ex.Message}");
             }
+        }
+
+        private static DateTime GetCommandFileOrderKey(string path)
+        {
+            try { return File.GetCreationTimeUtc(path); }
+            catch { return DateTime.UtcNow; }
         }
 
         private void ProcessCommandFile(string commandFilePath)
@@ -319,7 +343,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     return;
                 }
 
-                BridgeOperationLedger.MarkAccepted(command, commandFilePath);
+                TryMarkAccepted(command, commandFilePath);
                 var response = handler.Execute(command);
                 WriteResponse(response);
                 HeartbeatGenerator.IncrementCommandCount();
@@ -335,6 +359,21 @@ namespace BWS.Editor.ClaudeCodeBridge
                     commandId ?? fbId ?? $"filename-{fileBaseName}",
                     commandType ?? fbType ?? "unknown", ex.ToString()));
                 SafeDelete(commandFilePath);
+            }
+        }
+
+        private void TryMarkAccepted(BridgeCommand command, string commandFilePath)
+        {
+            try
+            {
+                BridgeOperationLedger.MarkAccepted(command, commandFilePath);
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError(
+                    $"Operation ledger accepted-state update failed for command {command.commandId}: {ex}");
+                WriteDiagnostic("ledger-accepted-failed",
+                    "Operation ledger accepted-state update failed", commandFilePath, ex);
             }
         }
 
@@ -458,7 +497,25 @@ namespace BWS.Editor.ClaudeCodeBridge
                     file = file,
                     exception = ex?.ToString()
                 };
+                RotateDiagnosticsLogIfNeeded();
                 File.AppendAllText(DIAGNOSTICS_LOG, JsonUtility.ToJson(evt, false) + Environment.NewLine);
+            }
+            catch { }
+        }
+
+        private const long DIAGNOSTICS_LOG_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+        private static void RotateDiagnosticsLogIfNeeded()
+        {
+            try
+            {
+                var info = new FileInfo(DIAGNOSTICS_LOG);
+                if (!info.Exists || info.Length < DIAGNOSTICS_LOG_MAX_BYTES)
+                    return;
+                var rotated = DIAGNOSTICS_LOG + ".1";
+                if (File.Exists(rotated))
+                    File.Delete(rotated);
+                File.Move(DIAGNOSTICS_LOG, rotated);
             }
             catch { }
         }
@@ -470,19 +527,30 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         public static void WriteResponseStatic(BridgeResponse response)
         {
+            var filePath = Path.Combine(RESPONSES_PATH,
+                $"{response.commandId}-{response.commandType}.json");
             try
             {
                 var responseJson = JsonUtility.ToJson(response, true);
-                var filePath = Path.Combine(RESPONSES_PATH,
-                    $"{response.commandId}-{response.commandType}.json");
                 BridgeOperationLedger.WriteAtomic(filePath, responseJson);
-                BridgeOperationLedger.MarkResponse(response);
-                BridgeLogger.LogDebug($"Wrote response: {Path.GetFileName(filePath)}");
             }
             catch (Exception ex)
             {
-                BridgeLogger.LogError($"Error writing response: {ex}");
+                BridgeLogger.LogError($"Error writing response file '{filePath}': {ex}");
+                return;
             }
+
+            try
+            {
+                BridgeOperationLedger.MarkResponse(response);
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError(
+                    $"Operation ledger terminal-state update failed for command {response.commandId}: {ex}");
+            }
+
+            BridgeLogger.LogDebug($"Wrote response: {Path.GetFileName(filePath)}");
         }
 
         #endregion

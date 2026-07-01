@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
+from unity_bridge import app as app_module
 from unity_bridge.app import app
 from unity_bridge.commands.hierarchy import component_app
+from unity_bridge.commands.material import material_app
 
 
 def _registered_group_names() -> set[str]:
@@ -16,6 +20,30 @@ def _registered_command_names() -> set[str]:
 
 def _component_command_names() -> set[str]:
     return {command.name for command in component_app.registered_commands}
+
+
+def _material_command_names() -> set[str]:
+    return {command.name for command in material_app.registered_commands}
+
+
+def test_failed_group_registration_is_logged_not_silent(caplog) -> None:
+    """U5: a registration failure must surface as a warning, not vanish silently."""
+    with caplog.at_level(logging.WARNING, logger="unity_bridge"):
+        app_module._try_register_group(
+            "unity_bridge.commands.does_not_exist", "nope_app", "ghost"
+        )
+    assert any("ghost" in rec.message for rec in caplog.records)
+    # And it must not raise or actually register the group.
+    assert "ghost" not in _registered_group_names()
+
+
+def test_failed_command_registration_is_logged(caplog) -> None:
+    """U5: a missing attribute on an existing module is surfaced, not swallowed."""
+    with caplog.at_level(logging.WARNING, logger="unity_bridge"):
+        app_module._try_register_command(
+            "unity_bridge.commands.batch", "no_such_attr", "ghostcmd"
+        )
+    assert any("ghostcmd" in rec.message for rec in caplog.records)
 
 
 def test_late_phase_command_groups_are_registered() -> None:
@@ -80,3 +108,21 @@ def test_component_extension_commands_are_imported() -> None:
     expected_commands = {"copy", "paste", "reset"}
 
     assert expected_commands <= _component_command_names()
+
+
+def test_material_keyword_commands_are_exposed_as_group() -> None:
+    """Material docs must only advertise subcommands that the root CLI exposes."""
+    expected_commands = {
+        "modify",
+        "create",
+        "duplicate",
+        "enable-keyword",
+        "disable-keyword",
+        "get-keywords",
+        "set-render-queue",
+        "copy-properties",
+    }
+
+    assert "material" in _registered_group_names()
+    assert "material" not in _registered_command_names()
+    assert expected_commands <= _material_command_names()

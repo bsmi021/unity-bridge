@@ -152,6 +152,26 @@ def _is_skill_up_to_date(source_dir: Path, target_dir: Path) -> bool:
     )
 
 
+def _is_bridge_up_to_date(source_dir: Path, target_dir: Path) -> bool:
+    """Return True when every current bridge source file matches the target copy.
+
+    Uses checksum comparison rather than the manifest's version string, so a
+    file that goes missing or drifts on disk is detected even when the
+    installed version string still equals the current version.
+    """
+    if not (target_dir / "ClaudeUnityBridge.cs").is_file():
+        return False
+
+    for glob in _BRIDGE_FILE_GLOBS:
+        for source_file in source_dir.glob(glob):
+            target_file = target_dir / source_file.name
+            if not target_file.is_file():
+                return False
+            if _compute_file_checksum(source_file) != _compute_file_checksum(target_file):
+                return False
+    return True
+
+
 def _get_bridge_version() -> str:
     """Return the current bridge version (matches the package version)."""
     from unity_bridge import __version__
@@ -186,11 +206,11 @@ async def install(
     target_dir = get_bridge_paths(root).editor_bridge_dir
     skill_target_dir = _get_skill_target_dir(root)
     skill_source_dir = _get_skill_source_dir()
+    source_dir = _get_bridge_source_dir()
 
     if check:
-        return _check_install_status(target_dir, bridge_version, root, skill_source_dir)
+        return _check_install_status(target_dir, bridge_version, root, skill_source_dir, source_dir)
 
-    source_dir = _get_bridge_source_dir()
     if source_dir is None:
         return CommandResult(
             success=False,
@@ -203,7 +223,7 @@ async def install(
         )
 
     existing = _load_manifest(target_dir)
-    bridge_up_to_date = existing and existing.get("version") == bridge_version
+    bridge_up_to_date = existing is not None and _is_bridge_up_to_date(source_dir, target_dir)
     skill_had_existing = (skill_target_dir / "SKILL.md").is_file()
     skill_up_to_date = _is_skill_up_to_date(skill_source_dir, skill_target_dir)
     if not force and bridge_up_to_date and skill_up_to_date:
@@ -268,6 +288,7 @@ def _check_install_status(
     bridge_version: str,
     project_root: Path,
     skill_source_dir: Path | None,
+    source_dir: Path | None = None,
 ) -> CommandResult:
     """Check installation status without making changes."""
     key_file = target_dir / "ClaudeUnityBridge.cs"
@@ -284,7 +305,13 @@ def _check_install_status(
 
     manifest = _load_manifest(target_dir)
     installed_version = manifest.get("version", "unknown") if manifest else "unknown"
-    status = "up_to_date" if installed_version == bridge_version else "update_available"
+    if source_dir is not None:
+        up_to_date = _is_bridge_up_to_date(source_dir, target_dir)
+    else:
+        # Source unavailable (e.g. bundled-only install) — fall back to the
+        # weaker version-string comparison since files can't be checksummed.
+        up_to_date = installed_version == bridge_version
+    status = "up_to_date" if up_to_date else "update_available"
 
     return CommandResult(
         success=True,
@@ -344,13 +371,46 @@ async def init(project_root: Path) -> CommandResult:
     )
 
 
+def _cleanup_files_by_age(
+    directories: list[Path],
+    pattern: str,
+    cutoff: datetime,
+    delete_all: bool,
+    dry_run: bool,
+) -> tuple[list[str], list[str]]:
+    """Delete files matching a pattern when they are stale enough."""
+    deleted: list[str] = []
+    skipped: list[str] = []
+    for directory in directories:
+        if not directory.is_dir():
+            continue
+        for path in directory.glob(pattern):
+            try:
+                file_mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            except OSError:
+                skipped.append(str(path))
+                continue
+            if not delete_all and file_mtime >= cutoff:
+                skipped.append(str(path))
+                continue
+            if dry_run:
+                deleted.append(str(path))
+                continue
+            try:
+                path.unlink()
+                deleted.append(str(path))
+            except OSError:
+                skipped.append(str(path))
+    return deleted, skipped
+
+
 async def clean(
     project_root: Path,
     age_minutes: int = 5,
     all_files: bool = False,
     dry_run: bool = False,
 ) -> CommandResult:
-    """Remove orphaned command/response files and old terminal operation records.
+    """Remove orphaned command/response files, stale temp files, and old terminal operations.
 
     Args:
         project_root: Unity project root directory.
@@ -365,26 +425,24 @@ async def clean(
     operation_store = OperationStore(project_root)
     effective_age = 0 if all_files else age_minutes
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=effective_age)
+    delete_all = effective_age == 0
 
-    deleted: list[str] = []
-    skipped: list[str] = []
-
-    for directory in [paths.commands_dir, paths.responses_dir]:
-        if not directory.is_dir():
-            continue
-        for f in directory.glob("*.json"):
-            file_mtime = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc)
-            if effective_age == 0 or file_mtime < cutoff:
-                if dry_run:
-                    deleted.append(str(f))
-                else:
-                    try:
-                        f.unlink()
-                        deleted.append(str(f))
-                    except OSError:
-                        skipped.append(str(f))
-            else:
-                skipped.append(str(f))
+    deleted, skipped = _cleanup_files_by_age(
+        [paths.commands_dir, paths.responses_dir],
+        "*.json",
+        cutoff,
+        delete_all,
+        dry_run,
+    )
+    temp_deleted, temp_skipped = _cleanup_files_by_age(
+        [paths.commands_dir, paths.responses_dir, operation_store.operations_path],
+        "*.tmp",
+        cutoff,
+        delete_all,
+        dry_run,
+    )
+    deleted.extend(temp_deleted)
+    skipped.extend(temp_skipped)
 
     operation_deleted, operation_skipped = operation_store.cleanup_terminal(
         older_than=cutoff,
@@ -392,6 +450,12 @@ async def clean(
     )
     deleted.extend(operation_deleted)
     skipped.extend(operation_skipped)
+
+    # Reap response files orphaned by timed-out/terminal operations (B5).
+    if not dry_run:
+        from unity_bridge.core.bridge import DirectBridge
+
+        deleted.extend(DirectBridge(project_root).reconcile_orphans())
 
     return CommandResult(
         success=True,
@@ -483,7 +547,7 @@ def clean_cli(
         typer.Option("--dry-run", help="Show what would be deleted."),
     ] = False,
 ) -> None:
-    """Remove orphaned command/response files and old terminal operation records."""
+    """Remove orphaned command/response files, stale temp files, and old terminal operations."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj

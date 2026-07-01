@@ -74,9 +74,9 @@ def _check_result_error(result: Any) -> tuple[bool, str, bool | None]:
     Supports CommandResult (duck-typed via 'success' attr) and legacy dicts.
 
     Returns:
-        Tuple of (is_success, error_message, retryable_override). If the
-        result type is unrecognized, returns (True, "", None) so no retry is
-        attempted.
+        Tuple of (is_success, error_message, retryable_override). An
+        unrecognized result type (e.g. ``None``) defaults to failure so it is
+        never silently treated as success.
     """
     if hasattr(result, "success"):
         data = getattr(result, "data", None)
@@ -88,7 +88,8 @@ def _check_result_error(result: Any) -> tuple[bool, str, bool | None]:
             result.get("error", ""),
             result.get("retryable"),
         )
-    return (True, "", None)
+    logger.warning("Unrecognized result type %r — treating as failure", type(result))
+    return (False, "Unrecognized result type", None)
 
 
 async def _log_and_delay(
@@ -107,6 +108,7 @@ async def retry_async(
     func: Callable[..., T],
     *args: Any,
     config: RetryConfig | None = None,
+    can_retry: Callable[[Any], bool] | None = None,
     **kwargs: Any,
 ) -> T:
     """Execute an async function with retry logic.
@@ -118,6 +120,9 @@ async def retry_async(
         func: Async function to execute.
         *args: Positional arguments for func.
         config: Retry configuration (uses DEFAULT_RETRY_CONFIG if None).
+        can_retry: Optional policy gate called with the just-returned result
+            before a retry; returning False stops further retries (e.g. to
+            avoid re-sending a non-idempotent command Unity already accepted).
         **kwargs: Keyword arguments for func.
 
     Returns:
@@ -136,6 +141,9 @@ async def retry_async(
             success, error_msg, retryable = _check_result_error(result)
 
             if success or retryable is False or not is_retryable_error(error_msg):
+                return result
+            if can_retry is not None and not can_retry(result):
+                logger.warning("Retry vetoed by policy gate: %s", error_msg)
                 return result
             if attempt < cfg.max_retries:
                 await _log_and_delay(cfg, attempt, "Retryable error", error_msg)

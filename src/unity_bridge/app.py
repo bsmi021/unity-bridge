@@ -7,6 +7,7 @@ every sub-command can access the shared bridge and formatter.
 
 from __future__ import annotations
 
+import logging
 import signal
 import sys
 from dataclasses import dataclass, field
@@ -17,6 +18,8 @@ import typer
 
 from unity_bridge.core.config import BridgeConfig
 from unity_bridge.core.output import OutputFormatter
+
+logger = logging.getLogger("unity_bridge")
 
 # ---------------------------------------------------------------------------
 # Application state
@@ -52,7 +55,10 @@ class AppState:
         if self._bridge is None:
             from unity_bridge.core.bridge import DirectBridge
 
-            self._bridge = DirectBridge(self.project_root)
+            global_timeout = (
+                self.config.default_timeout if self.config.timeout_explicit else None
+            )
+            self._bridge = DirectBridge(self.project_root, default_timeout=global_timeout)
         return self._bridge
 
 
@@ -182,7 +188,7 @@ def _register_optional_commands() -> None:
     Each block is wrapped in a try/except so the CLI remains functional
     even when some command modules have not been implemented.
     """
-    _try_register_group("unity_bridge.commands.snapshot", "snapshot_app", "snapshot")
+    _try_register_group("unity_bridge.commands.workflow", "snapshot_app", "snapshot")
     _try_register_command("unity_bridge.commands.playmode", "playmode_cli", "playmode")
     _try_register_command("unity_bridge.commands.diagnostics", "status_cli", "status")
     _try_register_command("unity_bridge.commands.diagnostics", "doctor_cli", "doctor")
@@ -195,14 +201,13 @@ def _register_optional_commands() -> None:
     _try_register_command("unity_bridge.commands.workflow", "tdd_cli", "tdd")
     _try_register_command("unity_bridge.commands.scripting", "script_cli", "script")
     _try_register_command("unity_bridge.commands.batch", "batch_cli", "batch")
-    _try_register_command("unity_bridge.commands.serve", "serve_cli", "serve")
     _try_register_command("unity_bridge.commands.editor", "selection_cli", "selection")
     _try_register_command("unity_bridge.commands.editor", "refresh_cli", "refresh")
     _try_register_command("unity_bridge.commands.editor", "focus_cli", "focus")
     _try_register_command("unity_bridge.commands.editor", "menu_cli", "menu")
     _try_register_command("unity_bridge.commands.editor", "screenshot_cli", "screenshot")
     _try_register_command("unity_bridge.commands.asset", "asset_cli", "asset")
-    _try_register_command("unity_bridge.commands.material", "material_cli", "material")
+    _try_register_group("unity_bridge.commands.material", "material_app", "material")
     _try_register_command("unity_bridge.commands.build", "build_cli", "build")
     _try_register_command("unity_bridge.commands.animator", "animator_cli", "animator")
     _try_register_group("unity_bridge.commands.settings", "settings_app", "settings")
@@ -253,6 +258,7 @@ def _register_optional_commands() -> None:
         "project_auditor_app",
         "project-auditor",
     )
+    _try_register_group("unity_bridge.commands.code_coverage", "coverage_app", "coverage")
     _try_register_group("unity_bridge.commands.ui_toolkit", "ui_toolkit_app", "ui-toolkit")
     _try_register_group(
         "unity_bridge.commands.render_pipeline",
@@ -277,6 +283,17 @@ def _register_optional_commands() -> None:
         "multiplayer_playmode_app",
         "multiplayer-playmode",
     )
+    _try_register_group("unity_bridge.commands.cinemachine", "cinemachine_app", "cinemachine")
+    _try_register_group("unity_bridge.commands.localization", "localization_app", "localization")
+    _try_register_group("unity_bridge.commands.vfx", "vfx_app", "vfx")
+    _register_phase7b_commands()
+
+
+def _register_phase7b_commands() -> None:
+    """Register Phase 7b memory diagnostics command groups."""
+    _try_register_group(
+        "unity_bridge.commands.memory_profiler", "memory_profiler_app", "memory-profiler"
+    )
 
 
 def _register_phase4_expansion_commands() -> None:
@@ -291,6 +308,7 @@ def _register_phase4_expansion_commands() -> None:
         "reflection-probe",
     )
     _try_register_group("unity_bridge.commands.occlusion", "occlusion_app", "occlusion")
+    _try_register_group("unity_bridge.commands.timeline", "timeline_app", "timeline")
 
 
 def _register_phase6_commands() -> None:
@@ -355,8 +373,8 @@ def _try_import_module(module_path: str) -> None:
         from importlib import import_module
 
         import_module(module_path)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.warning("Skipped optional module %s: %s", module_path, exc)
 
 
 def _try_register_command(module_path: str, attr_name: str, command_name: str) -> None:
@@ -367,8 +385,11 @@ def _try_register_command(module_path: str, attr_name: str, command_name: str) -
         mod = import_module(module_path)
         func = getattr(mod, attr_name)
         app.command(command_name)(func)
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError) as exc:
+        logger.warning(
+            "Command '%s' not registered (%s.%s): %s",
+            command_name, module_path, attr_name, exc,
+        )
 
 
 def _try_register_group(module_path: str, attr_name: str, group_name: str) -> None:
@@ -379,8 +400,11 @@ def _try_register_group(module_path: str, attr_name: str, group_name: str) -> No
         mod = import_module(module_path)
         sub_app = getattr(mod, attr_name)
         app.add_typer(sub_app, name=group_name)
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError) as exc:
+        logger.warning(
+            "Command group '%s' not registered (%s.%s): %s",
+            group_name, module_path, attr_name, exc,
+        )
 
 
 # Perform registration on import

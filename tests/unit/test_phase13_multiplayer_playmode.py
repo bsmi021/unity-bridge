@@ -33,12 +33,3 @@ class TestMultiplayerPlayMode:
 
         assert _call_args(mock_bridge)["command_type"] == "multiplayer-playmode"
         assert _call_args(mock_bridge)["parameters"] == {"operation": "packages"}
-
-
-class TestMultiplayerPlayModeSchema:
-    def test_schema_includes_expected_operations(self) -> None:
-        from unity_bridge.mcp import schemas_multiplayer
-
-        ops = schemas_multiplayer.multiplayer_playmode()["properties"]["operation"]["enum"]
-
-        assert ops == ["availability", "current-player", "packages"]

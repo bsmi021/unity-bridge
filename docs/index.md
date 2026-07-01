@@ -1,9 +1,11 @@
 # Unity Bridge Documentation Index
 
-Last updated: 2026-06-08
+Last updated: 2026-06-30
 
 ## Current Work
 
+- [Unity 6.4 capability delta analysis](unity-6.4-capability-delta-analysis.md)
+- [Code Coverage bridge utility feature spec](research/FeatureSpec_CodeCoverageBridgeUtility_2026-06-26.md)
 - [Unity 6.4 bridge implementation roadmap](unity-6-4-bridge-implementation.md)
 - [Phase 7 new gaps report](phase7-new-gaps-report.md)
 
@@ -17,6 +19,8 @@ Last updated: 2026-06-08
 
 ## Reviews and Gap Reports
 
+- [Unity Bridge Package Manager automation research](package-manager-automation-research.html)
+- [Unity Bridge UTF-8 BOM JSON RCA](bridge-bom-json-rca.html)
 - [Unity Bridge reload and domain operation resilience research](reload-domain-resilience-research.html)
 - [Unity Bridge compile wait research](bridge-compile-wait-research.html)
 - [CLI refactor review](tech-spec-cli-refactor-review.md)

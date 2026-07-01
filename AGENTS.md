@@ -1,6 +1,7 @@
 # Unity Bridge
 
-CLI and MCP server for Unity Editor automation via file-based bridge protocol.
+CLI-first Unity Editor automation via file-based bridge protocol. MCP server mode is
+deprecated compatibility for existing integrations.
 
 ## Commands
 
@@ -14,7 +15,7 @@ pip install -e ".[all]"         # Everything (mcp + watch + dev)
 # CLI
 unity-bridge --help             # All commands and flags
 unity-bridge version            # Check installed version
-unity-bridge serve              # Start MCP server mode
+unity-bridge serve              # Deprecated MCP compatibility server
 
 # Test
 python3 -m pytest tests/                    # All tests (integration skipped without Unity)
@@ -59,7 +60,22 @@ CLI flags > environment variables > config file > defaults.
 Config file search order:
 1. `$UNITY_BRIDGE_CONFIG`
 2. `<project_root>/unity_bridge_config.json`
-3. `<project_root>/.Codex/unity_bridge_config.json`
+3. `<project_root>/.claude/unity_bridge_config.json`
+
+## Codex Routing
+
+- Repo skill source: `.agents/skills/unity-bridge-cli`. `unity-bridge install` ships
+  that skill into target Unity projects.
+- After editing the skill, run
+  `python C:\Users\bsmi0\.codex\skills\.system\skill-creator\scripts\quick_validate.py .agents\skills\unity-bridge-cli`.
+- Project-scoped custom agents live in `.codex/agents/`.
+  Use `unity_bridge_explorer` for read-only CLI/docs/handler surface mapping and
+  `unity_bridge_reviewer` for read-only contract, packaging, test, and install drift review
+  when the user explicitly asks for subagents or parallel research.
+- Verify the live command surface with `unity-bridge --help` and targeted command help
+  before changing skill text or command docs.
+- If Codex does not see a changed skill or agent file, start a fresh Codex session before
+  debugging bridge behavior.
 
 ## Project Structure
 
@@ -120,11 +136,11 @@ unity-bridge/
 
 ### Communication Protocol
 
-Python writes JSON command files to `<project>/.Codex/unity/commands/`. The Unity C# bridge (`ClaudeUnityBridge.cs`, running via `EditorApplication.update`) picks them up, processes them, and writes responses to `<project>/.Codex/unity/responses/`. Each command has a unique UUID.
+Python writes JSON command files to `<project>/.claude/unity/commands/`. The Unity C# bridge (`ClaudeUnityBridge.cs`, running via `EditorApplication.update`) picks them up, processes them, and writes responses to `<project>/.claude/unity/responses/`. Each command has a unique UUID.
 
 Additional bridge directories created by Phase 3 handlers:
-- `<project>/.Codex/unity/scene-setups/` — saved multi-scene layouts (scene-setup-operation)
-- `<project>/.Codex/unity/import-templates/` — saved import setting templates (import-settings-operation)
+- `<project>/.claude/unity/scene-setups/` — saved multi-scene layouts (scene-setup-operation)
+- `<project>/.claude/unity/import-templates/` — saved import setting templates (import-settings-operation)
 
 ### Project Auto-Detection
 
@@ -132,7 +148,7 @@ Additional bridge directories created by Phase 3 handlers:
 
 ### Dual Interface Pattern
 
-CLI and MCP share 100% of core logic. Each command module in `commands/` exposes:
+CLI and deprecated MCP compatibility share core logic. Each command module in `commands/` exposes:
 
 1. **Async core functions** — accept typed params, return `CommandResult`. Called by both CLI and MCP.
 2. **Typer CLI wrappers** — thin sync wrappers that call `asyncio.run()` on the core functions.
@@ -148,7 +164,7 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 
 ### Command Groups (40+ CLI groups)
 
-**Core:** animator, asset, batch, build, component, console, diagnostics, editor, hierarchy, lifecycle, material, playmode, prefab, scene, script, serve, snapshot, test, workflow
+**Core:** animator, asset, batch, build, component, console, diagnostics, editor, hierarchy, lifecycle, material, playmode, prefab, scene, script, serve (deprecated MCP compatibility), snapshot, test, workflow
 **Phase 1:** asset-ext, package, profile, settings
 **Phase 2:** compile, undo (+ prefab overrides/gameobject-utility subcommands)
 **Phase 3:** import-settings, lightmap, scene-ext, shader
@@ -159,7 +175,7 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 
 ## C# Bridge Installation
 
-The `lifecycle` command copies `ClaudeCodeBridge/*.cs` into the Unity project at `Assets/Scripts/Editor/ClaudeCodeBridge/`. The MCP server auto-installs on first run. Files include `.meta` files for Unity asset tracking.
+The `lifecycle` command copies `ClaudeCodeBridge/*.cs` into the Unity project at `Assets/Scripts/Editor/ClaudeCodeBridge/`. Use `unity-bridge install` explicitly; MCP auto-install is deprecated compatibility behavior. Files include `.meta` files for Unity asset tracking.
 
 ### C# File Organization
 

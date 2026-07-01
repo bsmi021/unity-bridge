@@ -8,6 +8,19 @@ from typing import Annotated
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.settings_params import SettingField, build_set_params
+
+_GRAPHICS_FIELDS = [
+    SettingField("render_pipeline", ("defaultRenderPipeline",)),  # no set-flag
+    SettingField("transparency_sort_mode", ("transparencySortMode",), "setTransparencySortMode"),
+    SettingField(
+        "transparency_sort_axis",
+        ("transparencySortAxisX", "transparencySortAxisY", "transparencySortAxisZ"),
+        "setTransparencySortAxis",
+    ),
+    SettingField("srp_batching", ("useScriptableRenderPipelineBatching",), "setSrpBatching"),
+    SettingField("log_shader_compilation", ("logWhenShaderIsCompiled",), "setLogShaderCompilation"),
+]
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -51,25 +64,7 @@ async def graphics_set(
         log_shader_compilation: Log when shaders are compiled.
         timeout: Timeout in seconds.
     """
-    params: dict[str, object] = {"operation": "set"}
-
-    if render_pipeline is not None:
-        params["defaultRenderPipeline"] = render_pipeline
-    if transparency_sort_mode is not None:
-        params["transparencySortMode"] = transparency_sort_mode
-        params["setTransparencySortMode"] = True
-    if transparency_sort_axis is not None:
-        params["transparencySortAxisX"] = transparency_sort_axis[0]
-        params["transparencySortAxisY"] = transparency_sort_axis[1]
-        params["transparencySortAxisZ"] = transparency_sort_axis[2]
-        params["setTransparencySortAxis"] = True
-    if srp_batching is not None:
-        params["useScriptableRenderPipelineBatching"] = srp_batching
-        params["setSrpBatching"] = True
-    if log_shader_compilation is not None:
-        params["logWhenShaderIsCompiled"] = log_shader_compilation
-        params["setLogShaderCompilation"] = True
-
+    params = build_set_params("set", _GRAPHICS_FIELDS, locals())
     return await bridge.send_command_with_retry(
         command_type="graphics-settings",
         parameters=params,

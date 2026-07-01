@@ -20,11 +20,13 @@ from typing import Any
 import aiofiles
 
 from unity_bridge.core.operation import (
+    RETRY_NON_IDEMPOTENT,
     STATE_ABANDONED,
     STATE_ACCEPTED,
     STATE_COMPLETED,
     STATE_FAILED,
     STATE_INTERRUPTED,
+    STATE_QUEUED,
     STATE_RUNNING,
     STATE_RECOVERING,
     OperationStore,
@@ -91,10 +93,18 @@ class DirectBridge:
     EDITOR_READY_POLL_INTERVAL: float = 0.5
     DEFAULT_IN_FLIGHT_BUSY_GRACE: float = 300.0
 
-    def __init__(self, project_root: Path) -> None:
+    def __init__(
+        self,
+        project_root: Path,
+        default_timeout: int | None = None,
+    ) -> None:
         self.project_root = Path(project_root)
         self.commands_path = self.project_root / ".claude" / "unity" / "commands"
         self.responses_path = self.project_root / ".claude" / "unity" / "responses"
+        # Global timeout override (from the --timeout flag / UNITY_BRIDGE_TIMEOUT).
+        # When set, it applies to every command, overriding the per-command
+        # default the caller passes. None means "use the requested timeout".
+        self._default_timeout = default_timeout
         self._operation_store = OperationStore(self.project_root)
 
         self._health_monitor = None
@@ -108,6 +118,17 @@ class DirectBridge:
         self.commands_path.mkdir(parents=True, exist_ok=True)
         self.responses_path.mkdir(parents=True, exist_ok=True)
         logger.debug("DirectBridge initialized for project: %s", project_root)
+
+    def _effective_timeout(self, command_type: str, requested: float) -> float:
+        """Apply the global timeout override, if one was explicitly configured.
+
+        When a global ``--timeout`` / ``UNITY_BRIDGE_TIMEOUT`` is set it acts as
+        a blanket default for every command; otherwise the caller's requested
+        per-command timeout is used unchanged.
+        """
+        if self._default_timeout is not None:
+            return float(self._default_timeout)
+        return requested
 
     async def send_command(
         self,
@@ -127,13 +148,63 @@ class DirectBridge:
         Returns:
             CommandResult with success/error and parsed data.
         """
+        timeout = self._effective_timeout(command_type, timeout)
         health = None
         if check_health and self._health_monitor:
-            health = self._wait_for_editor_ready()
+            health = await self._wait_for_editor_ready()
             if not health.ready:
                 return self._readiness_failure(health)
 
         command_id = str(uuid.uuid4())
+        return await self._send_command_now(
+            command_id=command_id,
+            command_type=command_type,
+            parameters=parameters,
+            timeout=timeout,
+            health=health,
+            create_operation=True,
+        )
+
+    async def send_prepared_command(
+        self,
+        *,
+        command_id: str,
+        command_type: str,
+        parameters: dict[str, Any] | None = None,
+        timeout: float = 30.0,
+        check_health: bool = True,
+        create_operation: bool = True,
+    ) -> CommandResult:
+        """Send an already identified command, optionally reusing an operation record."""
+        timeout = self._effective_timeout(command_type, timeout)
+        health = None
+        if check_health and self._health_monitor:
+            health = await self._wait_for_editor_ready()
+            if not health.ready:
+                result = self._readiness_failure(health)
+                result.command_id = command_id
+                return result
+
+        return await self._send_command_now(
+            command_id=command_id,
+            command_type=command_type,
+            parameters=parameters,
+            timeout=timeout,
+            health=health,
+            create_operation=create_operation,
+        )
+
+    async def _send_command_now(
+        self,
+        *,
+        command_id: str,
+        command_type: str,
+        parameters: dict[str, Any] | None,
+        timeout: float,
+        health: Any | None,
+        create_operation: bool,
+    ) -> CommandResult:
+        """Write a command file and wait for Unity, assuming readiness is resolved."""
         timestamp = datetime.now(timezone.utc).isoformat()
 
         command = {
@@ -145,16 +216,17 @@ class DirectBridge:
 
         command_file = self.commands_path / f"{command_id}-{command_type}.json"
         response_file = self.responses_path / f"{command_id}-{command_type}.json"
-        self._operation_store.create_queued(
-            command_id=command_id,
-            command_type=command_type,
-            parameters=parameters,
-            command_path=command_file,
-            response_path=response_file,
-            domain_generation=getattr(health, "domain_generation", None),
-            retry_policy=retry_policy_for_command(command_type),
-            idempotency_key=(parameters or {}).get("idempotencyKey"),
-        )
+        if create_operation:
+            self._operation_store.create_queued(
+                command_id=command_id,
+                command_type=command_type,
+                parameters=parameters,
+                command_path=command_file,
+                response_path=response_file,
+                domain_generation=getattr(health, "domain_generation", None),
+                retry_policy=retry_policy_for_command(command_type),
+                idempotency_key=(parameters or {}).get("idempotencyKey"),
+            )
 
         try:
             await self._write_command_file(command, command_file)
@@ -195,10 +267,62 @@ class DirectBridge:
             logger.warning("retry module not available — retries disabled.")
             return await self.send_command(command_type, parameters, timeout)
 
+        policy = retry_policy_for_command(command_type)
+        idempotency_key = (parameters or {}).get("idempotencyKey")
+
         async def attempt() -> CommandResult:
             return await self.send_command(command_type, parameters, timeout)
 
-        return await retry_async(attempt, config=retry_config)
+        def can_retry(result: CommandResult) -> bool:
+            return self._retry_allowed(result, policy, idempotency_key)
+
+        return await retry_async(attempt, config=retry_config, can_retry=can_retry)
+
+    def _retry_allowed(
+        self,
+        result: CommandResult,
+        retry_policy: str,
+        idempotency_key: str | None,
+    ) -> bool:
+        """Whether a failed attempt may be re-sent without risking duplication.
+
+        A non-idempotent command that Unity has already accepted (moved past
+        QUEUED) must not be re-sent unless the caller supplied an idempotency
+        key, since each send creates a fresh command and side effect.
+        """
+        if retry_policy != RETRY_NON_IDEMPOTENT or idempotency_key is not None:
+            return True
+        command_id = getattr(result, "command_id", None)
+        if not command_id:
+            return True
+        record = self._operation_store.load(command_id)
+        if record is not None and record.state != STATE_QUEUED:
+            return False
+        return True
+
+    def reconcile_orphans(self) -> list[str]:
+        """Reap stale response files left by timed-out/terminal operations.
+
+        When a command times out the bridge stops polling but leaves the
+        command file so Unity can finish; a late response then orphans. This
+        removes response files belonging to terminal operations.
+
+        Returns:
+            The response file paths that were removed.
+        """
+        removed: list[str] = []
+        for record in self._operation_store.list_records(include_terminal=True, limit=10_000):
+            if not record.is_terminal or not record.response_path:
+                continue
+            response_file = Path(record.response_path)
+            if not response_file.exists():
+                continue
+            try:
+                response_file.unlink()
+                removed.append(str(response_file))
+            except OSError as exc:
+                logger.debug("Could not reap orphan response %s: %s", response_file, exc)
+        return removed
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -241,7 +365,9 @@ class DirectBridge:
                 busy_elapsed,
             )
             current_busy_elapsed = (now - busy_started) if busy_started is not None else 0.0
-            active_elapsed = elapsed - busy_elapsed - current_busy_elapsed
+            active_elapsed = self._active_elapsed(
+                elapsed, busy_elapsed, current_busy_elapsed
+            )
             if self._domain_generation_changed(status, origin_generation):
                 self._mark_recovering_after_reload(
                     command_id,
@@ -274,7 +400,7 @@ class DirectBridge:
         """
         await asyncio.sleep(0.01)  # brief delay for write completion
         try:
-            async with aiofiles.open(response_file, "r", encoding="utf-8") as f:
+            async with aiofiles.open(response_file, "r", encoding="utf-8-sig") as f:
                 content = await f.read()
             response = json.loads(content)
         except (json.JSONDecodeError, IOError) as exc:
@@ -322,6 +448,20 @@ class DirectBridge:
         except Exception as exc:
             logger.debug("In-flight health check failed: %s", exc)
             return None
+
+    @staticmethod
+    def _active_elapsed(
+        elapsed: float,
+        busy_elapsed: float,
+        current_busy_elapsed: float,
+    ) -> float:
+        """Wall-clock time minus editor-busy time, clamped to non-negative.
+
+        Health states can flap within a poll window, so the accumulated busy
+        time may briefly exceed the total elapsed time; clamp to avoid a
+        negative active-elapsed that would mis-trigger timeout logic.
+        """
+        return max(0.0, elapsed - busy_elapsed - current_busy_elapsed)
 
     @staticmethod
     def _update_busy_accounting(
@@ -372,7 +512,7 @@ class DirectBridge:
             },
             command_id=command_id,
             execution_time_ms=int(elapsed * 1000),
-            exit_code=1,
+            exit_code=4,
         )
 
     def _busy_timeout_result(
@@ -437,14 +577,15 @@ class DirectBridge:
         if not raw:
             return None
         try:
-            return json.loads(raw)
+            return json.loads(raw.removeprefix("\ufeff"))
         except json.JSONDecodeError:
             return raw
 
-    def _wait_for_editor_ready(self) -> Any:
+    async def _wait_for_editor_ready(self) -> Any:
         """Wait for editor readiness using the configured readiness timeout."""
         timeout = _editor_ready_timeout()
-        return self._health_monitor.wait_for_ready(
+        return await asyncio.to_thread(
+            self._health_monitor.wait_for_ready,
             timeout_seconds=timeout,
             poll_interval=self.EDITOR_READY_POLL_INTERVAL,
         )

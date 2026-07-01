@@ -207,59 +207,6 @@ class TestCombinedParams:
 
 
 # ---------------------------------------------------------------------------
-# MCP schema
-# ---------------------------------------------------------------------------
-
-
-class TestSchema:
-    def test_list_tests_schema_structure(self) -> None:
-        from unity_bridge.mcp.schemas_ext import list_tests
-
-        schema = list_tests()
-        assert schema["type"] == "object"
-        assert "mode" in schema["properties"]
-
-    def test_list_tests_schema_modes(self) -> None:
-        from unity_bridge.mcp.schemas_ext import list_tests
-
-        schema = list_tests()
-        modes = schema["properties"]["mode"]["enum"]
-        assert set(modes) == {"tests", "categories", "assemblies"}
-
-    def test_list_tests_schema_platforms(self) -> None:
-        from unity_bridge.mcp.schemas_ext import list_tests
-
-        schema = list_tests()
-        platforms = schema["properties"]["testPlatform"]["enum"]
-        assert set(platforms) == {"EditMode", "PlayMode"}
-
-    def test_list_tests_schema_has_timeout(self) -> None:
-        from unity_bridge.mcp.schemas_ext import list_tests
-
-        schema = list_tests()
-        assert "timeout" in schema["properties"]
-
-
-# ---------------------------------------------------------------------------
-# Tool registration
-# ---------------------------------------------------------------------------
-
-
-class TestToolRegistration:
-    def test_tool_in_command_map(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert "unity_list_tests" in TOOL_COMMAND_MAP
-        assert TOOL_COMMAND_MAP["unity_list_tests"] == "list-tests"
-
-    def test_tool_in_definitions(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_DEFINITIONS
-
-        names = [t["name"] for t in TOOL_DEFINITIONS]
-        assert "unity_list_tests" in names
-
-
-# ---------------------------------------------------------------------------
 # Protocol
 # ---------------------------------------------------------------------------
 

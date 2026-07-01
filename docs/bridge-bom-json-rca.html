@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unity Bridge UTF-8 BOM JSON RCA</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #5d667a;
+      --line: #d9deea;
+      --accent: #0f6b6e;
+      --warn: #8a4b08;
+      --bad: #9b1c31;
+      --good: #17633a;
+      --code: #f0f3f8;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.5 "Segoe UI", Arial, sans-serif;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+    header {
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+    }
+    h1, h2, h3 {
+      line-height: 1.2;
+      margin: 0 0 10px;
+    }
+    h1 {
+      font-size: 28px;
+    }
+    h2 {
+      border-top: 1px solid var(--line);
+      font-size: 20px;
+      margin-top: 28px;
+      padding-top: 22px;
+    }
+    h3 {
+      color: var(--accent);
+      font-size: 16px;
+      margin-top: 18px;
+    }
+    p {
+      margin: 8px 0 12px;
+    }
+    ul, ol {
+      margin: 8px 0 14px 22px;
+      padding: 0;
+    }
+    li {
+      margin: 6px 0;
+    }
+    code {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 4px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+    }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow-x: auto;
+      padding: 12px;
+    }
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #e9eef6;
+    }
+    .summary {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .status {
+      display: inline-block;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 8px;
+      text-transform: uppercase;
+    }
+    .status.bad {
+      background: #f7dbe0;
+      color: var(--bad);
+    }
+    .status.warn {
+      background: #ffedcf;
+      color: var(--warn);
+    }
+    .status.good {
+      background: #dff3e8;
+      color: var(--good);
+    }
+    .muted {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Unity Bridge UTF-8 BOM JSON RCA</h1>
+    <p class="muted">Last updated: 2026-06-09</p>
+  </header>
+
+  <section class="summary">
+    <p><strong>Incident:</strong> Unity Bridge CLI commands can fail to parse Unity response and operation JSON files after Unity writes those files with a UTF-8 byte order mark (BOM).</p>
+    <p><strong>Root cause:</strong> the C# atomic write helper wrote bridge JSON through <code>new StreamWriter(stream, Encoding.UTF8)</code>, which emits a UTF-8 preamble in this runtime. Python then opened the file with plain <code>encoding="utf-8"</code>, preserving the BOM as <code>\ufeff</code>, and <code>json.loads()</code> rejected that initial character.</p>
+    <p><strong>Current real Unity error observed in the latest decoded console response:</strong> <code>Assets\Tests\PlayMode\World\WorldTerrainDetailPainterTests.cs(159,94): error CS0117: 'ZoneLifecycleState' does not contain a definition for 'Loading'</code>.</p>
+  </section>
+
+  <h2>Impact</h2>
+  <ul>
+    <li>The Unity-side command can complete and write the response, but the Python CLI may report an infrastructure failure instead of the actual Unity result.</li>
+    <li>Response JSON with a BOM is treated as repeatedly unreadable by <code>DirectBridge._try_read_response()</code>. The command can then time out even though the response file exists.</li>
+    <li>Operation JSON with a BOM can raise outside the response-read retry path through <code>OperationStore.load()</code>, so timeout handling, operation status, and state transitions can crash or mask the real Unity result.</li>
+    <li>Manual decoding with <code>utf-8-sig</code> reveals the underlying Unity payload, confirming the problem is the bridge transport/read layer rather than Unity command execution.</li>
+  </ul>
+
+  <h2>Evidence</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Area</th>
+        <th>Evidence</th>
+        <th>Finding</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Python response reader</td>
+        <td><code>src/unity_bridge/core/bridge.py:277-279</code></td>
+        <td>Reads response files with <code>encoding="utf-8"</code> and passes the resulting string directly to <code>json.loads(content)</code>.</td>
+      </tr>
+      <tr>
+        <td>Python operation reader</td>
+        <td><code>src/unity_bridge/core/operation.py:219</code>, <code>src/unity_bridge/core/operation.py:231</code></td>
+        <td>Reads operation snapshots with <code>Path.read_text(encoding="utf-8")</code> and immediately calls <code>json.loads(...)</code>.</td>
+      </tr>
+      <tr>
+        <td>C# response writer</td>
+        <td><code>ClaudeCodeBridge/ClaudeUnityBridge.cs:492-493</code></td>
+        <td>Serializes the response and delegates file output to <code>BridgeOperationLedger.WriteAtomic(filePath, responseJson)</code>.</td>
+      </tr>
+      <tr>
+        <td>C# atomic writer</td>
+        <td><code>ClaudeCodeBridge/BridgeOperationLedger.cs:264-268</code></td>
+        <td>Writes temp files through <code>new StreamWriter(stream, Encoding.UTF8)</code>. Local verification showed <code>Encoding.UTF8.GetPreamble()</code> has bytes <code>EF BB BF</code>.</td>
+      </tr>
+      <tr>
+        <td>Recent runtime artifacts</td>
+        <td><code>C:\Projects\tms-heim\.claude\unity\responses\*.json</code> and <code>C:\Projects\tms-heim\.claude\unity\operations\*.json</code></td>
+        <td>Recent Unity-written response and operation JSON files start with <code>EF BB BF</code>. Decoding them with <code>utf-8-sig</code> succeeds.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Regression Window</h2>
+  <p>The most likely regression was introduced by the in-flight atomic-write hardening change on branch <code>codex/harden-ledger-atomic-writes</code>.</p>
+  <p>Before this change, <code>BridgeOperationLedger.WriteAtomic()</code> used <code>File.WriteAllText(tempPath, content)</code>. The current working tree replaced that with a custom temp-file writer using <code>StreamWriter(stream, Encoding.UTF8)</code>, unique temp paths, retries, and file replacement. The retry/atomicity goal is valid, but the encoding object changed the wire format of bridge JSON files.</p>
+
+  <h2>Decoded Unity Results</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>BOM</th>
+        <th>Decoded result</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>8ca1bdf5-c759-4d0e-b948-e570c9cefde8-read-console.json</code></td>
+        <td><span class="status bad">yes</span></td>
+        <td><code>CS0117: 'ZoneLifecycleState' does not contain a definition for 'Loading'</code> at <code>Assets\Tests\PlayMode\World\WorldTerrainDetailPainterTests.cs:159</code>.</td>
+      </tr>
+      <tr>
+        <td><code>674d006a-26ac-451e-8547-6dfd46c71dc6-compile.json</code></td>
+        <td><span class="status bad">yes</span></td>
+        <td>Compile payload reported <code>Compilation timeout after 120 seconds</code>.</td>
+      </tr>
+      <tr>
+        <td><code>e1b8d6ed-464c-439d-a7cf-b78f9d0e6c0e-compile.json</code></td>
+        <td><span class="status bad">yes</span></td>
+        <td>Compile payload reported <code>success: true</code>, <code>hasErrors: false</code>, and no messages.</td>
+      </tr>
+      <tr>
+        <td><code>8e9f2051-f364-4de7-91e1-f45140d2aa57-read-console.json</code></td>
+        <td><span class="status bad">yes</span></td>
+        <td>Earlier console payload reported <code>CS1501: No overload for method 'CreateBillboard' takes 7 arguments</code> at <code>Assets\Scripts\Runtime\World\WorldTerrainDetailPrototypeCatalog.cs:34</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Why Python Fails</h2>
+  <p>Python's JSON module documents that an initial BOM is not accepted by the deserializer. A local reproduction in this checkout matched the observed error:</p>
+  <pre><code>json.loads('\ufeff{"status":"success"}')
+# JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)</code></pre>
+  <p>Decoding the same bytes with <code>utf-8-sig</code> strips the BOM before JSON parsing:</p>
+  <pre><code>json.loads(raw_bytes.decode("utf-8-sig"))</code></pre>
+
+  <h2>Applied Fix</h2>
+  <ol>
+    <li><strong>Primary writer fix:</strong> the C# bridge JSON writer now uses <code>new UTF8Encoding(false, true)</code> and passes that encoding to response, operation snapshot, and JSONL event writes.</li>
+    <li><strong>Reader hardening:</strong> Python response and operation snapshot readers now use <code>utf-8-sig</code>, so existing BOM-prefixed files remain readable after the writer fix.</li>
+    <li><strong>Nested payload tolerance:</strong> <code>DirectBridge._parse_data_json()</code> strips a leading <code>\ufeff</code> before parsing nested <code>dataJson</code> content.</li>
+    <li><strong>Test coverage:</strong> regression tests now cover BOM-prefixed response files, BOM-prefixed operation snapshots, and the C# no-BOM writer contract.</li>
+  </ol>
+
+  <h2>Suggested Verification</h2>
+  <ul>
+    <li>Unit: response parsing accepts bytes starting with <code>EF BB BF</code>.</li>
+    <li>Unit: <code>OperationStore.load()</code> and <code>list_records()</code> accept BOM-prefixed JSON snapshots.</li>
+    <li>Static C#: the bridge writer uses a no-BOM encoding object for temp-file writes.</li>
+    <li>Runtime: send <code>unity-bridge --project C:\Projects\tms-heim --pretty console read --errors</code> or equivalent and confirm the CLI prints the actual Unity console error instead of the BOM exception.</li>
+  </ul>
+
+  <h2>External References</h2>
+  <ul>
+    <li><a href="https://docs.python.org/3/library/json.html#character-encodings">Python json documentation, character encodings</a>: documents that Python's JSON deserializer raises on an initial BOM.</li>
+    <li><a href="https://learn.microsoft.com/en-us/dotnet/api/system.text.utf8encoding.-ctor">Microsoft UTF8Encoding constructors</a>: documents the constructor flag that controls whether <code>GetPreamble()</code> returns a UTF-8 BOM.</li>
+    <li><a href="https://learn.microsoft.com/en-us/dotnet/api/system.io.streamwriter.-ctor">Microsoft StreamWriter constructors</a>: documents default no-BOM writer behavior and the difference when passing an explicit encoding object.</li>
+  </ul>
+</main>
+</body>
+</html>

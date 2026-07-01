@@ -264,60 +264,6 @@ class TestValidation:
 
 
 # ---------------------------------------------------------------------------
-# MCP schema
-# ---------------------------------------------------------------------------
-
-
-class TestSchema:
-    def test_compilation_pipeline_schema_structure(self) -> None:
-        from unity_bridge.mcp.schemas_ext import compilation_pipeline
-
-        schema = compilation_pipeline()
-        assert schema["type"] == "object"
-        assert "operation" in schema["properties"]
-        assert schema["required"] == ["operation"]
-
-    def test_compilation_pipeline_schema_operations(self) -> None:
-        from unity_bridge.mcp.schemas_ext import compilation_pipeline
-
-        schema = compilation_pipeline()
-        ops = schema["properties"]["operation"]["enum"]
-        assert set(ops) == {"assemblies", "defines", "which", "optimization"}
-
-    def test_compilation_pipeline_schema_mode_values(self) -> None:
-        from unity_bridge.mcp.schemas_ext import compilation_pipeline
-
-        schema = compilation_pipeline()
-        modes = schema["properties"]["mode"]["enum"]
-        assert set(modes) == {"None", "Debug", "Release"}
-
-    def test_compilation_pipeline_schema_has_timeout(self) -> None:
-        from unity_bridge.mcp.schemas_ext import compilation_pipeline
-
-        schema = compilation_pipeline()
-        assert "timeout" in schema["properties"]
-
-
-# ---------------------------------------------------------------------------
-# Tool registration
-# ---------------------------------------------------------------------------
-
-
-class TestToolRegistration:
-    def test_tool_in_command_map(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert "unity_compilation_pipeline" in TOOL_COMMAND_MAP
-        assert TOOL_COMMAND_MAP["unity_compilation_pipeline"] == "compilation-pipeline"
-
-    def test_tool_in_definitions(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_DEFINITIONS
-
-        names = [t["name"] for t in TOOL_DEFINITIONS]
-        assert "unity_compilation_pipeline" in names
-
-
-# ---------------------------------------------------------------------------
 # Protocol
 # ---------------------------------------------------------------------------
 

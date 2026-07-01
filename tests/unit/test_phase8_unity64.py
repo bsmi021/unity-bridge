@@ -109,24 +109,3 @@ class TestUnity64ProtocolRegistration:
         from unity_bridge.core.protocol import PARALLEL_SAFE_COMMANDS
 
         assert "object-identity" in PARALLEL_SAFE_COMMANDS
-
-
-class TestUnity64McpRegistration:
-    def test_tool_map_entries(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert TOOL_COMMAND_MAP["unity_object_identity"] == "object-identity"
-        assert TOOL_COMMAND_MAP["unity_project_auditor"] == "project-auditor"
-
-    def test_tool_definitions_present(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_DEFINITIONS
-
-        names = {tool["name"] for tool in TOOL_DEFINITIONS}
-        assert "unity_object_identity" in names
-        assert "unity_project_auditor" in names
-
-    def test_schemas_declare_timeout(self) -> None:
-        from unity_bridge.mcp import schemas_unity64
-
-        assert "timeout" in schemas_unity64.object_identity()["properties"]
-        assert "timeout" in schemas_unity64.project_auditor()["properties"]

@@ -1,9 +1,48 @@
 # Tools Commands Reference
 
-Editor tools: profiler, game view, clipboard, window management, input system,
-script info, deep serialize, find references, execution order, and assembly lock.
+Editor tools: profiler, profiler-control, game view, clipboard, window management,
+input system, script info, deep serialize, find references, execution order, and assembly lock.
 
-Commands marked "not yet registered" have Python modules but are not wired into app.py yet.
+---
+
+## testing selectors
+
+`test run` supports Unity Test Framework selector fields in addition to the
+legacy `--filter` option.
+
+```bash
+unity-bridge test run --platform EditMode --test-name Game.Tests.CombatTests.Attack
+unity-bridge test run --platform EditMode --group "^Game\\.Tests\\.Combat\\."
+unity-bridge test run --platform EditMode --category Smoke --assembly Game.Editor.Tests --min-tests 1
+unity-bridge test cancel --command-id 00000000-0000-0000-0000-000000000000
+unity-bridge test preflight --platform EditMode --filter Combat --min-tests 1
+unity-bridge test results --last
+unity-bridge test failures --command-id 00000000-0000-0000-0000-000000000000
+unity-bridge test progress --last
+unity-bridge test events --last --max-events 50
+unity-bridge test rerun-failed --last --platform EditMode
+unity-bridge test history --max-results 5
+```
+
+---
+
+## coverage
+
+Optional Unity Code Coverage package utility. The bridge compiles without
+`com.unity.testtools.codecoverage`; availability and report inspection return
+structured results even when the package is missing.
+
+```bash
+unity-bridge coverage availability
+unity-bridge coverage install
+unity-bridge coverage install --version 1.3.0
+unity-bridge coverage start
+unity-bridge coverage pause
+unity-bridge coverage resume
+unity-bridge coverage stop
+unity-bridge coverage find-reports --path CoverageResults --max-results 25
+unity-bridge coverage summarize CoverageResults/Report/Summary.json
+```
 
 ---
 
@@ -15,39 +54,41 @@ Commands marked "not yet registered" have Python modules but are not wired into 
 unity-bridge profiler --memory --rendering --cpu
 ```
 
-### Advanced controls (not yet registered -- module exists)
+## profiler-control
 
-#### `profiler start`
+Advanced profiler controls.
+
+### `profiler-control start`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `--log-file` | TEXT | no | Path to save profiler data |
 
-#### `profiler stop`
+### `profiler-control stop`
 
 Stop the Unity Profiler. No arguments.
 
-#### `profiler save`
+### `profiler-control save`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `LOG_FILE` | positional | yes | Path to save profiler data |
 
-#### `profiler memory`
+### `profiler-control memory`
 
 Get detailed memory statistics. No arguments.
 
 ```bash
-unity-bridge profiler start
-unity-bridge profiler start --log-file profiler.raw
-unity-bridge profiler stop
-unity-bridge profiler save profiler-output.raw
-unity-bridge profiler memory
+unity-bridge profiler-control start
+unity-bridge profiler-control start --log-file profiler.raw
+unity-bridge profiler-control stop
+unity-bridge profiler-control save profiler-output.raw
+unity-bridge profiler-control memory
 ```
 
 ---
 
-## game-view (not yet registered)
+## game-view
 
 ### `game-view get`
 
@@ -74,7 +115,7 @@ unity-bridge game-view set-scale 2.0
 
 ---
 
-## clipboard (not yet registered)
+## clipboard
 
 ```bash
 unity-bridge clipboard read
@@ -83,7 +124,7 @@ unity-bridge clipboard write "Hello from CLI"
 
 ---
 
-## window (not yet registered)
+## window
 
 ```bash
 unity-bridge window list
@@ -94,7 +135,7 @@ unity-bridge window close ProfilerWindow
 
 ---
 
-## input-system (not yet registered)
+## input-system
 
 Requires `com.unity.inputsystem` package.
 
@@ -132,15 +173,15 @@ unity-bridge input-system import Assets/Input/Controls.inputactions -f controls.
 
 ---
 
-## execution-order (not yet registered)
+## script-execution-order
 
-### `execution-order get`
+### `script-execution-order get`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `--non-default` | flag | no | Only scripts with non-zero order |
 
-### `execution-order set`
+### `script-execution-order set`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -148,14 +189,14 @@ unity-bridge input-system import Assets/Input/Controls.inputactions -f controls.
 | `ORDER` | positional (INT) | yes | Execution order value |
 
 ```bash
-unity-bridge execution-order get
-unity-bridge execution-order get --non-default
-unity-bridge execution-order set Assets/Scripts/GameManager.cs -100
+unity-bridge script-execution-order get
+unity-bridge script-execution-order get --non-default
+unity-bridge script-execution-order set Assets/Scripts/GameManager.cs -100
 ```
 
 ---
 
-## assembly-lock / assembly-unlock / assembly-status (not yet registered)
+## assembly-lock / assembly-unlock / assembly-status
 
 Standalone commands (not a group).
 
@@ -167,7 +208,7 @@ unity-bridge assembly-status
 
 ---
 
-## script-info (not yet registered)
+## script-info
 
 ### `script-info info`
 
@@ -198,7 +239,7 @@ unity-bridge script-info find-component Player PlayerController
 
 ---
 
-## deep-serialize (not yet registered)
+## deep-serialize
 
 ### `deep-serialize get`
 

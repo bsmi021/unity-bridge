@@ -127,33 +127,52 @@ def _parse_properties(raw: str | None) -> dict[str, object] | None:
 material_app = typer.Typer(name="material", help="Material management commands.")
 
 
-@material_app.callback(invoke_without_command=True)
-def material_cli(
+def _print_material_operation(
     ctx: typer.Context,
-    action: Annotated[
-        str | None, typer.Argument(help="Material action: modify, create, or duplicate.")
-    ] = None,
-    path: Annotated[str | None, typer.Argument(help="Material asset path.")] = None,
+    action: str,
+    path: str,
+    properties: dict[str, object] | None = None,
+) -> None:
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(material_operation(state.bridge, action, path, properties))
+    print_result(result, state.formatter)
+
+
+@material_app.callback()
+def material_cli() -> None:
+    """Material management commands."""
+
+
+@material_app.command("modify")
+def modify_cli(
+    ctx: typer.Context,
+    path: Annotated[str, typer.Argument(help="Material asset path.")],
     properties: Annotated[
         str | None, typer.Option("--properties", help="JSON string of property overrides.")
     ] = None,
 ) -> None:
-    """Perform a material operation (modify | create | duplicate)."""
-    if ctx.invoked_subcommand is not None:
-        return
-    if action is None or path is None:
-        raise typer.BadParameter("action and path are required.")
-    from unity_bridge.core.output import print_result
+    """Modify material properties."""
+    _print_material_operation(ctx, "modify", path, _parse_properties(properties))
 
-    normalised = action.lower().strip()
-    if normalised not in VALID_ACTIONS:
-        raise typer.BadParameter(
-            f"Invalid action '{action}'. Must be one of: {', '.join(sorted(VALID_ACTIONS))}"
-        )
-    parsed_props = _parse_properties(properties)
-    state = ctx.obj
-    result = asyncio.run(material_operation(state.bridge, normalised, path, parsed_props))
-    print_result(result, state.formatter)
+
+@material_app.command("create")
+def create_cli(
+    ctx: typer.Context,
+    path: Annotated[str, typer.Argument(help="Material asset path.")],
+) -> None:
+    """Create a material asset."""
+    _print_material_operation(ctx, "create", path)
+
+
+@material_app.command("duplicate")
+def duplicate_cli(
+    ctx: typer.Context,
+    path: Annotated[str, typer.Argument(help="Material asset path.")],
+) -> None:
+    """Duplicate a material asset."""
+    _print_material_operation(ctx, "duplicate", path)
 
 
 @material_app.command("enable-keyword")

@@ -1,20 +1,18 @@
 # Unity Bridge
 
-CLI and MCP server for Unity Editor automation via file-based bridge protocol.
+CLI for Unity Editor automation via file-based bridge protocol.
 
 ## Commands
 
 ```bash
 # Install
 pip install -e "."              # Core only (CLI + bridge)
-pip install -e ".[mcp]"         # With MCP server
 pip install -e ".[dev]"         # With test/lint tools
-pip install -e ".[all]"         # Everything (mcp + watch + dev)
+pip install -e ".[all]"         # Everything (watch + dev)
 
 # CLI
 unity-bridge --help             # All commands and flags
 unity-bridge version            # Check installed version
-unity-bridge serve              # Start MCP server mode
 
 # Test
 python3 -m pytest tests/                    # All tests (integration skipped without Unity)
@@ -76,29 +74,23 @@ unity-bridge/
 │   │   ├── protocol.py        # Timeout defaults, parallel-safe commands
 │   │   ├── project.py         # Unity project auto-detection
 │   │   └── output.py          # OutputFormatter (json/pretty/human)
-│   ├── commands/              # ~60 command modules (one per domain)
-│   │   ├── hierarchy.py       # hierarchy + component groups
-│   │   ├── workflow.py        # workflow + snapshot groups
-│   │   ├── settings.py        # Phase 1: PlayerSettings
-│   │   ├── asset_extended.py  # Phase 1: extended asset ops
-│   │   ├── build_profile.py   # Phase 1: Unity 6 Build Profiles
-│   │   ├── package.py         # Phase 1: UPM package manager
-│   │   ├── compile_extended.py # Phase 2: compilation pipeline
-│   │   ├── undo.py            # Phase 2: undo/redo management
-│   │   ├── lightmap.py        # Phase 3: lightmap baking
-│   │   ├── shader.py          # Phase 3: shader inspection
-│   │   ├── scene_setup.py     # Phase 3: multi-scene setups
-│   │   ├── import_settings.py # Phase 3: asset import templates
-│   │   ├── navmesh.py         # Phase 4-ext: NavMesh bake/query
-│   │   ├── preset.py          # Phase 6: Unity Preset asset API
-│   │   └── ...                # animator, asset, batch, build, console, addressables, terrain, tilemap, profiler, etc.
-│   └── mcp/                   # MCP server layer
-│       ├── server.py          # MCP server using shared core functions
-│       ├── tools.py           # Tool definitions + dispatch map (48 MCP tools)
-│       ├── schemas.py         # Schemas for 24 core MCP tools
-│       ├── schemas_ext.py     # Schemas for Phase 1+2 tools (11 tools)
-│       ├── schemas_phase3.py  # Schemas for Phase 3 tools (4 tools)
-│       └── schemas_phase4.py  # Schemas for Phase 4 tools (9 tools)
+│   └── commands/              # 84 command modules (one per domain)
+│       ├── hierarchy.py       # hierarchy + component groups
+│       ├── workflow.py        # workflow + snapshot groups
+│       ├── settings.py        # Phase 1: PlayerSettings
+│       ├── asset_extended.py  # Phase 1: extended asset ops
+│       ├── build_profile.py   # Phase 1: Unity 6 Build Profiles
+│       ├── package.py         # Phase 1: UPM package manager
+│       ├── compile_extended.py # Phase 2: compilation pipeline
+│       ├── undo.py            # Phase 2: undo/redo management
+│       ├── lightmap.py        # Phase 3: lightmap baking
+│       ├── shader.py          # Phase 3: shader inspection
+│       ├── scene_setup.py     # Phase 3: multi-scene setups
+│       ├── import_settings.py # Phase 3: asset import templates
+│       ├── navmesh.py         # Phase 4-ext: NavMesh bake/query
+│       ├── preset.py          # Phase 6: Unity Preset asset API
+│       ├── timeline.py, cinemachine.py, localization.py, memory_profiler.py, vfx.py  # package-provided systems
+│       └── ...                # animator, asset, batch, build, console, addressables, terrain, tilemap, profiler, etc.
 ├── ClaudeCodeBridge/          # C# scripts installed into Unity Editor (100+ files)
 │   ├── ClaudeUnityBridge.cs   # Main bridge loop (EditorApplication.update)
 │   ├── BridgeCommandRegistry.cs # Command handler registration
@@ -130,14 +122,24 @@ Additional bridge directories created by Phase 3 handlers:
 
 `core/project.py` walks up from cwd looking for `Assets/` + `ProjectSettings/` directories. Override with `--project` flag or `UNITY_BRIDGE_PROJECT` env var.
 
-### Dual Interface Pattern
+### Single Interface — MCP Retired
 
-CLI and MCP share 100% of core logic. Each command module in `commands/` exposes:
+The MCP server has been **fully removed** (was `mcp/`, `serve` command,
+`[mcp]` extra — all deleted). The `unity-bridge` CLI (driven by the
+`unity-bridge-cli` skill) is the only interface. Do not reintroduce an
+`mcp/` package, a `serve` command, or MCP tool schemas — new capability
+work targets the CLI + core async functions only.
 
-1. **Async core functions** — accept typed params, return `CommandResult`. Called by both CLI and MCP.
+### Command Module Pattern (architecture)
+
+Each command module in `commands/` exposes:
+
+1. **Async core functions** — accept typed params, return `CommandResult`.
 2. **Typer CLI wrappers** — thin sync wrappers that call `asyncio.run()` on the core functions.
 
-MCP handlers in `mcp/server.py` `await` the same core functions directly. Never use `asyncio.run()` inside MCP handlers — it crashes with `RuntimeError: This event loop is already running`.
+This split is kept even without MCP: it keeps Unity-communication logic
+testable (mock `DirectBridge`, no Typer/argv involved) independent of the
+CLI plumbing.
 
 ### Key Types
 
@@ -148,7 +150,7 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 
 ### Command Groups (40+ CLI groups)
 
-**Core:** animator, asset, batch, build, component, console, diagnostics, editor, hierarchy, lifecycle, material, playmode, prefab, scene, script, serve, snapshot, test, workflow
+**Core:** animator, asset, batch, build, component, console, diagnostics, editor, hierarchy, lifecycle, material, playmode, prefab, scene, script, snapshot, test, workflow
 **Phase 1:** asset-ext, package, profile, settings
 **Phase 2:** compile, undo (+ prefab overrides/gameobject-utility subcommands)
 **Phase 3:** import-settings, lightmap, scene-ext, shader
@@ -156,10 +158,15 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 **Phase 4 expansion:** navmesh, animation-clip, terrain, reflection-probe, occlusion, script-execution-order, assembly-reload-lock, find-references
 **Phase 5 (quick wins):** remove-component, component-toggle, console-log
 **Phase 6 / 6b:** component-copy, component-reset, scene-view, game-view, profiler-control, preset, clipboard, deep-serialize, scene-template, tilemap, input-system, audio-settings, environment-settings, graphics-settings, time-settings, window, script-info, addressables
+**Package-provided systems (post-6.4 delta):** timeline, cinemachine, localization, memory-profiler, vfx
+
+Note: this list has drifted from the live CLI surface over several phases
+(see `docs/unity-bridge-audit-and-gap-analysis.md`) — treat `unity-bridge
+--help` as authoritative for the full current group list, not this doc.
 
 ## C# Bridge Installation
 
-The `lifecycle` command copies `ClaudeCodeBridge/*.cs` into the Unity project at `Assets/Scripts/Editor/ClaudeCodeBridge/`. The MCP server auto-installs on first run. Files include `.meta` files for Unity asset tracking.
+The `lifecycle` command copies `ClaudeCodeBridge/*.cs` into the Unity project at `Assets/Scripts/Editor/ClaudeCodeBridge/`. Files include `.meta` files for Unity asset tracking.
 
 ### C# File Organization
 
@@ -184,7 +191,7 @@ Large C# handlers are split to stay under 500 LOC:
 ## Command Module Pattern
 
 ```python
-# 1. Core async function (shared by CLI + MCP)
+# 1. Core async function
 async def do_thing(bridge: DirectBridge, ...) -> CommandResult:
     return await bridge.send_command_with_retry(...)
 
@@ -212,25 +219,13 @@ def do_thing_cli(ctx: typer.Context, ...) -> None:
 - `PARALLEL_SAFE_COMMANDS` in `core/protocol.py` is the single source of truth for batch parallelism
 - Current parallel-safe (read-only) commands: `query-hierarchy`, `get-component-data`, `get-selection`, `read-console`, `validate-prefab`, `health-check`, `list-tests`, `shader-inspection`, `transform-operation`, `serialized-property`
 
-### MCP Schema Split
-
-Schemas are split across multiple files to stay under the 500 LOC limit:
-- `schemas.py` / `schemas_ext.py` — original + Phase 1+2 core tools (all declare `timeout`)
-- `schemas_phase3.py` — Phase 3 (lightmap, shader, scene-extended, import-settings)
-- `schemas_phase4.py` / `schemas_phase4_ext.py` / `schemas_phase4_misc.py` — Phase 4 core + specialized workflow gaps (navmesh, animation-clip, terrain, reflection-probe, occlusion)
-- `schemas_phase5.py` — Quick wins (remove-component, component-toggle, console-log)
-- `schemas_phase6.py` / `schemas_phase6b.py` — Component/Scene/Inspector gaps (component-copy, component-reset, scene-view, game-view, profiler-control)
-- `schemas_pipeline.py` — Build/platform/pipeline (script-execution-order, assembly-reload-lock, find-references)
-
-Tool definitions live in `mcp/tools.py` (`TOOL_COMMAND_MAP` + `TOOL_DEFINITIONS`) plus `mcp/tools_ext.py` (Phase 4 expansion via `get_tool_definitions()`). Client-side-only tools: `unity_bridge_config`, `unity_health_check`, `unity_batch`, `unity_help`.
-
 ## Testing
 
 - Unit tests mock `DirectBridge` — never require Unity running
 - Integration tests marked `@pytest.mark.integration`, skipped without Unity
 - Use `tmp_path` fixture for file system tests
 - Shared fixtures in `conftest.py`: `mock_bridge`, `healthy_bridge`, `failing_bridge`, `fake_project`, `fake_heartbeat`
-- Coverage targets: core/ 90%+, commands/ 85%+, mcp/ 80%+
+- Coverage targets: core/ 90%+, commands/ 85%+
 
 ## Exit Codes
 

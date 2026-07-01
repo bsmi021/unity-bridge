@@ -208,27 +208,10 @@ class TestAddressablesAdvanced:
         }
 
 
-class TestAuthoringMcpAndProtocol:
-    def test_tool_map_entries(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert TOOL_COMMAND_MAP["unity_ui_toolkit"] == "ui-toolkit"
-        assert TOOL_COMMAND_MAP["unity_input_system"] == "input-system"
-        assert TOOL_COMMAND_MAP["unity_addressables"] == "addressables"
-
+class TestAuthoringProtocol:
     def test_timeout_defaults(self) -> None:
         from unity_bridge.core.protocol import TIMEOUT_DEFAULTS
 
         assert TIMEOUT_DEFAULTS["ui-toolkit"] == 15
         assert TIMEOUT_DEFAULTS["input-system"] == 30
         assert TIMEOUT_DEFAULTS["addressables"] == 300
-
-    def test_schemas_include_new_operations(self) -> None:
-        from unity_bridge.mcp import schemas_authoring, schemas_phase4_ext, schemas_phase4_misc
-
-        ui_ops = schemas_authoring.ui_toolkit()["properties"]["operation"]["enum"]
-        input_ops = schemas_phase4_misc.input_system()["properties"]["operation"]["enum"]
-        addr_ops = schemas_phase4_ext.addressables_operation()["properties"]["operation"]["enum"]
-        assert "add-ui-document" in ui_ops
-        assert "add-binding" in input_ops
-        assert "set-label" in addr_ops

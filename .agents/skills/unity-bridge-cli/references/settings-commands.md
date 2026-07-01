@@ -68,13 +68,13 @@ unity-bridge quality set-level 2
 
 ---
 
-## time (not yet registered -- module exists)
+## time-settings
 
-### `time get`
+### `time-settings get`
 
 Get current time settings. No arguments.
 
-### `time set`
+### `time-settings set`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -85,16 +85,16 @@ Get current time settings. No arguments.
 | `--capture-delta` | FLOAT | no | Capture framerate timestep |
 
 ```bash
-unity-bridge time get
-unity-bridge time set --time-scale 0.5
-unity-bridge time set --fixed-delta 0.01
+unity-bridge time-settings get
+unity-bridge time-settings set --time-scale 0.5
+unity-bridge time-settings set --fixed-delta 0.01
 ```
 
 ---
 
-## graphics (not yet registered -- module exists)
+## graphics-settings
 
-### `graphics get` / `graphics set`
+### `graphics-settings get` / `graphics-settings set`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -103,16 +103,16 @@ unity-bridge time set --fixed-delta 0.01
 | `--log-shader/--no-log-shader` | flag | no | Log shader compilations |
 
 ```bash
-unity-bridge graphics get
-unity-bridge graphics set --srp-batching
-unity-bridge graphics set --render-pipeline Assets/Settings/URP.asset
+unity-bridge graphics-settings get
+unity-bridge graphics-settings set --srp-batching
+unity-bridge graphics-settings set --render-pipeline Assets/Settings/URP.asset
 ```
 
 ---
 
-## environment (not yet registered -- module exists)
+## environment-settings
 
-### `environment get` / `environment set`
+### `environment-settings get` / `environment-settings set`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -123,16 +123,16 @@ unity-bridge graphics set --render-pipeline Assets/Settings/URP.asset
 | `--skybox` | TEXT | no | Skybox material path or "none" |
 
 ```bash
-unity-bridge environment get
-unity-bridge environment set --fog --fog-density 0.05
-unity-bridge environment set --ambient-intensity 1.5
+unity-bridge environment-settings get
+unity-bridge environment-settings set --fog --fog-density 0.05
+unity-bridge environment-settings set --ambient-intensity 1.5
 ```
 
 ---
 
-## audio (not yet registered -- module exists)
+## audio-settings
 
-### `audio get` / `audio set`
+### `audio-settings get` / `audio-settings set`
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
@@ -141,9 +141,9 @@ unity-bridge environment set --ambient-intensity 1.5
 | `--dsp-buffer` | INT | no | DSP buffer size |
 
 ```bash
-unity-bridge audio get
-unity-bridge audio set --volume 0.8
-unity-bridge audio set --speaker-mode Stereo
+unity-bridge audio-settings get
+unity-bridge audio-settings set --volume 0.8
+unity-bridge audio-settings set --speaker-mode Stereo
 ```
 
 ---

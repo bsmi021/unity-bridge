@@ -213,16 +213,10 @@ namespace BWS.Editor.ClaudeCodeBridge
                 // Convert to JSON
                 var json = JsonUtility.ToJson(heartbeat, prettyPrint: true);
 
-                // Atomic write: write to temp file first, then rename
-                var tempPath = _heartbeatPath + ".tmp";
-                File.WriteAllText(tempPath, json);
-
-                // Rename (atomic on most filesystems)
-                if (File.Exists(_heartbeatPath))
-                {
-                    File.Delete(_heartbeatPath);
-                }
-                File.Move(tempPath, _heartbeatPath);
+                // Atomic write via the shared helper (temp file + fsync + replace
+                // with bounded retries). The previous delete-then-move left a
+                // window where a health check could observe no heartbeat file.
+                BridgeOperationLedger.WriteAtomic(_heartbeatPath, json);
             }
             catch (Exception ex)
             {

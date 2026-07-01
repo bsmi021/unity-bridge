@@ -87,6 +87,49 @@ class TestConfigPrecedence:
 
 
 # ---------------------------------------------------------------------------
+# Timeout override tracking (U6 / B2)
+# ---------------------------------------------------------------------------
+
+
+class TestTimeoutExplicit:
+    """default_timeout must record whether it was explicitly set, so a global
+    override can be distinguished from the built-in default."""
+
+    def test_default_is_not_explicit(self) -> None:
+        config = BridgeConfig()
+        assert config.timeout_explicit is False
+
+    def test_cli_timeout_marks_explicit(self) -> None:
+        config = BridgeConfig.resolve(cli_timeout=42)
+        assert config.default_timeout == 42
+        assert config.timeout_explicit is True
+
+    def test_env_timeout_marks_explicit(self) -> None:
+        with patch.dict(os.environ, {"UNITY_BRIDGE_TIMEOUT": "120"}, clear=False):
+            config = BridgeConfig.resolve()
+        assert config.default_timeout == 120
+        assert config.timeout_explicit is True
+
+    def test_unset_timeout_not_explicit(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            config = BridgeConfig.resolve()
+        assert config.timeout_explicit is False
+
+    def test_from_env_tolerates_whitespace(self) -> None:
+        with patch.dict(os.environ, {"UNITY_BRIDGE_TIMEOUT": " 45 "}, clear=False):
+            config = BridgeConfig.from_env()
+        assert config.default_timeout == 45
+        assert config.timeout_explicit is True
+
+    def test_from_env_rejects_non_positive_and_garbage(self) -> None:
+        for bad in ("0", "-5", "abc", ""):
+            with patch.dict(os.environ, {"UNITY_BRIDGE_TIMEOUT": bad}, clear=False):
+                config = BridgeConfig.from_env()
+            assert config.default_timeout == 30
+            assert config.timeout_explicit is False
+
+
+# ---------------------------------------------------------------------------
 # Config file loading / saving
 # ---------------------------------------------------------------------------
 

@@ -10,11 +10,16 @@ namespace BWS.Editor.ClaudeCodeBridge
     [Serializable]
     public class PackageOperationParams
     {
-        public string operation;       // "list", "search", "search-all", "add", "remove", "info", "embed", "resolve"
+        public string operation;       // "list", "search", "add", "batch", "pack", etc.
         public string packageName;     // For remove, info, embed
         public string identifier;      // For add (name@version or git URL)
         public string query;           // For search
         public string source;          // For list filter
+        public string[] packagesToAdd; // For batch
+        public string[] packagesToRemove; // For batch
+        public string packageFolder;   // For pack
+        public string targetFolder;    // For pack
+        public bool confirmClearCache; // For clear-cache
         public bool offlineMode;
         public bool includeIndirectDependencies;
     }
@@ -29,6 +34,11 @@ namespace BWS.Editor.ClaudeCodeBridge
         public List<PackageInfoData> packages = new List<PackageInfoData>();
         public PackageInfoData package;  // Single package result (add, remove, info, embed)
         public string packageName;
+        public string[] packagesToAdd;
+        public string[] packagesToRemove;
+        public string packageFolder;
+        public string targetFolder;
+        public string tarballPath;
         public int totalCount;
         public bool success;
         public string message;

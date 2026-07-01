@@ -76,6 +76,32 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string testFilter; // Optional filter like "CombatControllerTests" or null for all tests
         public string testPlatform = "EditMode"; // "EditMode" or "PlayMode"
+        public string[] testNames; // Full test names to execute
+        public string[] groupNames; // Regex-style fixture/namespace groups to execute
+        public string[] categoryNames; // NUnit categories to include
+        public string[] assemblyNames; // Test assembly names without .dll
+    }
+
+    /// <summary>
+    /// Parameters for the cancel-tests command.
+    /// </summary>
+    [Serializable]
+    public class CancelTestsParams
+    {
+        public string targetCommandId; // Optional originating run-tests bridge command id
+    }
+
+    /// <summary>
+    /// Result data for the cancel-tests command.
+    /// </summary>
+    [Serializable]
+    public class CancelTestsResult
+    {
+        public string targetCommandId;
+        public string runGuid;
+        public bool activeRun;
+        public bool cancelRequested;
+        public string message;
     }
 
     /// <summary>

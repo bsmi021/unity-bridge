@@ -80,7 +80,7 @@ unity-bridge component disable Player "AudioSource"
 
 ---
 
-## component copy/paste/reset (not yet registered -- module exists)
+## component copy/paste/reset
 
 ### `component copy`
 
@@ -161,7 +161,7 @@ unity-bridge property set Player BoxCollider "m_Size" '{"x":2,"y":2,"z":2}'
 
 ---
 
-## deep-serialize (not yet registered -- module exists)
+## deep-serialize
 
 Full EditorJsonUtility serialization including private fields.
 
@@ -191,7 +191,7 @@ unity-bridge deep-serialize set Player Health '{"maxHp": 200, "currentHp": 200}'
 
 ---
 
-## script-info (not yet registered -- module exists)
+## script-info
 
 MonoScript inspection.
 

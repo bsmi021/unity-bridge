@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -92,7 +93,6 @@ class TestClean:
         old_file.write_text("{}", encoding="utf-8")
         # Backdate the modification time
         old_time = time.time() - 600  # 10 minutes ago
-        import os
 
         os.utime(old_file, (old_time, old_time))
 
@@ -116,13 +116,41 @@ class TestClean:
         old_file = cmd_dir / "old-cmd.json"
         old_file.write_text("{}", encoding="utf-8")
         old_time = time.time() - 600
-        import os
 
         os.utime(old_file, (old_time, old_time))
 
         result = await lifecycle.clean(fake_project, age_minutes=5, dry_run=True)
         assert result.success is True
         assert old_file.exists()  # still there
+
+    async def test_removes_old_temp_files_from_bridge_state(
+        self,
+        fake_project: Path,
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        store = OperationStore(fake_project)
+        bridge_root = fake_project / ".claude" / "unity"
+        old_temp_files = [
+            bridge_root / "commands" / "cmd.json.tmp",
+            bridge_root / "responses" / "response.json.tmp",
+            store.operations_path / "operation.json.tmp",
+            store.operations_path / "operation.json.abc123.tmp",
+        ]
+        for path in old_temp_files:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("partial", encoding="utf-8")
+            old_time = time.time() - 600
+            os.utime(path, (old_time, old_time))
+        recent_temp = store.operations_path / "recent.json.tmp"
+        recent_temp.write_text("partial", encoding="utf-8")
+
+        result = await lifecycle.clean(fake_project, age_minutes=5)
+
+        assert result.success is True
+        for path in old_temp_files:
+            assert not path.exists()
+            assert str(path) in result.data["files"]
+        assert recent_temp.exists()
 
     async def test_removes_old_terminal_operation_records(self, fake_project: Path) -> None:
         lifecycle = _import_lifecycle()
@@ -146,12 +174,15 @@ class TestClean:
         _create_operation_record(store, "active")
         _create_operation_record(store, "done")
         store.transition("done", STATE_COMPLETED, reason="success")
+        temp_file = store.operations_path / "active.json.tmp"
+        temp_file.write_text("partial", encoding="utf-8")
 
         result = await lifecycle.clean(fake_project, all_files=True)
 
         assert result.success is True
         assert store.record_path("active").exists()
         assert store.events_path("active").exists()
+        assert not temp_file.exists()
         assert not store.record_path("done").exists()
         assert not store.events_path("done").exists()
 
@@ -338,6 +369,30 @@ class TestInstall:
         assert result.success is True
         assert result.data["action"] == "up_to_date"
         assert result.data["skill"]["action"] == "up_to_date"
+
+    async def test_install_restores_missing_bridge_file_when_version_unchanged(
+        self, fake_project: Path, tmp_path: Path
+    ) -> None:
+        """A plain `install` (no --force) must detect and restore a bridge file
+        that went missing from the target directory, even though the stored
+        manifest's version string still matches the current version — it must
+        not rely on version-string equality alone to decide "up to date"."""
+        lifecycle = _import_lifecycle()
+        source = _create_fake_bridge_source(tmp_path)
+
+        with patch.object(lifecycle, "_get_bridge_source_dir", return_value=source):
+            await lifecycle.install(fake_project)
+            target = fake_project / "Assets" / "Scripts" / "Editor" / "ClaudeCodeBridge"
+            (target / "BridgeModels.cs").unlink()
+            (target / "BridgeModels.cs.meta").unlink()
+
+            result = await lifecycle.install(fake_project)
+
+        assert result.success is True
+        assert result.data["action"] == "update"
+        target = fake_project / "Assets" / "Scripts" / "Editor" / "ClaudeCodeBridge"
+        assert (target / "BridgeModels.cs").is_file()
+        assert (target / "BridgeModels.cs.meta").is_file()
 
     async def test_install_updates_skill_when_bridge_is_up_to_date(
         self, fake_project: Path, tmp_path: Path

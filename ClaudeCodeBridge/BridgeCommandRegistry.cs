@@ -14,6 +14,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             // Core handlers
             registerHandler(new RunTestsCommandHandler());
+            registerHandler(new CancelTestsCommandHandler());
             registerHandler(new QueryHierarchyCommandHandler());
             registerHandler(new GetComponentDataCommandHandler());
             registerHandler(new SetComponentDataCommandHandler());
@@ -121,6 +122,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             // Unity 6.4: Identity & Audit
             registerHandler(new ObjectIdentityCommandHandler());
             registerHandler(new ProjectAuditorCommandHandler());
+            registerHandler(new CodeCoverageCommandHandler());
             registerHandler(new UIToolkitCommandHandler());
             registerHandler(new RenderPipelineCommandHandler());
             registerHandler(new GraphicsStateCommandHandler());
@@ -129,6 +131,13 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new EntitiesCommandHandler());
             registerHandler(new AdaptivePerformanceCommandHandler());
             registerHandler(new MultiplayerPlayModeCommandHandler());
+
+            // Phase N: Timeline, Cinemachine, Localization, Memory Profiler, VFX
+            registerHandler(new TimelineCommandHandler());
+            registerHandler(new CinemachineCommandHandler());
+            registerHandler(new LocalizationCommandHandler());
+            registerHandler(new MemoryProfilerCommandHandler());
+            registerHandler(new VfxCommandHandler());
 
             // Core handlers registered previously as "disabled pending Unity import"
             // (m3 from gap-analysis-report) — now enabled.

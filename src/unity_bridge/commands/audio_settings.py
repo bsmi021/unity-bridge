@@ -8,6 +8,15 @@ from typing import Annotated
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.settings_params import SettingField, build_set_params
+
+_AUDIO_FIELDS = [
+    SettingField("volume", ("globalVolume",), "setGlobalVolume"),
+    SettingField("pause", ("globalPause",), "setGlobalPause"),
+    SettingField("speaker_mode", ("speakerMode",), "setSpeakerMode"),
+    SettingField("dsp_buffer_size", ("dspBufferSize",), "setDspBufferSize"),
+    SettingField("sample_rate", ("outputSampleRate",), "setOutputSampleRate"),
+]
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -51,24 +60,7 @@ async def audio_set(
         sample_rate: Output sample rate.
         timeout: Timeout in seconds.
     """
-    params: dict[str, object] = {"operation": "set"}
-
-    if volume is not None:
-        params["globalVolume"] = volume
-        params["setGlobalVolume"] = True
-    if pause is not None:
-        params["globalPause"] = pause
-        params["setGlobalPause"] = True
-    if speaker_mode is not None:
-        params["speakerMode"] = speaker_mode
-        params["setSpeakerMode"] = True
-    if dsp_buffer_size is not None:
-        params["dspBufferSize"] = dsp_buffer_size
-        params["setDspBufferSize"] = True
-    if sample_rate is not None:
-        params["outputSampleRate"] = sample_rate
-        params["setOutputSampleRate"] = True
-
+    params = build_set_params("set", _AUDIO_FIELDS, locals())
     return await bridge.send_command_with_retry(
         command_type="audio-settings",
         parameters=params,

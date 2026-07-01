@@ -9,12 +9,53 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import time
+import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from unity_bridge.core.timeutil import (
+    optional_int as _optional_int,
+    parse_optional_datetime as _parse_optional_datetime,
+    utc_now_iso as _utc_now,
+)
+
+logger = logging.getLogger("unity_bridge.operation")
+
 SCHEMA_VERSION = 1
+
+# The operation ledger files are written by BOTH this process and the C# bridge,
+# so a write can transiently hit a cross-process file lock (e.g. Windows
+# "being used by another process"). Ledger persistence is best-effort durability,
+# never on the critical path: a failed write must never propagate and fail/retry
+# the command itself (which would, for run-tests, spawn a duplicate run).
+_LEDGER_WRITE_ATTEMPTS = 5
+_LEDGER_WRITE_BASE_DELAY = 0.02
+
+
+def _best_effort_write(do_write: Callable[[], None], path: Path) -> bool:
+    """Run a write with bounded retries on transient file locks; never raises.
+
+    Returns True on success, False if every attempt failed (logged as a warning).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(_LEDGER_WRITE_ATTEMPTS):
+        try:
+            do_write()
+            return True
+        except (PermissionError, OSError) as exc:
+            last_exc = exc
+            if attempt < _LEDGER_WRITE_ATTEMPTS - 1:
+                time.sleep(_LEDGER_WRITE_BASE_DELAY * (2 ** attempt))
+    logger.warning(
+        "Ledger write failed for %s after %d attempts: %s",
+        path, _LEDGER_WRITE_ATTEMPTS, last_exc,
+    )
+    return False
 
 STATE_QUEUED = "queued"
 STATE_ACCEPTED = "accepted"
@@ -216,7 +257,7 @@ class OperationStore:
         path = self.record_path(command_id)
         if not path.exists():
             return None
-        return OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        return OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
 
     def list_records(
         self,
@@ -228,7 +269,7 @@ class OperationStore:
         records: list[OperationRecord] = []
         for path in self.operations_path.glob("*.json"):
             try:
-                record = OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                record = OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
             except (json.JSONDecodeError, KeyError, OSError):
                 continue
             if include_terminal or not record.is_terminal:
@@ -268,12 +309,22 @@ class OperationStore:
         return deleted, skipped
 
     def write(self, record: OperationRecord) -> None:
-        """Atomically write a current-state record."""
+        """Atomically write a current-state record (best-effort, never raises)."""
         path = self.record_path(record.command_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(".json.tmp")
-        temp.write_text(json.dumps(record.to_dict(), indent=2), encoding="utf-8")
-        temp.replace(path)
+        content = json.dumps(record.to_dict(), indent=2)
+
+        def _do() -> None:
+            # Unique temp name so concurrent writers never collide on the temp.
+            temp = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+            try:
+                temp.write_text(content, encoding="utf-8")
+                temp.replace(path)
+            except BaseException:
+                temp.unlink(missing_ok=True)
+                raise
+
+        _best_effort_write(_do, path)
 
     def transition(
         self,
@@ -291,12 +342,27 @@ class OperationStore:
             self.append_event(current, current.state, current.state, "ignored_transition", reason)
             return current
         previous = current.state
-        updated = OperationStateMachine.transition(
-            current,
-            to_state,
-            reason=reason,
-            busy_reason=busy_reason,
-        )
+        try:
+            updated = OperationStateMachine.transition(
+                current,
+                to_state,
+                reason=reason,
+                busy_reason=busy_reason,
+            )
+        except ValueError:
+            # The other writer (the C# bridge) advanced the record to a state we
+            # cannot legally transition from. Do not clobber its progress.
+            self.append_event(current, current.state, to_state, "rejected_transition", reason)
+            return current
+        # Re-load immediately before writing: if the other writer advanced to a
+        # terminal state between our load and write, keep the terminal state
+        # rather than regressing it (best-effort guard for the cross-process race).
+        latest = self.load(command_id)
+        if latest is not None and latest.is_terminal and not updated.is_terminal:
+            self.append_event(
+                latest, current.state, to_state, "skipped_concurrent_terminal", reason
+            )
+            return latest
         self.write(updated)
         self.append_event(updated, previous, to_state, "transition", reason)
         return updated
@@ -323,8 +389,13 @@ class OperationStore:
         }
         path = self.events_path(record.command_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event) + "\n")
+        line = json.dumps(event) + "\n"
+
+        def _do() -> None:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(line)
+
+        _best_effort_write(_do, path)
 
 
 def parameters_hash(parameters: dict[str, Any] | None) -> str:
@@ -375,26 +446,3 @@ def _touch(
     return replace(record, **updates)
 
 
-def _optional_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _parse_optional_datetime(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed

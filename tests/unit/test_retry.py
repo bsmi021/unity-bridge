@@ -10,9 +10,37 @@ import pytest
 from unity_bridge.core.bridge import CommandResult
 from unity_bridge.core.retry import (
     RetryConfig,
+    _check_result_error,
     is_retryable_error,
     retry_async,
 )
+
+
+# ---------------------------------------------------------------------------
+# _check_result_error — unknown result shapes (B8)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckResultError:
+
+    def test_dict_success(self) -> None:
+        assert _check_result_error({"success": True}) == (True, "", None)
+
+    def test_command_result_failure(self) -> None:
+        result = CommandResult(success=False, error="boom")
+        success, error, _ = _check_result_error(result)
+        assert success is False
+        assert error == "boom"
+
+    def test_unknown_shape_defaults_to_failure(self) -> None:
+        """A None / unexpected result must not be silently treated as success."""
+        success, _error, retryable = _check_result_error(None)
+        assert success is False
+        assert retryable is None
+
+    def test_unexpected_object_defaults_to_failure(self) -> None:
+        success, _error, _retryable = _check_result_error(object())
+        assert success is False
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +164,26 @@ class TestRetryAsync:
 
         assert result.success is False
         assert func.await_count == 1
+
+    async def test_can_retry_callback_can_veto_retry(self) -> None:
+        """B6: a can_retry callback returning False stops further retries even
+        on an otherwise-retryable error."""
+        func = AsyncMock(return_value={"success": False, "error": "file is being used"})
+        config = RetryConfig(max_retries=3, base_delay=0.01)
+
+        result = await retry_async(func, config=config, can_retry=lambda _r: False)
+
+        assert result["success"] is False
+        assert func.await_count == 1  # no retry
+
+    async def test_can_retry_callback_allows_retry(self) -> None:
+        func = AsyncMock(return_value={"success": False, "error": "file is being used"})
+        config = RetryConfig(max_retries=2, base_delay=0.01)
+
+        result = await retry_async(func, config=config, can_retry=lambda _r: True)
+
+        assert result["success"] is False
+        assert func.await_count == 3  # 1 + 2 retries
 
     async def test_retries_on_io_exception(self) -> None:
         call_count = 0

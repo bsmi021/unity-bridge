@@ -12,6 +12,19 @@ from typing import Annotated
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.settings_params import SettingField, build_set_params
+
+_PHYSICS2D_FIELDS = [
+    SettingField("gravity", ("gravityX", "gravityY"), "setGravity"),
+    SettingField("velocity_iterations", ("velocityIterations",), "setVelocityIterations"),
+    SettingField("position_iterations", ("positionIterations",), "setPositionIterations"),
+    SettingField("velocity_threshold", ("velocityThreshold",), "setVelocityThreshold"),
+    SettingField(
+        "default_contact_offset", ("defaultContactOffset",), "setDefaultContactOffset"
+    ),
+    SettingField("queries_hit_triggers", ("queriesHitTriggers",), "setQueriesHitTriggers"),
+    SettingField("auto_sync_transforms", ("autoSyncTransforms",), "setAutoSyncTransforms"),
+]
 
 
 async def physics2d_get(
@@ -39,30 +52,7 @@ async def physics2d_set(
     timeout: float = 10.0,
 ) -> CommandResult:
     """Mutate selected Physics2D properties. Only provided fields change."""
-    params: dict[str, object] = {"operation": "set"}
-    if gravity is not None:
-        params["setGravity"] = True
-        params["gravityX"] = gravity[0]
-        params["gravityY"] = gravity[1]
-    if velocity_iterations is not None:
-        params["setVelocityIterations"] = True
-        params["velocityIterations"] = velocity_iterations
-    if position_iterations is not None:
-        params["setPositionIterations"] = True
-        params["positionIterations"] = position_iterations
-    if velocity_threshold is not None:
-        params["setVelocityThreshold"] = True
-        params["velocityThreshold"] = velocity_threshold
-    if default_contact_offset is not None:
-        params["setDefaultContactOffset"] = True
-        params["defaultContactOffset"] = default_contact_offset
-    if queries_hit_triggers is not None:
-        params["setQueriesHitTriggers"] = True
-        params["queriesHitTriggers"] = queries_hit_triggers
-    if auto_sync_transforms is not None:
-        params["setAutoSyncTransforms"] = True
-        params["autoSyncTransforms"] = auto_sync_transforms
-
+    params = build_set_params("set", _PHYSICS2D_FIELDS, locals())
     return await bridge.send_command_with_retry(
         command_type="physics2d-config",
         parameters=params,

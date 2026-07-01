@@ -8,12 +8,29 @@ from typing import Annotated
 import typer
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.settings_params import SettingField, build_set_params
 
 # ---------------------------------------------------------------------------
 # Valid actions
 # ---------------------------------------------------------------------------
 
 VALID_ACTIONS = frozenset({"bake", "cancel", "clear", "status", "settings", "set-settings"})
+
+_LIGHTMAP_SETTINGS_FIELDS = [
+    SettingField("baked_gi", ("bakedGI",), "setBakedGI"),
+    SettingField("realtime_gi", ("realtimeGI",), "setRealtimeGI"),
+    SettingField("lightmapper", ("lightmapper",), "setLightmapper"),
+    SettingField("bounce_boost", ("bounceBoost",), "setBounceBoost"),
+    SettingField("indirect_intensity", ("indirectIntensity",), "setIndirectIntensity"),
+    SettingField("direct_samples", ("directSampleCount",), "setDirectSampleCount"),
+    SettingField("indirect_samples", ("indirectSampleCount",), "setIndirectSampleCount"),
+    SettingField("lightmap_max_size", ("lightmapMaxSize",), "setLightmapMaxSize"),
+    SettingField("lightmap_resolution", ("lightmapResolution",), "setLightmapResolution"),
+    SettingField("max_bounces", ("maxBounces",), "setMaxBounces"),
+    SettingField("compress", ("compressLightmaps",), "setCompressLightmaps"),
+    SettingField("ambient_occlusion", ("ambientOcclusion",), "setAmbientOcclusion"),
+    SettingField("ao_max_distance", ("aoMaxDistance",), "setAoMaxDistance"),
+]
 
 # ---------------------------------------------------------------------------
 # Core async functions (CLI + MCP)
@@ -144,48 +161,7 @@ async def lightmap_set_settings(
         ao_max_distance: AO max distance.
         timeout: Timeout in seconds.
     """
-    params: dict[str, object] = {"operation": "set-settings"}
-
-    if baked_gi is not None:
-        params["bakedGI"] = baked_gi
-        params["setBakedGI"] = True
-    if realtime_gi is not None:
-        params["realtimeGI"] = realtime_gi
-        params["setRealtimeGI"] = True
-    if lightmapper is not None:
-        params["lightmapper"] = lightmapper
-        params["setLightmapper"] = True
-    if bounce_boost is not None:
-        params["bounceBoost"] = bounce_boost
-        params["setBounceBoost"] = True
-    if indirect_intensity is not None:
-        params["indirectIntensity"] = indirect_intensity
-        params["setIndirectIntensity"] = True
-    if direct_samples is not None:
-        params["directSampleCount"] = direct_samples
-        params["setDirectSampleCount"] = True
-    if indirect_samples is not None:
-        params["indirectSampleCount"] = indirect_samples
-        params["setIndirectSampleCount"] = True
-    if lightmap_max_size is not None:
-        params["lightmapMaxSize"] = lightmap_max_size
-        params["setLightmapMaxSize"] = True
-    if lightmap_resolution is not None:
-        params["lightmapResolution"] = lightmap_resolution
-        params["setLightmapResolution"] = True
-    if max_bounces is not None:
-        params["maxBounces"] = max_bounces
-        params["setMaxBounces"] = True
-    if compress is not None:
-        params["compressLightmaps"] = compress
-        params["setCompressLightmaps"] = True
-    if ambient_occlusion is not None:
-        params["ambientOcclusion"] = ambient_occlusion
-        params["setAmbientOcclusion"] = True
-    if ao_max_distance is not None:
-        params["aoMaxDistance"] = ao_max_distance
-        params["setAoMaxDistance"] = True
-
+    params = build_set_params("set-settings", _LIGHTMAP_SETTINGS_FIELDS, locals())
     return await bridge.send_command_with_retry(
         command_type="lightmap-operation",
         parameters=params,

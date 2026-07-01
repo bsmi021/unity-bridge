@@ -1,6 +1,10 @@
 # Unity Bridge
 
-CLI and MCP server for Unity Editor automation via a file-based bridge protocol. Control Unity from the command line -- run tests, inspect hierarchies, manage assets, trigger builds, and more. Every command is available as both a CLI subcommand and an MCP tool for AI assistant integration.
+CLI-first Unity Editor automation via a file-based bridge protocol. Control Unity from the command line: run tests, inspect hierarchies, manage assets, trigger builds, query editor state, and recover long-running operations through a durable operation ledger.
+
+**Status:** the `unity-bridge` CLI is the only supported interface. The MCP server has been fully retired; there is no MCP compatibility layer.
+
+**Last updated:** 2026-07-01.
 
 **Requirements:** Python 3.10+, Unity Editor running with the C# bridge installed.
 
@@ -10,10 +14,10 @@ CLI and MCP server for Unity Editor automation via a file-based bridge protocol.
 # Install core CLI + bridge
 pip install -e "."
 
-# Install with MCP server support
-pip install -e ".[mcp]"
+# Install with test/lint tools
+pip install -e ".[dev]"
 
-# Install everything (MCP + file watcher + dev tools)
+# Install everything (file watcher + dev tools)
 pip install -e ".[all]"
 
 # Install the C# bridge into your Unity project
@@ -34,7 +38,9 @@ unity-bridge hierarchy --depth 3
 
 The `install` command copies the C# bridge scripts into `Assets/Scripts/Editor/ClaudeCodeBridge/` inside your Unity project. The bridge runs as an Editor script via `EditorApplication.update` and requires no manual setup beyond installation.
 
-Packaged installs include the C# bridge scripts and the `unity-bridge-cli` skill bundle, so `unity-bridge install` works from both editable source installs and normal `pip install .` / wheel installs.
+Packaged installs include the C# bridge scripts and the `unity-bridge-cli` Codex skill bundle, so `unity-bridge install` works from both editable source installs and normal `pip install .` / wheel installs.
+
+Repo-local Codex metadata lives in `.agents/skills/unity-bridge-cli/` and `.codex/agents/`. The shipped skill is intentionally CLI-first: it routes agents through `unity-bridge` commands instead of raw `.claude/unity` JSON.
 
 ## Global CLI Flags
 
@@ -79,7 +85,7 @@ unity-bridge doctor --human
 ```
 unity-bridge install [--check] [--force]      # Install/update C# bridge files
 unity-bridge init                             # Create .claude/unity/ directory structure
-unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response and old terminal operation files
+unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response files, stale temp files, and old terminal operation files
 ```
 
 ```bash
@@ -92,14 +98,6 @@ unity-bridge install --force
 # Example: preview what clean would delete
 unity-bridge clean --dry-run
 ```
-
-### MCP Server
-
-```
-unity-bridge serve                            # Start MCP server mode (stdio transport)
-```
-
-Requires the `mcp` extra: `pip install -e ".[mcp]"`. Used for Claude Code and other MCP-compatible AI assistant integrations.
 
 ### Scene Management
 
@@ -285,10 +283,15 @@ unity-bridge import-settings template-apply mobile-texture "Assets/Textures/NewA
 ### Materials
 
 ```
-unity-bridge material ACTION PATH [--properties JSON]
+unity-bridge material modify PATH [--properties JSON]
+unity-bridge material create PATH
+unity-bridge material duplicate PATH
+unity-bridge material enable-keyword PATH KEYWORD
+unity-bridge material disable-keyword PATH KEYWORD
+unity-bridge material get-keywords PATH
+unity-bridge material set-render-queue PATH VALUE
+unity-bridge material copy-properties TARGET_PATH SOURCE_PATH
 ```
-
-Where `ACTION` is one of: `modify`, `create`, `duplicate`.
 
 ```bash
 # Example: create a new material
@@ -297,6 +300,9 @@ unity-bridge material create "Assets/Materials/NewMat.mat"
 # Example: modify material properties
 unity-bridge material modify "Assets/Materials/Player.mat" \
     --properties '{"_Color": {"r": 1, "g": 0, "b": 0, "a": 1}}'
+
+# Example: enable a shader keyword
+unity-bridge material enable-keyword "Assets/Materials/Player.mat" "_EMISSION"
 ```
 
 ### Shaders
@@ -380,20 +386,60 @@ unity-bridge compile optimization --set Release
 ### Testing
 
 ```
-unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--timeout N]
+unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N]
+unity-bridge test cancel [--command-id ID] [--timeout N]
+unity-bridge test preflight [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N]
 unity-bridge test list [--platform PLATFORM] [--filter PATTERN] [--categories] [--assemblies]
 unity-bridge test compile [--wait/--no-wait] [--timeout N]
+unity-bridge test results [--last|--command-id ID]
+unity-bridge test failures [--last|--command-id ID]
+unity-bridge test progress [--last|--command-id ID]
+unity-bridge test events [--last|--command-id ID] [--max-events N]
+unity-bridge test rerun-failed [--last|--command-id ID] [--platform PLATFORM] [--timeout N]
+unity-bridge test history [--max-results N]
+unity-bridge coverage availability
+unity-bridge coverage install [--version VERSION]
+unity-bridge coverage start|pause|resume|stop
+unity-bridge coverage find-reports [--path PATH] [--max-results N]
+unity-bridge coverage summarize [PATH]
 ```
 
 ```bash
 # Example: run EditMode tests matching a pattern
 unity-bridge test run --platform EditMode --filter "Combat*"
 
+# Example: verify a filtered run would select at least one test
+unity-bridge test preflight --platform EditMode --filter "Combat*" --min-tests 1
+
+# Example: run a smoke category from one test assembly
+unity-bridge test run --platform EditMode --category Smoke --assembly Game.Editor.Tests --min-tests 1
+
 # Example: list all PlayMode test categories
 unity-bridge test list --platform PlayMode --categories
 
 # Example: trigger a compilation and wait
 unity-bridge test compile --wait
+
+# Example: inspect the last persisted test result without re-running Unity
+unity-bridge test results --last
+
+# Example: inspect progress for a long-running test command
+unity-bridge test progress --last
+
+# Example: inspect structured per-test progress events
+unity-bridge test events --last --max-events 50
+
+# Example: rerun only the tests that failed in the last persisted result
+unity-bridge test rerun-failed --last --platform EditMode
+
+# Example: cancel an active bridge-initiated test run
+unity-bridge test cancel --command-id <run-tests-command-id>
+
+# Example: check optional Code Coverage package/API support
+unity-bridge coverage availability
+
+# Example: inspect an existing ReportGenerator summary
+unity-bridge coverage summarize CoverageResults/Report/Summary.json
 ```
 
 ### Play Mode
@@ -507,9 +553,12 @@ unity-bridge settings defines add --symbol "ENABLE_ANALYTICS"
 unity-bridge package list [--offline] [--include-indirect] [--source TYPE]
 unity-bridge package search QUERY [--all]
 unity-bridge package add IDENTIFIER
+unity-bridge package batch [--add IDENTIFIER] [--remove NAME]
 unity-bridge package remove NAME
 unity-bridge package info NAME
 unity-bridge package embed NAME
+unity-bridge package pack PACKAGE_FOLDER TARGET_FOLDER
+unity-bridge package clear-cache --yes
 unity-bridge package resolve
 ```
 
@@ -520,11 +569,17 @@ unity-bridge package list
 # Example: add a package by name@version
 unity-bridge package add "com.unity.inputsystem@1.7.0"
 
+# Example: add and remove packages in one dependency solve
+unity-bridge package batch --add "com.unity.inputsystem" --remove "com.unity.timeline"
+
 # Example: search for packages
 unity-bridge package search "input"
 
 # Example: embed a package for local editing
 unity-bridge package embed "com.unity.inputsystem"
+
+# Example: pack a local UPM package into a .tgz
+unity-bridge package pack "Packages/com.company.tools" "Build/Packages"
 ```
 
 ### Undo/Redo
@@ -597,7 +652,7 @@ unity-bridge snapshot diff before.json after.json
 
 ### Extended Command Groups (Phase 4-Unity 6.4)
 
-Beyond the core groups above, the CLI exposes 64 command groups covering the rest of the Unity Editor surface. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
+Beyond the core examples above, the live CLI exposes 92 top-level entries: 67 command groups and 25 top-level commands. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
 
 **Selection & editor state:** `select`, `prefs`, `editor-config`, `window`, `scene-state`
 **Transform & object manipulation:** `transform`, `property`, `hierarchy`, `component`, `object-identity`
@@ -607,8 +662,8 @@ Beyond the core groups above, the CLI exposes 64 command groups covering the res
 **Scene & asset tooling:** `scene-view`, `game-view`, `scene-template`, `clipboard`, `preset`, `deep-serialize`, `script-info`, `find-references`, `addressables`, `search`, `project-auditor`, `graph-toolkit`
 **Built-in package inspection:** `entities`, `adaptive-performance`, `multiplayer-playmode`
 **Graphics & geometry:** `navmesh`, `animation`, `animation-clip`, `terrain`, `tilemap`
-**Component lifecycle extensions:** `component copy`, `component paste`, `component reset`, `component-toggle`, `remove-component`
-**Profiling & diagnostics:** `profiler`, `profiler-control`, `console-log`, `cloud`, `physics2d`
+**Component and material lifecycle extensions:** `component copy`, `component paste`, `component reset`, `component remove`, `component enable`, `component disable`, `material`
+**Profiling & diagnostics:** `profiler`, `profiler-control`, `console log`, `cloud`, `physics2d`
 
 ```bash
 # Example: list all groups
@@ -647,11 +702,11 @@ Config file search order:
 
 The Python CLI writes JSON command files to `<project>/.claude/unity/commands/`. A C# Editor script (`ClaudeUnityBridge.cs`) running via `EditorApplication.update` picks them up, executes them inside Unity, and writes JSON responses to `<project>/.claude/unity/responses/`. Each command is identified by a unique UUID. This file-based IPC works across WSL2/Windows boundaries via `/mnt/c/` path mapping.
 
-Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` or the `unity_operation_status` MCP tool can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations.
+Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations.
 
-### Dual Interface
+### Single Interface
 
-The CLI and MCP server share 100% of bridge command logic. Each command module exposes async core functions that return a `CommandResult`. The CLI wraps these with `asyncio.run()`, while MCP handlers `await` them directly. The MCP surface currently exposes 94 tools, including client-side helpers such as health/config/batch/help/operation-status.
+The `unity-bridge` CLI is the only interface. Each command module exposes an async core function (returns `CommandResult`) plus a thin synchronous Typer wrapper that calls `asyncio.run()` on it. There is no MCP server, no MCP tool surface, and no MCP compatibility layer — it was fully retired.
 
 ### Project Auto-Detection
 
@@ -667,6 +722,7 @@ python3 -m pytest tests/unit/                # Unit tests only
 python3 -m pytest tests/unit/test_bridge.py  # Single file
 python3 -m pytest -x --tb=short              # Stop on first failure
 python3 -m pytest --cov=unity_bridge         # With coverage report
+python3 -m pytest tests --cov=unity_bridge --cov-report=term-missing --cov-fail-under=90
 ```
 
 Unit tests mock `DirectBridge` and never require a running Unity instance. Integration tests are marked with `@pytest.mark.integration` and are automatically skipped when Unity is not available.
@@ -685,8 +741,7 @@ unity-bridge/
 ├── src/unity_bridge/
 │   ├── app.py               # Typer entry point, AppState, global flags
 │   ├── core/                # Shared modules (bridge, config, health, operation, cache, retry, output)
-│   ├── commands/            # 77 command modules (one per domain)
-│   └── mcp/                 # MCP server layer (server, tools, schemas)
+│   └── commands/            # 84 command modules (one per domain)
 ├── ClaudeCodeBridge/        # C# Editor scripts installed into Unity
 ├── tests/                   # pytest suite (unit + integration)
 └── docs/                    # Tech specs
