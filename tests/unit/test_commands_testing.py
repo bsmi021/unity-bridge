@@ -772,25 +772,6 @@ class TestTestResultArtifactCli:
         assert _extract_kwarg(mock_bridge.send_command_with_retry.call_args, "timeout") == 45.0
 
 
-class TestRunTestsSchema:
-    def test_schema_exposes_rich_selectors(self) -> None:
-        from unity_bridge.mcp.schemas import run_tests as run_tests_schema
-
-        schema = run_tests_schema()
-        properties = schema["properties"]
-        assert properties["testNames"]["type"] == "array"
-        assert properties["groupNames"]["type"] == "array"
-        assert properties["categoryNames"]["type"] == "array"
-        assert properties["assemblyNames"]["type"] == "array"
-
-    def test_cancel_tests_schema_exposes_target_command_id(self) -> None:
-        from unity_bridge.mcp.schemas import cancel_tests as cancel_tests_schema
-
-        schema = cancel_tests_schema()
-        assert schema["properties"]["targetCommandId"]["type"] == "string"
-        assert schema["properties"]["timeout"]["default"] == 10
-
-
 class TestRunTestsBridgeSource:
     def test_csharp_handler_maps_rich_selectors_to_unity_filter(self) -> None:
         source = (

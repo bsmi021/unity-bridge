@@ -393,62 +393,6 @@ class TestListAllParams:
         assert timeout == 90
 
 
-# ---------------------------------------------------------------------------
-# MCP schema validation
-# ---------------------------------------------------------------------------
-
-
-class TestMcpSchema:
-    def test_schema_has_timeout(self) -> None:
-        from unity_bridge.mcp.schemas_ext import package_operation as pkg_schema
-
-        schema = pkg_schema()
-        assert "timeout" in schema["properties"]
-        assert schema["properties"]["timeout"]["default"] == 60
-
-    def test_schema_operation_enum_complete(self) -> None:
-        from unity_bridge.mcp.schemas_ext import package_operation as pkg_schema
-
-        schema = pkg_schema()
-        enum_values = set(schema["properties"]["operation"]["enum"])
-        assert enum_values == VALID_OPERATIONS
-
-    def test_schema_operation_is_required(self) -> None:
-        from unity_bridge.mcp.schemas_ext import package_operation as pkg_schema
-
-        schema = pkg_schema()
-        assert "operation" in schema["required"]
-
-    def test_schema_source_enum(self) -> None:
-        from unity_bridge.mcp.schemas_ext import package_operation as pkg_schema
-
-        schema = pkg_schema()
-        source_enum = set(schema["properties"]["source"]["enum"])
-        assert source_enum == {"registry", "git", "embedded", "local"}
-
-    def test_schema_has_batch_and_pack_properties(self) -> None:
-        from unity_bridge.mcp.schemas_ext import package_operation as pkg_schema
-
-        properties = pkg_schema()["properties"]
-        assert "packagesToAdd" in properties
-        assert "packagesToRemove" in properties
-        assert "packageFolder" in properties
-        assert "targetFolder" in properties
-        assert "confirmClearCache" in properties
-
-    def test_tool_registered_in_command_map(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert "unity_package_operation" in TOOL_COMMAND_MAP
-        assert TOOL_COMMAND_MAP["unity_package_operation"] == "package-operation"
-
-    def test_tool_registered_in_definitions(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_DEFINITIONS
-
-        names = [t["name"] for t in TOOL_DEFINITIONS]
-        assert "unity_package_operation" in names
-
-
 class TestCSharpPackageHandler:
     def test_source_filter_is_applied_after_package_list_completes(self) -> None:
         source = (ROOT / "ClaudeCodeBridge" / "PackageManagerCommandHandler.cs").read_text()

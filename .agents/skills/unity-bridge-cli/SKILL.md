@@ -4,9 +4,10 @@ description: >
   Use for Unity Editor automation through the unity-bridge CLI. Trigger on
   bridge health/status/doctor/install/clean, tests or compile checks,
   scene/hierarchy/component/prefab/asset/material/shader/package/build/settings
-  workflows, profiler/editor utilities, operation ledger inspection, or MCP
-  compatibility queueing. Prefer CLI commands over raw .claude/unity JSON for
-  retries, timeouts, caching, and consistent output.
+  workflows, profiler/editor utilities, operation ledger inspection, or
+  Timeline/Cinemachine/Localization/Memory Profiler/VFX asset inspection.
+  Prefer CLI commands over raw .claude/unity JSON for retries, timeouts,
+  caching, and consistent output.
 ---
 
 # Unity Bridge CLI
@@ -42,9 +43,8 @@ Global flags go BEFORE the command name:
 
 - This repo ships the Codex skill from `.agents/skills/unity-bridge-cli`; `unity-bridge install` copies it into target Unity projects.
 - Keep the YAML description concise because Codex uses it for skill discovery. Put detailed command coverage in this body and the `references/` files.
-- Use the CLI first. It is the supported Codex interface for retries, timeouts, bridge health checks, caching, and formatted errors.
-- `unity-bridge serve` is deprecated MCP compatibility mode for existing integrations; do not choose it for new Codex work.
-- In MCP compatibility sessions where Unity is busy, submit work with `unity_submit_command` and poll with `unity_operation_status`; use `unity-bridge operation status COMMAND_ID` or `operation list` from the CLI.
+- Use the CLI first. It is the only Codex interface for retries, timeouts, bridge health checks, caching, and formatted errors — the MCP server has been fully retired, there is no MCP compatibility mode.
+- If Unity is busy, poll with `unity-bridge operation status COMMAND_ID` or `operation list`.
 - If a changed skill is not visible in Codex, start a fresh Codex session before debugging the bridge behavior.
 - Before changing this skill or its references, verify the live CLI surface with `unity-bridge --help` and targeted command help.
 
@@ -135,6 +135,20 @@ Global flags go BEFORE the command name:
 - `adaptive-performance settings` -- Adaptive Performance project state
 - `multiplayer-playmode current-player` -- local MPP role/tags
 
+**Author Timeline, Cinemachine, Localization; inspect Memory/VFX (package-provided systems):**
+- `timeline create-track ASSET_PATH AnimationTrack` -- add a track (requires com.unity.timeline)
+- `timeline create-clip ASSET_PATH TRACK_INDEX` -- add a clip on that track
+- `timeline get-clips ASSET_PATH TRACK_INDEX` -- list clips (re-query after any mutation, indices shift)
+- `timeline evaluate DIRECTOR_PATH --time 2.5` -- scrub a PlayableDirector
+- `cinemachine list-cameras` -- full scene enumeration, including inactive cameras (requires com.unity.cinemachine 3.x)
+- `cinemachine set-priority CAMERA_PATH 20` / `cinemachine set-lens CAMERA_PATH --fov 50`
+- `cinemachine active` -- current live/blended camera via CinemachineBrain
+- `localization list-locales` / `add-locale fr` / `set-selected-locale de` (requires com.unity.localization)
+- `localization create-string-table-collection MyStrings` / `add-entry MyStrings greeting "Hello"`
+- `localization export-csv MyStrings out.csv` / `import-csv MyStrings in.csv`
+- `memory-profiler take-snapshot --path out.snap` -- capture only, no live Unity instance needed beyond the bridge itself; load/diff of `.snap` files has no public Unity API and is out of scope
+- `vfx get-info --asset-path Assets/VFX/Explosion.vfx` -- read-only event names + exposed properties (requires com.unity.visualeffectgraph); graph authoring has no public API, do not attempt it
+
 ## Quick-Scan: All Command Groups
 
 ```bash
@@ -146,7 +160,6 @@ unity-bridge install [--check|--force] # Install/update C# bridge + project skil
 unity-bridge init                      # Create directory structure
 unity-bridge clean [--dry-run]         # Remove orphaned/stale bridge state files
 unity-bridge operation status COMMAND_ID | operation list
-unity-bridge serve                     # Deprecated MCP compatibility server
 unity-bridge profiler --memory --cpu   # Performance snapshot
 
 # Hierarchy & GameObjects
@@ -260,6 +273,25 @@ unity-bridge entities availability|list-worlds|world-summary|list-systems
 unity-bridge entities list-archetypes
 unity-bridge adaptive-performance availability|settings|list-profiles|inspect-profile
 unity-bridge multiplayer-playmode availability|current-player|packages
+
+# Package-Provided Systems (Timeline, Cinemachine, Localization, Memory Profiler, VFX)
+unity-bridge timeline create-track PATH TRACK_TYPE [--track-name NAME]
+unity-bridge timeline create-clip PATH TRACK_INDEX [--clip-asset-path PATH]
+unity-bridge timeline get-clips PATH TRACK_INDEX | get-info PATH
+unity-bridge timeline delete-clip PATH TRACK_INDEX CLIP_INDEX
+unity-bridge timeline evaluate DIRECTOR_PATH [--time SEC] [--timeline-asset-path PATH]
+unity-bridge cinemachine list-cameras | info CAMERA_PATH | active
+unity-bridge cinemachine set-priority CAMERA_PATH VALUE
+unity-bridge cinemachine set-lens CAMERA_PATH [--fov F] [--ortho-size S] [--near-clip N] [--far-clip F] [--dutch D]
+unity-bridge cinemachine set-follow|set-lookat CAMERA_PATH TARGET_PATH
+unity-bridge localization list-locales | add-locale|remove-locale CODE
+unity-bridge localization get-selected-locale | set-selected-locale CODE
+unity-bridge localization create-string-table-collection|get-string-table-collection NAME
+unity-bridge localization add-entry NAME KEY VALUE
+unity-bridge localization export-csv|import-csv NAME FILE_PATH
+unity-bridge localization export-xliff|import-xliff NAME FILE_PATH
+unity-bridge memory-profiler take-snapshot [--path PATH] [--capture-flags F1,F2]
+unity-bridge vfx get-info [--asset-path PATH | --guid GUID]
 ```
 
 ## Common Multi-Step Patterns
@@ -338,7 +370,7 @@ For detailed argument tables, types, defaults, and examples, read the appropriat
 | Assets, import settings, materials, shaders, presets | [references/asset-commands.md](references/asset-commands.md) |
 | Building, profiles, build scenes, platform switch, structured build reports | [references/build-commands.md](references/build-commands.md) |
 | Player settings, physics, Physics2D, quality, time, graphics, render pipeline, audio, tags, layers, prefs | [references/settings-commands.md](references/settings-commands.md) |
-| NavMesh, animation, terrain, tilemap, addressables, Project Auditor, Graph Toolkit, Entities, Adaptive Performance, Multiplayer Play Mode | [references/specialized-commands.md](references/specialized-commands.md) |
+| NavMesh, animation, terrain, tilemap, addressables, Project Auditor, Graph Toolkit, Entities, Adaptive Performance, Multiplayer Play Mode, Timeline, Cinemachine, Localization, Memory Profiler, VFX asset inspection | [references/specialized-commands.md](references/specialized-commands.md) |
 | Profiler, game view, scene view, scene state, clipboard, windows, UI Toolkit, input system, execution order, scripts, object identity, search, sync solution | [references/tools-commands.md](references/tools-commands.md) |
 
 ## Notes

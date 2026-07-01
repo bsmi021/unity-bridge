@@ -201,7 +201,6 @@ def _register_optional_commands() -> None:
     _try_register_command("unity_bridge.commands.workflow", "tdd_cli", "tdd")
     _try_register_command("unity_bridge.commands.scripting", "script_cli", "script")
     _try_register_command("unity_bridge.commands.batch", "batch_cli", "batch")
-    _try_register_command("unity_bridge.commands.serve", "serve_cli", "serve")
     _try_register_command("unity_bridge.commands.editor", "selection_cli", "selection")
     _try_register_command("unity_bridge.commands.editor", "refresh_cli", "refresh")
     _try_register_command("unity_bridge.commands.editor", "focus_cli", "focus")

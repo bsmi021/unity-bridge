@@ -1,7 +1,7 @@
 """Command modules for the unity-bridge CLI.
 
-Each module exposes async core functions (shared by CLI and MCP) and
-thin synchronous Typer wrappers that call ``asyncio.run()`` on them.
+Each module exposes async core functions and thin synchronous Typer
+wrappers that call ``asyncio.run()`` on them.
 """
 
 from unity_bridge.commands.animator import animator_app
@@ -18,7 +18,6 @@ from unity_bridge.commands.playmode import playmode_app
 from unity_bridge.commands.prefab import prefab_app
 from unity_bridge.commands.scene import scene_app
 from unity_bridge.commands.scripting import script_app
-from unity_bridge.commands.serve import serve_app
 from unity_bridge.commands.testing import test_app
 from unity_bridge.commands.workflow import snapshot_app, workflow_app
 
@@ -38,7 +37,6 @@ __all__ = [
     "prefab_app",
     "scene_app",
     "script_app",
-    "serve_app",
     "snapshot_app",
     "test_app",
     "workflow_app",

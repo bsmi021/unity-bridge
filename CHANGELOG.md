@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Deprecated
-- The MCP server interface (`mcp/`, `unity-bridge serve`, the `[mcp]` extra, and the MCP-only `ResponseCache`) is deprecated and no longer actively maintained. The supported interface is the `unity-bridge` CLI; `serve` now emits a deprecation notice but still starts.
+### Removed
+- **The MCP server interface has been fully retired.** Deleted `src/unity_bridge/mcp/` (server, tool definitions, all schema modules), `src/unity_bridge/commands/serve.py`, the `serve` CLI command, the `mcp` optional-dependency extra, and all MCP-only tests. The `unity-bridge` CLI is now the sole interface — there is no MCP compatibility layer, deprecated or otherwise.
 
 ### Changed
-- Refreshed `README.md` to describe the current CLI-first support model, deprecated MCP compatibility surface, Codex skill/agent metadata, live command counts, and material subcommands.
+- Refreshed `README.md` to describe the CLI-only support model, Codex skill/agent metadata, live command counts, and material subcommands.
 - Parallel batch execution now classifies command safety by `parameters.operation`, not just command type, so operation-gated commands (`transform-operation`/`serialized-property`/`clipboard`/etc.) only run concurrently for their read-only operations.
 - The global `--timeout` flag and `UNITY_BRIDGE_TIMEOUT` now apply across the whole CLI (previously ignored by every command); a global override is treated as a blanket per-command timeout.
 - Settings command modules (physics2d, audio, time, graphics, environment, lightmap) now build their `set` parameters via a shared `core/settings_params.py` helper, removing ~140 lines of duplicated flag/value boilerplate (bridge payloads unchanged).
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
 
 ### Added
-- `timeline` CLI group for Timeline package automation: create/list top-level tracks, create/list/delete clips, and evaluate a PlayableDirector (requires com.unity.timeline). MCP intentionally not extended (MCP interface is deprecated for new capabilities).
+- `timeline` CLI group for Timeline package automation: create/list top-level tracks, create/list/delete clips, and evaluate a PlayableDirector (requires com.unity.timeline).
 - `cinemachine` CLI command group for Cinemachine virtual camera inspection and control: list cameras, get camera info, set priority/lens/follow/look-at, and get the active camera.
 - `localization` CLI command group for managing locales, string table collections, entries, and CSV/XLIFF import-export via the Unity Localization package.
 - `memory-profiler` command: capture a Unity Memory Profiler snapshot to disk via `MemoryProfiler.TakeSnapshot` (take-snapshot only; load/diff out of scope).

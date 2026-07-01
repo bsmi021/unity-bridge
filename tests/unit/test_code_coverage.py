@@ -174,7 +174,7 @@ class TestCodeCoverageCli:
         }
 
 
-class TestCodeCoverageProtocolAndMcp:
+class TestCodeCoverageProtocol:
     def test_protocol_timeout_and_parallel_safety(self) -> None:
         from unity_bridge.core.protocol import (
             OPERATION_GATED_PARALLEL_SAFE,
@@ -188,16 +188,6 @@ class TestCodeCoverageProtocolAndMcp:
         )
         assert is_parallel_safe("code-coverage", {"operation": "availability"}) is True
         assert is_parallel_safe("code-coverage", {"operation": "install"}) is False
-
-    def test_mcp_schema_and_tool_are_registered(self) -> None:
-        from unity_bridge.mcp import schemas_unity64
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP, TOOL_DEFINITIONS
-
-        schema = schemas_unity64.code_coverage()
-        assert set(schema["properties"]["operation"]["enum"]) == VALID_OPERATIONS
-        assert schema["properties"]["timeout"]["default"] == 120
-        assert TOOL_COMMAND_MAP["unity_code_coverage"] == "code-coverage"
-        assert "unity_code_coverage" in {tool["name"] for tool in TOOL_DEFINITIONS}
 
 
 class TestCodeCoverageCSharpContract:

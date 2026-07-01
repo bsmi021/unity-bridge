@@ -2,9 +2,9 @@
 
 CLI-first Unity Editor automation via a file-based bridge protocol. Control Unity from the command line: run tests, inspect hierarchies, manage assets, trigger builds, query editor state, and recover long-running operations through a durable operation ledger.
 
-**Status:** the supported interface is the `unity-bridge` CLI. The MCP server remains available as deprecated compatibility for existing integrations and control-plane helpers.
+**Status:** the `unity-bridge` CLI is the only supported interface. The MCP server has been fully retired; there is no MCP compatibility layer.
 
-**Last updated:** 2026-06-28.
+**Last updated:** 2026-07-01.
 
 **Requirements:** Python 3.10+, Unity Editor running with the C# bridge installed.
 
@@ -14,13 +14,10 @@ CLI-first Unity Editor automation via a file-based bridge protocol. Control Unit
 # Install core CLI + bridge
 pip install -e "."
 
-# Install deprecated MCP server compatibility
-pip install -e ".[mcp]"
-
 # Install with test/lint tools
 pip install -e ".[dev]"
 
-# Install everything (MCP + file watcher + dev tools)
+# Install everything (file watcher + dev tools)
 pip install -e ".[all]"
 
 # Install the C# bridge into your Unity project
@@ -101,19 +98,6 @@ unity-bridge install --force
 # Example: preview what clean would delete
 unity-bridge clean --dry-run
 ```
-
-### MCP Server (deprecated)
-
-> **Deprecated:** the MCP server is no longer actively maintained. The supported
-> interface is the `unity-bridge` CLI (used via the `unity-bridge-cli` skill).
-> The server still starts for existing integrations and keeps minimal
-> control-plane helpers for health, queued submission, and operation status.
-
-```
-unity-bridge serve                            # Start deprecated MCP server mode (stdio transport)
-```
-
-Requires the `mcp` extra: `pip install -e ".[mcp]"`. Existing MCP integrations can still use health/config/batch/help helpers plus queued command submission (`unity_submit_command`) and durable operation polling (`unity_operation_status`). New automation should use the CLI.
 
 ### Scene Management
 
@@ -718,11 +702,11 @@ Config file search order:
 
 The Python CLI writes JSON command files to `<project>/.claude/unity/commands/`. A C# Editor script (`ClaudeUnityBridge.cs`) running via `EditorApplication.update` picks them up, executes them inside Unity, and writes JSON responses to `<project>/.claude/unity/responses/`. Each command is identified by a unique UUID. This file-based IPC works across WSL2/Windows boundaries via `/mnt/c/` path mapping.
 
-Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` or the `unity_operation_status` MCP tool can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations.
+Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations.
 
-### Dual Interface
+### Single Interface
 
-The CLI is the supported interface. The deprecated MCP compatibility server reuses the same async core functions where tools are mapped: the CLI wraps them with `asyncio.run()`, while MCP handlers `await` them directly. The MCP surface currently exposes 97 tools, including client-side helpers such as health/config/batch/help, queued submission, and operation status.
+The `unity-bridge` CLI is the only interface. Each command module exposes an async core function (returns `CommandResult`) plus a thin synchronous Typer wrapper that calls `asyncio.run()` on it. There is no MCP server, no MCP tool surface, and no MCP compatibility layer — it was fully retired.
 
 ### Project Auto-Detection
 
@@ -757,8 +741,7 @@ unity-bridge/
 ├── src/unity_bridge/
 │   ├── app.py               # Typer entry point, AppState, global flags
 │   ├── core/                # Shared modules (bridge, config, health, operation, cache, retry, output)
-│   ├── commands/            # 78 command modules (one per domain)
-│   └── mcp/                 # Deprecated MCP compatibility layer (server, tools, schemas)
+│   └── commands/            # 84 command modules (one per domain)
 ├── ClaudeCodeBridge/        # C# Editor scripts installed into Unity
 ├── tests/                   # pytest suite (unit + integration)
 └── docs/                    # Tech specs

@@ -95,26 +95,9 @@ class TestBuildProfileDeepening:
 
 
 class TestRenderingBuildRegistration:
-    def test_tool_map_entries(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert TOOL_COMMAND_MAP["unity_render_pipeline"] == "render-pipeline"
-        assert TOOL_COMMAND_MAP["unity_graphics_state"] == "graphics-state"
-        assert TOOL_COMMAND_MAP["unity_build_profile"] == "build-profile-operation"
-
     def test_timeout_defaults(self) -> None:
         from unity_bridge.core.protocol import TIMEOUT_DEFAULTS
 
         assert TIMEOUT_DEFAULTS["render-pipeline"] == 15
         assert TIMEOUT_DEFAULTS["graphics-state"] == 300
         assert TIMEOUT_DEFAULTS["build-profile-operation"] == 300
-
-    def test_schemas_include_new_operations(self) -> None:
-        from unity_bridge.mcp import schemas_ext, schemas_rendering
-
-        build_ops = schemas_ext.build_profile()["properties"]["operation"]["enum"]
-        render_ops = schemas_rendering.render_pipeline()["properties"]["operation"]["enum"]
-        pso_ops = schemas_rendering.graphics_state()["properties"]["operation"]["enum"]
-        assert "set-scenes" in build_ops
-        assert "set-default" in render_ops
-        assert "warmup" in pso_ops

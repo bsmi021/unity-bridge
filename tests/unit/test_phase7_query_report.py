@@ -151,36 +151,3 @@ class TestProtocolRegistration:
 
         assert "cloud-services" in PARALLEL_SAFE_COMMANDS
         assert "search-query" in PARALLEL_SAFE_COMMANDS
-
-
-class TestMcpRegistration:
-    def test_tool_map_entries(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert TOOL_COMMAND_MAP["unity_sync_solution"] == "sync-solution"
-        assert TOOL_COMMAND_MAP["unity_cloud_services"] == "cloud-services"
-        assert TOOL_COMMAND_MAP["unity_physics2d_config"] == "physics2d-config"
-        assert TOOL_COMMAND_MAP["unity_search_query"] == "search-query"
-
-    def test_tool_definitions_present(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_DEFINITIONS
-
-        names = {t["name"] for t in TOOL_DEFINITIONS}
-        for n in (
-            "unity_sync_solution",
-            "unity_cloud_services",
-            "unity_physics2d_config",
-            "unity_search_query",
-        ):
-            assert n in names, f"{n} missing from TOOL_DEFINITIONS"
-
-    def test_schemas_declare_timeout(self) -> None:
-        from unity_bridge.mcp import schemas_phase7
-
-        for fn in (
-            schemas_phase7.sync_solution,
-            schemas_phase7.cloud_services,
-            schemas_phase7.physics2d_config,
-            schemas_phase7.search_query,
-        ):
-            assert "timeout" in fn()["properties"], f"{fn.__name__} missing timeout"

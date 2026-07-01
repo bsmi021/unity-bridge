@@ -30,9 +30,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mcp = [
-    "mcp[cli]>=1.0.0",
-]
 watch = [
     "watchfiles>=0.21",
 ]
@@ -43,7 +40,7 @@ dev = [
     "ruff>=0.1.0",
 ]
 all = [
-    "unity-bridge[mcp,watch,dev]",
+    "unity-bridge[watch,dev]",
 ]
 
 [project.scripts]

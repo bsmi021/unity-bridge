@@ -223,13 +223,6 @@ class TestOperationValidation:
 
 
 class TestOperationsMatchSchema:
-    def test_valid_operations_match_schema_enum(self) -> None:
-        from unity_bridge.mcp.schemas_phase3 import import_settings
-
-        schema = import_settings()
-        schema_ops = set(schema["properties"]["operation"]["enum"])
-        assert schema_ops == VALID_OPERATIONS
-
     def test_valid_operations_count(self) -> None:
         assert len(VALID_OPERATIONS) == 6
 

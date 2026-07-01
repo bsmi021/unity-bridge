@@ -81,12 +81,6 @@ class TestAdaptivePerformance:
 
 
 class TestCorePackageRegistration:
-    def test_tool_map_entries(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert TOOL_COMMAND_MAP["unity_entities"] == "entities"
-        assert TOOL_COMMAND_MAP["unity_adaptive_performance"] == "adaptive-performance"
-
     def test_timeout_defaults(self) -> None:
         from unity_bridge.core.protocol import PARALLEL_SAFE_COMMANDS, TIMEOUT_DEFAULTS
 
@@ -94,13 +88,3 @@ class TestCorePackageRegistration:
         assert TIMEOUT_DEFAULTS["adaptive-performance"] == 15
         assert "entities" in PARALLEL_SAFE_COMMANDS
         assert "adaptive-performance" in PARALLEL_SAFE_COMMANDS
-
-    def test_schemas_include_expected_operations(self) -> None:
-        from unity_bridge.mcp import schemas_core_packages
-
-        entity_ops = schemas_core_packages.entities()["properties"]["operation"]["enum"]
-        adaptive_ops = schemas_core_packages.adaptive_performance()["properties"][
-            "operation"
-        ]["enum"]
-        assert "list-archetypes" in entity_ops
-        assert "inspect-profile" in adaptive_ops

@@ -66,12 +66,6 @@ class TestSceneState:
 
 
 class TestGraphEditorStateRegistration:
-    def test_tool_map_entries(self) -> None:
-        from unity_bridge.mcp.tools import TOOL_COMMAND_MAP
-
-        assert TOOL_COMMAND_MAP["unity_graph_toolkit"] == "graph-toolkit"
-        assert TOOL_COMMAND_MAP["unity_scene_state"] == "scene-state"
-
     def test_timeout_defaults(self) -> None:
         from unity_bridge.core.protocol import PARALLEL_SAFE_COMMANDS, TIMEOUT_DEFAULTS
 
@@ -79,11 +73,3 @@ class TestGraphEditorStateRegistration:
         assert TIMEOUT_DEFAULTS["scene-state"] == 10
         assert "graph-toolkit" in PARALLEL_SAFE_COMMANDS
         assert "scene-state" not in PARALLEL_SAFE_COMMANDS
-
-    def test_schemas_include_expected_operations(self) -> None:
-        from unity_bridge.mcp import schemas_editor_state
-
-        graph_ops = schemas_editor_state.graph_toolkit()["properties"]["operation"]["enum"]
-        state_ops = schemas_editor_state.scene_state()["properties"]["operation"]["enum"]
-        assert "export" in graph_ops
-        assert "reset-snap" in state_ops
