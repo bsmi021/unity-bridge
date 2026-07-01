@@ -132,6 +132,13 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new AdaptivePerformanceCommandHandler());
             registerHandler(new MultiplayerPlayModeCommandHandler());
 
+            // Phase N: Timeline, Cinemachine, Localization, Memory Profiler, VFX
+            registerHandler(new TimelineCommandHandler());
+            registerHandler(new CinemachineCommandHandler());
+            registerHandler(new LocalizationCommandHandler());
+            registerHandler(new MemoryProfilerCommandHandler());
+            registerHandler(new VfxCommandHandler());
+
             // Core handlers registered previously as "disabled pending Unity import"
             // (m3 from gap-analysis-report) — now enabled.
             registerHandler(new CaptureScreenshotCommandHandler());

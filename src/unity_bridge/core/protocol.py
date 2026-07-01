@@ -87,6 +87,7 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "reflection-probe": 300,
     "occlusion-culling": 300,
     "tilemap-operation": 30,
+    "timeline-operation": 30,
     # Phase 5: Quick wins
     "capture-screenshot": 30,
     "remove-component": 15,
@@ -129,6 +130,13 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "entities": 15,
     "adaptive-performance": 15,
     "multiplayer-playmode": 15,
+    "cinemachine-operation": 15,  # Phase N: Cinemachine camera inspection/control (read ops are quick; set-* are lightweight property writes)
+    # Localization: locale/table management (import/export reimport is slowest op)
+    "localization": 60,
+    # Phase 7b: Memory diagnostics
+    "memory-profiler": 120,
+    # Phase 3: Shader inspection (read-only, fast) — sibling group for vfx-asset
+    "vfx-asset": 15,  # read-only VFX asset inspection (optional VFX Graph package)
 }
 
 # Commands that are safe for parallel execution in batch mode.
@@ -159,6 +167,10 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "adaptive-performance",  # inspection operations are read-only
     "multiplayer-playmode",  # inspection operations are read-only
     "code-coverage",  # operation-gated; report inspection only
+    "timeline-operation",  # operation-gated; get-clips/get-info are read-only
+    "cinemachine-operation",  # operation-gated; list/get/get-active are read-only
+    "localization",  # operation-gated; list/get-selected/get-table are read-only
+    "vfx-asset",  # get-info is the only (read-only) operation
 }
 
 # Commands that appear in PARALLEL_SAFE_COMMANDS but mix read-only and
@@ -177,6 +189,13 @@ OPERATION_GATED_PARALLEL_SAFE: dict[str, frozenset[str]] = {
         {"list-actions", "get-action-map", "export", "list-control-schemes"}
     ),
     "code-coverage": frozenset({"availability", "find-reports", "summarize"}),
+    "timeline-operation": frozenset({"get-clips", "get-info"}),
+    "cinemachine-operation": frozenset(
+        {"list-cameras", "get-camera-info", "get-active-camera"}
+    ),
+    "localization": frozenset(
+        {"list-locales", "get-selected-locale", "get-string-table-collection"}
+    ),
 }
 
 # Default timeout when command type is not in TIMEOUT_DEFAULTS.

@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The retry layer treats unrecognized result shapes as failures rather than silently as success; busy-accounting can no longer produce a negative active-elapsed; `UNITY_BRIDGE_TIMEOUT` parsing tolerates surrounding whitespace and rejects non-positive/garbage values.
 
 ### Added
+- `timeline` CLI group for Timeline package automation: create/list top-level tracks, create/list/delete clips, and evaluate a PlayableDirector (requires com.unity.timeline). MCP intentionally not extended (MCP interface is deprecated for new capabilities).
+- `cinemachine` CLI command group for Cinemachine virtual camera inspection and control: list cameras, get camera info, set priority/lens/follow/look-at, and get the active camera.
+- `localization` CLI command group for managing locales, string table collections, entries, and CSV/XLIFF import-export via the Unity Localization package.
+- `memory-profiler` command: capture a Unity Memory Profiler snapshot to disk via `MemoryProfiler.TakeSnapshot` (take-snapshot only; load/diff out of scope).
+- `unity-bridge vfx get-info` for read-only VisualEffectAsset inspection (event names, exposed properties) via reflection, with no compile-time dependency on the optional VFX Graph package.
 - Added coverage-focused unit suites for CLI wrapper dispatch, diagnostics,
   and output formatting, raising the full `tests/` coverage gate above 90%.
 - Completed Unity test runs now persist durable JSON artifacts under

@@ -284,6 +284,17 @@ def _register_optional_commands() -> None:
         "multiplayer_playmode_app",
         "multiplayer-playmode",
     )
+    _try_register_group("unity_bridge.commands.cinemachine", "cinemachine_app", "cinemachine")
+    _try_register_group("unity_bridge.commands.localization", "localization_app", "localization")
+    _try_register_group("unity_bridge.commands.vfx", "vfx_app", "vfx")
+    _register_phase7b_commands()
+
+
+def _register_phase7b_commands() -> None:
+    """Register Phase 7b memory diagnostics command groups."""
+    _try_register_group(
+        "unity_bridge.commands.memory_profiler", "memory_profiler_app", "memory-profiler"
+    )
 
 
 def _register_phase4_expansion_commands() -> None:
@@ -298,6 +309,7 @@ def _register_phase4_expansion_commands() -> None:
         "reflection-probe",
     )
     _try_register_group("unity_bridge.commands.occlusion", "occlusion_app", "occlusion")
+    _try_register_group("unity_bridge.commands.timeline", "timeline_app", "timeline")
 
 
 def _register_phase6_commands() -> None:

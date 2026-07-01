@@ -165,6 +165,11 @@ MCP handlers in `mcp/server.py` `await` the same core functions directly. Never 
 **Phase 4 expansion:** navmesh, animation-clip, terrain, reflection-probe, occlusion, script-execution-order, assembly-reload-lock, find-references
 **Phase 5 (quick wins):** remove-component, component-toggle, console-log
 **Phase 6 / 6b:** component-copy, component-reset, scene-view, game-view, profiler-control, preset, clipboard, deep-serialize, scene-template, tilemap, input-system, audio-settings, environment-settings, graphics-settings, time-settings, window, script-info, addressables
+**Package-provided systems (post-6.4 delta):** timeline, cinemachine, localization, memory-profiler, vfx
+
+Note: this list has drifted from the live CLI surface over several phases
+(see `docs/unity-bridge-audit-and-gap-analysis.md`) — treat `unity-bridge
+--help` as authoritative for the full current group list, not this doc.
 
 ## C# Bridge Installation
 
