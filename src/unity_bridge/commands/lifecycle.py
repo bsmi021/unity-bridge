@@ -152,6 +152,26 @@ def _is_skill_up_to_date(source_dir: Path, target_dir: Path) -> bool:
     )
 
 
+def _is_bridge_up_to_date(source_dir: Path, target_dir: Path) -> bool:
+    """Return True when every current bridge source file matches the target copy.
+
+    Uses checksum comparison rather than the manifest's version string, so a
+    file that goes missing or drifts on disk is detected even when the
+    installed version string still equals the current version.
+    """
+    if not (target_dir / "ClaudeUnityBridge.cs").is_file():
+        return False
+
+    for glob in _BRIDGE_FILE_GLOBS:
+        for source_file in source_dir.glob(glob):
+            target_file = target_dir / source_file.name
+            if not target_file.is_file():
+                return False
+            if _compute_file_checksum(source_file) != _compute_file_checksum(target_file):
+                return False
+    return True
+
+
 def _get_bridge_version() -> str:
     """Return the current bridge version (matches the package version)."""
     from unity_bridge import __version__
@@ -186,11 +206,11 @@ async def install(
     target_dir = get_bridge_paths(root).editor_bridge_dir
     skill_target_dir = _get_skill_target_dir(root)
     skill_source_dir = _get_skill_source_dir()
+    source_dir = _get_bridge_source_dir()
 
     if check:
-        return _check_install_status(target_dir, bridge_version, root, skill_source_dir)
+        return _check_install_status(target_dir, bridge_version, root, skill_source_dir, source_dir)
 
-    source_dir = _get_bridge_source_dir()
     if source_dir is None:
         return CommandResult(
             success=False,
@@ -203,7 +223,7 @@ async def install(
         )
 
     existing = _load_manifest(target_dir)
-    bridge_up_to_date = existing and existing.get("version") == bridge_version
+    bridge_up_to_date = existing is not None and _is_bridge_up_to_date(source_dir, target_dir)
     skill_had_existing = (skill_target_dir / "SKILL.md").is_file()
     skill_up_to_date = _is_skill_up_to_date(skill_source_dir, skill_target_dir)
     if not force and bridge_up_to_date and skill_up_to_date:
@@ -268,6 +288,7 @@ def _check_install_status(
     bridge_version: str,
     project_root: Path,
     skill_source_dir: Path | None,
+    source_dir: Path | None = None,
 ) -> CommandResult:
     """Check installation status without making changes."""
     key_file = target_dir / "ClaudeUnityBridge.cs"
@@ -284,7 +305,13 @@ def _check_install_status(
 
     manifest = _load_manifest(target_dir)
     installed_version = manifest.get("version", "unknown") if manifest else "unknown"
-    status = "up_to_date" if installed_version == bridge_version else "update_available"
+    if source_dir is not None:
+        up_to_date = _is_bridge_up_to_date(source_dir, target_dir)
+    else:
+        # Source unavailable (e.g. bundled-only install) — fall back to the
+        # weaker version-string comparison since files can't be checksummed.
+        up_to_date = installed_version == bridge_version
+    status = "up_to_date" if up_to_date else "update_available"
 
     return CommandResult(
         success=True,

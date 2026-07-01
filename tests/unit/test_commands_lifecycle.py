@@ -370,6 +370,30 @@ class TestInstall:
         assert result.data["action"] == "up_to_date"
         assert result.data["skill"]["action"] == "up_to_date"
 
+    async def test_install_restores_missing_bridge_file_when_version_unchanged(
+        self, fake_project: Path, tmp_path: Path
+    ) -> None:
+        """A plain `install` (no --force) must detect and restore a bridge file
+        that went missing from the target directory, even though the stored
+        manifest's version string still matches the current version — it must
+        not rely on version-string equality alone to decide "up to date"."""
+        lifecycle = _import_lifecycle()
+        source = _create_fake_bridge_source(tmp_path)
+
+        with patch.object(lifecycle, "_get_bridge_source_dir", return_value=source):
+            await lifecycle.install(fake_project)
+            target = fake_project / "Assets" / "Scripts" / "Editor" / "ClaudeCodeBridge"
+            (target / "BridgeModels.cs").unlink()
+            (target / "BridgeModels.cs.meta").unlink()
+
+            result = await lifecycle.install(fake_project)
+
+        assert result.success is True
+        assert result.data["action"] == "update"
+        target = fake_project / "Assets" / "Scripts" / "Editor" / "ClaudeCodeBridge"
+        assert (target / "BridgeModels.cs").is_file()
+        assert (target / "BridgeModels.cs.meta").is_file()
+
     async def test_install_updates_skill_when_bridge_is_up_to_date(
         self, fake_project: Path, tmp_path: Path
     ) -> None:
