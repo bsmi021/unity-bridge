@@ -9,10 +9,11 @@ back to the canonical `.agents/skills/<name>` directory.
 
 from __future__ import annotations
 
+import ctypes
 import platform
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -163,6 +164,21 @@ class TestIsDirectoryLink:
         real_dir.mkdir()
         with patch("unity_bridge.core.skill_links.platform.system", return_value="Linux"):
             assert is_directory_link(real_dir) is False
+
+    @pytest.mark.skipif(platform.system() != "Windows", reason="exercises the real WinDLL call")
+    def test_treats_unsigned_invalid_attributes_sentinel_as_not_a_link(
+        self, tmp_path: Path
+    ) -> None:
+        """GetFileAttributesW's failure sentinel is the unsigned DWORD
+        0xFFFFFFFF; the call must set restype/argtypes explicitly so ctypes
+        can never return that raw unsigned value in place of -1."""
+        missing = tmp_path / "missing"
+        fake_get_attrs = MagicMock(return_value=0xFFFFFFFF)
+
+        with patch.object(
+            ctypes.windll.kernel32, "GetFileAttributesW", fake_get_attrs, create=True
+        ):
+            assert is_directory_link(missing) is False
 
 
 class TestRemoveDirectoryLink:

@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 
 _REPARSE_POINT_ATTR = 0x400
-_INVALID_FILE_ATTRIBUTES = -1
+_INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
 
 
 class SkillLinkError(Exception):
@@ -31,7 +31,11 @@ def is_directory_link(path: Path) -> bool:
 
     import ctypes
 
-    attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+    get_file_attributes = ctypes.windll.kernel32.GetFileAttributesW
+    get_file_attributes.argtypes = [ctypes.c_wchar_p]
+    get_file_attributes.restype = ctypes.c_uint32
+
+    attrs = get_file_attributes(str(path))
     return attrs != _INVALID_FILE_ATTRIBUTES and bool(attrs & _REPARSE_POINT_ATTR)
 
 
