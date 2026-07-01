@@ -41,7 +41,7 @@ namespace BWS.Editor.ClaudeCodeBridge
     ///       {
     ///         \"name\": \"Player\",
     ///         \"path\": \"Player\",
-    ///         \"instanceId\": 12345,
+    ///         \"instanceId\": \"12345\",
     ///         \"components\": [\"Transform\", \"Rigidbody\", \"CharacterController\"],
     ///         \"children\": []
     ///       }
@@ -122,7 +122,11 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 name = go.name,
                 path = GetGameObjectPath(go),
-                instanceId = go.GetInstanceID(),
+#if UNITY_6000_5_OR_NEWER
+                instanceId = go.GetEntityId().ToString(),
+#else
+                instanceId = go.GetInstanceID().ToString(),
+#endif
                 components = new List<string>(),
                 children = new List<SelectionInfo>()
             };
@@ -189,7 +193,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             public string name;
             public string path;
-            public int instanceId;
+            public string instanceId;
             public List<string> components = new List<string>();
             public List<SelectionInfo> children = new List<SelectionInfo>();
         }

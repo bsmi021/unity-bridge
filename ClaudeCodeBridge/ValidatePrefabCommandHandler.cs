@@ -122,7 +122,14 @@ namespace BWS.Editor.ClaudeCodeBridge
                     {
                         if (property.propertyType == SerializedPropertyType.ObjectReference)
                         {
-                            if (property.objectReferenceValue == null && property.objectReferenceInstanceIDValue != 0)
+#if UNITY_6000_5_OR_NEWER
+                            var hasDanglingReference = property.objectReferenceValue == null
+                                && property.objectReferenceEntityIdValue.IsValid();
+#else
+                            var hasDanglingReference = property.objectReferenceValue == null
+                                && property.objectReferenceInstanceIDValue != 0;
+#endif
+                            if (hasDanglingReference)
                             {
                                 result.issues.Add(new ValidationIssue
                                 {
