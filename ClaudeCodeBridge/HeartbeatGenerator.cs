@@ -44,7 +44,7 @@ namespace BWS.Editor.ClaudeCodeBridge
     /// Heartbeat staleness (>15 seconds old) indicates the bridge is frozen or closed.
     /// </summary>
     [InitializeOnLoad]
-    public class HeartbeatGenerator
+    public partial class HeartbeatGenerator
     {
         // Heartbeat write intervals in seconds
         private const float IDLE_HEARTBEAT_INTERVAL = 5.0f;

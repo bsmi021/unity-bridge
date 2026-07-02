@@ -28,6 +28,7 @@ def test_heartbeat_generator_emits_editor_readiness_fields() -> None:
 def test_heartbeat_generator_wires_unity_65_lifecycle_callbacks() -> None:
     source = Path("ClaudeCodeBridge/HeartbeatGenerator.cs").read_text(encoding="utf-8")
 
+    assert "public partial class HeartbeatGenerator" in source
     assert "#if UNITY_6000_5_OR_NEWER" in source
     assert "OnCodeUnloading" in source
     assert "OnCodeLoaded" in source
