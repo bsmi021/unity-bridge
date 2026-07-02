@@ -4,6 +4,9 @@ CLI-first Unity Editor automation via a file-based bridge protocol. Control Unit
 
 **Status:** the `unity-bridge` CLI is the only supported interface. The MCP server has been fully retired; there is no MCP compatibility layer.
 
+**Unity compatibility:** current bridge development targets Unity 6.5 while preserving
+fallbacks for earlier Unity 6.x editor APIs where practical.
+
 **Last updated:** 2026-07-02.
 
 **Requirements:** Python 3.10+, Unity Editor running with the C# bridge installed.
@@ -43,6 +46,22 @@ Packaged installs include the C# bridge scripts and the `unity-bridge-cli` Codex
 Repo-local Codex metadata lives in `.agents/skills/unity-bridge-cli/` and `.codex/agents/`. The shipped skill is intentionally CLI-first: it routes agents through `unity-bridge` commands instead of raw `.claude/unity` JSON.
 
 `.agents/skills/unity-bridge-cli/` is the canonical skill location, and Codex and GitHub Copilot both scan `.agents/skills` natively -- no extra step needed for them. Claude Code only scans `.claude/skills`, so pass `--include-claude` to `unity-bridge install` to additionally link `.claude/skills/unity-bridge-cli` back to the canonical directory (a symlink, or an NTFS junction on Windows when symlink privilege is unavailable) -- one physical skill, reused across agents.
+
+## Unity 6.5 Upgrade
+
+The Unity 6.5 migration updates both the Python CLI surface and the installed C# Editor
+bridge. After pulling this version, reinstall the bridge into each Unity project:
+
+```bash
+unity-bridge install --project "C:/Path/To/UnityProject" --force
+unity-bridge --project "C:/Path/To/UnityProject" status
+unity-bridge --project "C:/Path/To/UnityProject" test compile --wait --timeout 600
+```
+
+The upgrade includes Unity 6.5-safe test framework callbacks and test discovery,
+Addressables build-result handling, lifecycle heartbeat hooks, Build Profile creation,
+profiler frame drilldown, script hash/edit operations, external model import, base64 and
+multi-angle screenshots, and batched import-setting edits.
 
 ## Global CLI Flags
 
@@ -672,7 +691,7 @@ unity-bridge snapshot save after.json --depth 5
 unity-bridge snapshot diff before.json after.json
 ```
 
-### Extended Command Groups (Phase 4-Unity 6.4)
+### Extended Command Groups (Phase 4-Unity 6.5)
 
 Beyond the core examples above, the live CLI exposes additional command groups and top-level commands. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
 
