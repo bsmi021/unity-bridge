@@ -77,6 +77,14 @@ unity-bridge asset-ext guid Assets/Scenes/Main.unity
 unity-bridge asset-ext guid abc123def456
 ```
 
+### `asset-ext hash`
+
+Compute a SHA256 hash for an asset file, useful before `script-edit --if-match`.
+
+```bash
+unity-bridge asset-ext hash Assets/Scripts/Player.cs
+```
+
 ### `asset-ext folder-create` / `asset-ext folder-list`
 
 ```bash
@@ -100,6 +108,16 @@ unity-bridge asset-ext export Assets/Prefabs/ -o export.unitypackage
 
 ```bash
 unity-bridge asset-ext import-package downloaded.unitypackage
+```
+
+### `asset-ext import-model`
+
+Copies an external built-in Unity model format into `Assets/` and imports it.
+glTF/glb requires a project ScriptedImporter package; without one the command
+fails cleanly instead of treating the file as an imported model.
+
+```bash
+unity-bridge asset-ext import-model C:/Models/Tree.fbx Assets/Models/Tree.fbx
 ```
 
 ---

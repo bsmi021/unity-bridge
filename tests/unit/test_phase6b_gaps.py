@@ -382,6 +382,24 @@ class TestProfilerMemory:
         assert _extract_kwarg(call, "timeout") == 10.0
 
 
+class TestProfilerSetAreas:
+    async def test_sends_set_areas(self, mock_bridge: MagicMock) -> None:
+        from unity_bridge.commands.profiler import profiler_set_areas
+
+        await profiler_set_areas(
+            mock_bridge,
+            areas=["Physics", "Audio"],
+            enabled=False,
+            allocation_callstacks=True,
+        )
+
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["operation"] == "set-areas"
+        assert params["areas"] == "Physics,Audio"
+        assert params["enabled"] is False
+        assert params["allocationCallstacks"] is True
+
+
 # ---------------------------------------------------------------------------
 # Material legacy action validation
 # ---------------------------------------------------------------------------

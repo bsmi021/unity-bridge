@@ -101,6 +101,7 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "clipboard": 5,
     "preset-operation": 15,
     "scene-template": 30,
+    "script-edit": 60,
     "script-info": 15,
     "deep-serialize": 10,
     "window-management": 5,
@@ -115,6 +116,7 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "scene-view": 5,
     "game-view": 5,
     "profiler-control": 60,
+    "profiler-frame": 60,
     # Phase 7a: Query & Report
     "sync-solution": 30,
     "cloud-services": 10,

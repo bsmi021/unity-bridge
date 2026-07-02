@@ -10,7 +10,8 @@ namespace BWS.Editor.ClaudeCodeBridge
 {
     /// <summary>
     /// Command handler for extended asset operations via AssetDatabase.
-    /// Supports: create, delete, copy, move, deps, guid, folder-create, folder-list, export, import-package.
+    /// Supports: create, delete, copy, move, deps, guid, folder-create, folder-list, export,
+    /// import-package, import-model.
     /// Helper methods in AssetExtendedHelpers.cs (partial class).
     /// </summary>
     public partial class AssetExtendedCommandHandler : ICommandHandler
@@ -21,7 +22,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             StringComparer.OrdinalIgnoreCase)
         {
             "create", "delete", "copy", "move",
-            "folder-create", "export", "import-package"
+            "folder-create", "export", "import-package", "import-model", "reserialize"
         };
 
         public BridgeResponse Execute(BridgeCommand command)
@@ -69,6 +70,9 @@ namespace BWS.Editor.ClaudeCodeBridge
                     case "guid":
                         result = ExecuteGuid(parameters);
                         break;
+                    case "hash":
+                        result = ExecuteHash(parameters);
+                        break;
                     case "folder-create":
                         result = ExecuteFolderCreate(parameters);
                         break;
@@ -81,14 +85,21 @@ namespace BWS.Editor.ClaudeCodeBridge
                     case "import-package":
                         result = ExecuteImportPackage(parameters);
                         break;
+                    case "import-model":
+                        result = ExecuteImportModel(parameters);
+                        break;
+                    case "reserialize":
+                        result = ExecuteReserialize(parameters);
+                        break;
                     default:
                         result = new AssetExtendedOperationResult
                         {
                             operation = parameters.operation,
                             success = false,
                             message = $"Unknown operation: {parameters.operation}. " +
-                                "Supported: create, delete, copy, move, deps, guid, " +
-                                "folder-create, folder-list, export, import-package"
+                                "Supported: create, delete, copy, move, deps, guid, hash, " +
+                                "folder-create, folder-list, export, import-package, import-model, " +
+                                "reserialize"
                         };
                         break;
                 }
@@ -445,7 +456,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             return result;
         }
 
-        // ExecuteExport, ExecuteImportPackage, and utility helpers are in
+        // ExecuteExport, ExecuteImportPackage, ExecuteImportModel, and utility helpers are in
         // AssetExtendedHelpers.cs (partial class).
     }
 }

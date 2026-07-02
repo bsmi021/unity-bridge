@@ -15,6 +15,8 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string operation;
         public string profilePath; // Asset path to build profile
+        public string profileName;
+        public string platformId;
         public string outputPath;
         public List<string> scenes;
         public List<string> disabledScenes;

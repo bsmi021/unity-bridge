@@ -67,12 +67,8 @@ looks stale):
 
 | Need | unity-mcp tool(s) | Why not unity-bridge |
 |---|---|---|
-| Write/edit a C# script's body (create, AST-aware method insert/replace, apply text edits) | `Unity_CreateScript`, `Unity_DeleteScript`, `Unity_ManageScript`, `Unity_ScriptApplyEdits`, `Unity_ApplyTextEdits`, `Unity_ValidateScript`, `Unity_FindInFile`, `Unity_Grep` | `script-info` / `script` commands are read-only/info + arbitrary-expression execution only; no script CRUD |
-| Return a screenshot inline, or capture multiple camera angles at once | `Unity_Camera_Capture`, `Unity_SceneView_Capture2DScene`, `Unity_SceneView_CaptureMultiAngleSceneView` | `screenshot` only writes a PNG to disk and returns a path |
-| Drill into why a frame is slow (per-sample time, GC allocation source, bottom-up/top-time trees) | `Unity_Profiler_Get*` tools | `profiler` reports aggregate counters only |
+| Create/delete C# scripts or perform AST-aware method insert/replace | `Unity_CreateScript`, `Unity_DeleteScript`, `Unity_ManageScript`, `Unity_ValidateScript`, `Unity_FindInFile`, `Unity_Grep` | `script-edit` covers safe line-range and exact-anchor text replacements only, not script creation/deletion or AST-aware edits |
 | Generate a texture/material/sprite/animation from an AI prompt | `Unity_AssetGeneration_*` tools | unity-bridge has no generative capability |
-| Bring a 3D model file from outside the project into Assets | `Unity_ImportExternalModel` | `asset-ext copy`/`move` only operate on paths already inside the project; `asset-ext import-package` only handles `.unitypackage` files -- neither ingests an arbitrary external file |
-| Get a file's content hash before writing, to detect concurrent edits | `Unity_GetSha` | no SHA/precondition support |
 | Browse console logs / artifacts as MCP resources rather than one-shot reads | `Unity_ListResources`, `Unity_ReadResource` | unity-bridge has no resources model |
 
 Note: editing an already-imported asset's importer settings (texture, model, or
@@ -169,10 +165,11 @@ with `unity-bridge test compile` and `unity-bridge console read -T error` --
 - `refresh` -- refresh asset database
 - `undo perform` / `undo redo` -- undo/redo
 
-**Edit script bodies, get inline/multi-angle screenshots, drill into
-per-sample profiler data, or generate assets from a prompt:** unity-bridge
-does not support these -- see "unity-bridge vs. unity-mcp" above for the
-matching `mcp__unity-mcp__*` tool.
+**Create/delete scripts, perform AST-aware script edits, or generate assets
+from a prompt:** unity-bridge does not support these -- see
+"unity-bridge vs. unity-mcp" above for the matching `mcp__unity-mcp__*`
+tool. For line-range or exact-anchor MonoScript text edits, use
+`script-edit`.
 - `object-identity selection` / `object-identity resolve --asset-path PATH` -- IDs
 - `project-auditor run --output PATH` -- run Project Auditor if available
 - `search query "t:Material"` -- query Unity Search
@@ -212,6 +209,9 @@ unity-bridge init                      # Create directory structure
 unity-bridge clean [--dry-run]         # Remove orphaned/stale bridge state files
 unity-bridge operation status COMMAND_ID | operation list
 unity-bridge profiler --memory --cpu   # Performance snapshot
+unity-bridge profiler-control set-areas --areas Physics,Audio [--allocation-callstacks]
+unity-bridge profiler-frame top-time-samples FRAME_INDEX [--count N]
+unity-bridge profiler-frame gc-alloc [--frame N | --start N --end N]
 
 # Hierarchy & GameObjects
 unity-bridge hierarchy [--depth N] [--root PATH] [--inactive]
@@ -262,14 +262,16 @@ unity-bridge compile assemblies | defines ASM | which SCRIPT | optimization [--s
 
 # Editor Utilities
 unity-bridge refresh [--force] | focus PATH | menu "Menu/Path"
-unity-bridge screenshot PATH [--width W --height H --camera CAM]
+unity-bridge screenshot PATH [--width W --height H --camera CAM] [--inline-base64] [--multi-angle]
 unity-bridge script "expression" | --file PATH
+unity-bridge script-edit range PATH --start-line N --end-line N -r TEXT [--if-match SHA]
+unity-bridge script-edit anchor PATH -a ANCHOR -r TEXT [-n OCCURRENCE] [--if-match SHA]
 unity-bridge sync-solution
 unity-bridge search query "t:Material" | providers
 
 # Assets & Import
 unity-bridge asset find|query|import|refresh [--type T] [--path P] [--pattern P]
-unity-bridge asset-ext create|delete|copy|move|deps|guid|export|import-package
+unity-bridge asset-ext create|delete|copy|move|deps|guid|hash|export|import-package|import-model
 unity-bridge import-settings get|set|reimport|bulk-set|template-save|template-apply
 unity-bridge material ACTION PATH [--properties JSON]
 unity-bridge shader list|info|errors|properties|find-by-property|keywords NAME
@@ -277,7 +279,7 @@ unity-bridge addressables profiles|set-profile|labels|set-label|schemas|analyze
 
 # Build & Deploy
 unity-bridge build [-T target] [-o path] [--dev] [--compress] [--scenes]
-unity-bridge profile list|active|set|info|scenes|set-scenes|defines|set-defines|build
+unity-bridge profile list|active|create|set|info|scenes|set-scenes|defines|set-defines|build
 unity-bridge build-scenes list|add|remove|enable|disable PATH
 
 # Settings & Config

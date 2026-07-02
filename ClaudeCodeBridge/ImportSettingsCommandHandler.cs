@@ -192,34 +192,42 @@ namespace BWS.Editor.ClaudeCodeBridge
                 filter = p.filter ?? ""
             };
 
-            foreach (var guid in guids)
+            AssetDatabase.StartAssetEditing();
+            try
             {
-                var assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                if (AssetDatabase.IsValidFolder(assetPath)) continue;
-
-                if (!string.IsNullOrEmpty(p.filter) && !MatchesGlob(assetPath, p.filter))
-                    continue;
-
-                var importer = AssetImporter.GetAtPath(assetPath);
-                if (importer is null)
+                foreach (var guid in guids)
                 {
-                    result.skippedAssets.Add(assetPath);
-                    result.skippedCount++;
-                    continue;
-                }
+                    var assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                    if (AssetDatabase.IsValidFolder(assetPath)) continue;
 
-                var applied = ApplySettings(importer, settingsDict);
-                if (applied.Count > 0)
-                {
-                    importer.SaveAndReimport();
-                    result.updatedAssets.Add(assetPath);
-                    result.updatedCount++;
+                    if (!string.IsNullOrEmpty(p.filter) && !MatchesGlob(assetPath, p.filter))
+                        continue;
+
+                    var importer = AssetImporter.GetAtPath(assetPath);
+                    if (importer is null)
+                    {
+                        result.skippedAssets.Add(assetPath);
+                        result.skippedCount++;
+                        continue;
+                    }
+
+                    var applied = ApplySettings(importer, settingsDict);
+                    if (applied.Count > 0)
+                    {
+                        importer.SaveAndReimport();
+                        result.updatedAssets.Add(assetPath);
+                        result.updatedCount++;
+                    }
+                    else
+                    {
+                        result.skippedAssets.Add(assetPath);
+                        result.skippedCount++;
+                    }
                 }
-                else
-                {
-                    result.skippedAssets.Add(assetPath);
-                    result.skippedCount++;
-                }
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
             }
 
             result.success = true;

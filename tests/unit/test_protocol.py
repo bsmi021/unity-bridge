@@ -23,6 +23,8 @@ class TestTimeoutDefaults:
         assert "compile" in TIMEOUT_DEFAULTS
         assert "query-hierarchy" in TIMEOUT_DEFAULTS
         assert "build-operation" in TIMEOUT_DEFAULTS
+        assert "script-edit" in TIMEOUT_DEFAULTS
+        assert "profiler-frame" in TIMEOUT_DEFAULTS
 
     def test_run_tests_timeout_is_300(self) -> None:
         assert TIMEOUT_DEFAULTS["run-tests"] == 300

@@ -120,6 +120,8 @@ async def capture_screenshot(
     camera: str | None = None,
     width: int | None = None,
     height: int | None = None,
+    return_base64: bool = False,
+    multi_angle: bool = False,
     timeout: float = 30.0,
 ) -> CommandResult:
     """Capture a screenshot from the Unity Editor.
@@ -139,6 +141,10 @@ async def capture_screenshot(
         params["width"] = width
     if height is not None:
         params["height"] = height
+    if return_base64:
+        params["returnBase64"] = True
+    if multi_angle:
+        params["multiAngle"] = True
 
     return await bridge.send_command_with_retry(
         command_type="capture-screenshot",
@@ -248,12 +254,28 @@ def screenshot_cli(
         int | None,
         typer.Option("--height", help="Output height in pixels."),
     ] = None,
+    return_base64: Annotated[
+        bool,
+        typer.Option("--inline-base64", help="Return base64 PNG data."),
+    ] = False,
+    multi_angle: Annotated[
+        bool,
+        typer.Option("--multi-angle", help="Capture scene view from standard angles."),
+    ] = False,
 ) -> None:
     """Capture a screenshot from the Unity Editor."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
     result = asyncio.run(
-        capture_screenshot(state.bridge, output_path, camera, width, height)
+        capture_screenshot(
+            state.bridge,
+            output_path,
+            camera,
+            width,
+            height,
+            return_base64=return_base64,
+            multi_angle=multi_angle,
+        )
     )
     print_result(result, state.formatter)

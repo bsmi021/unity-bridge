@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -184,6 +185,56 @@ class TestAssetGuid:
 
 
 # ---------------------------------------------------------------------------
+# hash
+# ---------------------------------------------------------------------------
+
+
+class TestAssetHash:
+    async def test_sends_hash_with_asset_path(self, mock_bridge: MagicMock) -> None:
+        await asset_extended_operation(
+            mock_bridge, "hash", asset_path="Assets/Scripts/Player.cs"
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["operation"] == "hash"
+        assert params["assetPath"] == "Assets/Scripts/Player.cs"
+
+    async def test_hash_returns_command_result(self, mock_bridge: MagicMock) -> None:
+        expected = CommandResult(
+            success=True,
+            data={
+                "operation": "hash",
+                "assetPath": "Assets/Scripts/Player.cs",
+                "sha256": "abc123",
+            },
+        )
+        mock_bridge.send_command_with_retry.return_value = expected
+        result = await asset_extended_operation(
+            mock_bridge, "hash", asset_path="Assets/Scripts/Player.cs"
+        )
+        assert result.data["sha256"] == "abc123"
+
+    def test_csharp_hash_contract(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        handler_source = (
+            root.joinpath("ClaudeCodeBridge", "AssetExtendedCommandHandler.cs")
+            .read_text(encoding="utf-8")
+        )
+        helper_source = (
+            root.joinpath("ClaudeCodeBridge", "AssetExtendedHelpers.cs")
+            .read_text(encoding="utf-8")
+        )
+        model_source = (
+            root.joinpath("ClaudeCodeBridge", "AssetExtendedModels.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert 'case "hash":' in handler_source
+        assert "ExecuteHash" in helper_source
+        assert "SHA256.Create" in helper_source
+        assert "sha256" in model_source
+
+
+# ---------------------------------------------------------------------------
 # folder-create
 # ---------------------------------------------------------------------------
 
@@ -288,6 +339,48 @@ class TestAssetImportPackage:
         )
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert "interactive" not in params
+
+
+# ---------------------------------------------------------------------------
+# import-model
+# ---------------------------------------------------------------------------
+
+
+class TestAssetImportModel:
+    async def test_sends_import_model_paths(self, mock_bridge: MagicMock) -> None:
+        await asset_extended_operation(
+            mock_bridge,
+            "import-model",
+            source_path="C:/Models/character.fbx",
+            destination_path="Assets/Models/character.fbx",
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["operation"] == "import-model"
+        assert params["sourcePath"] == "C:/Models/character.fbx"
+        assert params["destinationPath"] == "Assets/Models/character.fbx"
+
+    def test_csharp_import_model_contract(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        handler_source = (
+            root.joinpath("ClaudeCodeBridge", "AssetExtendedCommandHandler.cs")
+            .read_text(encoding="utf-8")
+        )
+        helper_source = (
+            root.joinpath("ClaudeCodeBridge", "AssetExtendedHelpers.cs")
+            .read_text(encoding="utf-8")
+        )
+        model_source = (
+            root.joinpath("ClaudeCodeBridge", "AssetExtendedModels.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert 'case "import-model":' in handler_source
+        assert "ExecuteImportModel" in helper_source
+        assert "AssetDatabase.GetImporterType" in helper_source
+        assert "DefaultImporter" in helper_source
+        assert '".gltf"' in helper_source
+        assert '".glb"' in helper_source
+        assert "importerType" in model_source
 
 
 # ---------------------------------------------------------------------------

@@ -90,6 +90,29 @@ async def profiler_memory(
     )
 
 
+async def profiler_set_areas(
+    bridge: DirectBridge,
+    *,
+    areas: list[str],
+    enabled: bool = True,
+    allocation_callstacks: bool | None = None,
+    timeout: float = 10.0,
+) -> CommandResult:
+    """Enable or disable profiler areas and optional allocation callstacks."""
+    params: dict[str, object] = {
+        "operation": "set-areas",
+        "areas": ",".join(areas),
+        "enabled": enabled,
+    }
+    if allocation_callstacks is not None:
+        params["allocationCallstacks"] = allocation_callstacks
+    return await bridge.send_command_with_retry(
+        command_type="profiler-control",
+        parameters=params,
+        timeout=timeout,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Typer CLI wrappers
 # ---------------------------------------------------------------------------
@@ -143,4 +166,36 @@ def profiler_memory_cli(ctx: typer.Context) -> None:
 
     state = ctx.obj
     result = asyncio.run(profiler_memory(state.bridge))
+    print_result(result, state.formatter)
+
+
+@profiler_app.command("set-areas")
+def profiler_set_areas_cli(
+    ctx: typer.Context,
+    areas: Annotated[
+        str,
+        typer.Option("--areas", help="Comma-separated profiler areas."),
+    ],
+    enabled: Annotated[
+        bool,
+        typer.Option("--enabled/--disabled", help="Enable or disable areas."),
+    ] = True,
+    allocation_callstacks: Annotated[
+        bool | None,
+        typer.Option("--allocation-callstacks/--no-allocation-callstacks"),
+    ] = None,
+) -> None:
+    """Enable or disable profiler areas."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    area_list = [area.strip() for area in areas.split(",") if area.strip()]
+    result = asyncio.run(
+        profiler_set_areas(
+            state.bridge,
+            areas=area_list,
+            enabled=enabled,
+            allocation_callstacks=allocation_callstacks,
+        )
+    )
     print_result(result, state.formatter)

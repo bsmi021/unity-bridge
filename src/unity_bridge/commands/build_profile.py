@@ -16,6 +16,7 @@ from unity_bridge.core.bridge import CommandResult, DirectBridge
 VALID_ACTIONS = frozenset(
     {
         "list",
+        "create",
         "get-active",
         "set-active",
         "get-info",
@@ -37,6 +38,8 @@ async def build_profile_operation(
     action: str,
     profile_path: str | None = None,
     *,
+    profile_name: str | None = None,
+    platform_id: str | None = None,
     output_path: str | None = None,
     scenes: list[str] | None = None,
     disabled_scenes: list[str] | None = None,
@@ -66,6 +69,10 @@ async def build_profile_operation(
     params: dict[str, object] = {"operation": normalised}
     if profile_path is not None:
         params["profilePath"] = profile_path
+    if profile_name is not None:
+        params["profileName"] = profile_name
+    if platform_id is not None:
+        params["platformId"] = platform_id
     if output_path is not None:
         params["outputPath"] = output_path
     if scenes is not None:
@@ -110,6 +117,30 @@ def profile_active(ctx: typer.Context) -> None:
 
     state = ctx.obj
     result = asyncio.run(build_profile_operation(state.bridge, "get-active"))
+    print_result(result, state.formatter)
+
+
+@build_profile_app.command("create")
+def profile_create(
+    ctx: typer.Context,
+    name: Annotated[str, typer.Argument(help="New build profile name.")],
+    platform_id: Annotated[
+        str,
+        typer.Option("--platform-id", help="Unity build profile platform GUID."),
+    ],
+) -> None:
+    """Create a Unity 6.5 build profile."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        build_profile_operation(
+            state.bridge,
+            "create",
+            profile_name=name,
+            platform_id=platform_id,
+        )
+    )
     print_result(result, state.formatter)
 
 

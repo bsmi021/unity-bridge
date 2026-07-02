@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
@@ -74,7 +75,8 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 // RetrieveTestTree uses Action<ITestAdaptor> callback directly.
                 // NOT the ICallbacks interface used by Execute().
-                testRunnerApi.RetrieveTestList(
+                RetrieveTestTree(
+                    testRunnerApi,
                     testMode,
                     (ITestAdaptor testTree) =>
                     {
@@ -118,6 +120,45 @@ namespace BWS.Editor.ClaudeCodeBridge
                 BridgeLogger.LogError($"Error: {ex}");
                 return BridgeResponse.Error(command.commandId, command.commandType, ex.ToString());
             }
+        }
+
+        private static void RetrieveTestTree(
+            TestRunnerApi testRunnerApi,
+            TestMode testMode,
+            Action<ITestAdaptor> callback)
+        {
+            var apiType = testRunnerApi.GetType();
+            var treeMethod = FindRetrieveMethod(apiType, "RetrieveTestTree", typeof(ExecutionSettings));
+            if (treeMethod is not null)
+            {
+                var filter = new Filter { testMode = testMode };
+                treeMethod.Invoke(testRunnerApi, new object[] { new ExecutionSettings(filter), callback });
+                return;
+            }
+
+            var listMethod = FindRetrieveMethod(apiType, "RetrieveTestList", typeof(TestMode));
+            if (listMethod is not null)
+            {
+                listMethod.Invoke(testRunnerApi, new object[] { testMode, callback });
+                return;
+            }
+
+            throw new MissingMethodException(
+                "Unity Test Framework does not expose RetrieveTestTree or compatible fallback.");
+        }
+
+        private static MethodInfo FindRetrieveMethod(Type apiType, string name, Type firstParameterType)
+        {
+            foreach (var method in apiType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (method.Name != name)
+                    continue;
+                var parameters = method.GetParameters();
+                if (parameters.Length == 2
+                    && parameters[0].ParameterType == firstParameterType)
+                    return method;
+            }
+            return null;
         }
 
         /// <summary>

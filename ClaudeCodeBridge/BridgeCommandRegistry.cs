@@ -35,6 +35,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new CompileCommandHandler());
             registerHandler(new ExecuteMenuItemCommandHandler());
             registerHandler(new ExecuteScriptCommandHandler());
+            registerHandler(new ScriptEditCommandHandler());
 
             // Phase 2: Developer Workflow APIs
             registerHandler(new CompilationPipelineCommandHandler());
@@ -97,6 +98,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new SceneViewCommandHandler());
             registerHandler(new GameViewCommandHandler());
             registerHandler(new ProfilerControlCommandHandler());
+            registerHandler(new ProfilerFrameCommandHandler());
 
             // Phase 6c: Addressables & Tilemap
             registerHandler(new AddressablesCommandHandler());

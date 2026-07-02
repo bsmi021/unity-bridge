@@ -4,7 +4,10 @@ CLI-first Unity Editor automation via a file-based bridge protocol. Control Unit
 
 **Status:** the `unity-bridge` CLI is the only supported interface. The MCP server has been fully retired; there is no MCP compatibility layer.
 
-**Last updated:** 2026-07-01.
+**Unity compatibility:** current bridge development targets Unity 6.5 while preserving
+fallbacks for earlier Unity 6.x editor APIs where practical.
+
+**Last updated:** 2026-07-02.
 
 **Requirements:** Python 3.10+, Unity Editor running with the C# bridge installed.
 
@@ -43,6 +46,22 @@ Packaged installs include the C# bridge scripts and the `unity-bridge-cli` Codex
 Repo-local Codex metadata lives in `.agents/skills/unity-bridge-cli/` and `.codex/agents/`. The shipped skill is intentionally CLI-first: it routes agents through `unity-bridge` commands instead of raw `.claude/unity` JSON.
 
 `.agents/skills/unity-bridge-cli/` is the canonical skill location, and Codex and GitHub Copilot both scan `.agents/skills` natively -- no extra step needed for them. Claude Code only scans `.claude/skills`, so pass `--include-claude` to `unity-bridge install` to additionally link `.claude/skills/unity-bridge-cli` back to the canonical directory (a symlink, or an NTFS junction on Windows when symlink privilege is unavailable) -- one physical skill, reused across agents.
+
+## Unity 6.5 Upgrade
+
+The Unity 6.5 migration updates both the Python CLI surface and the installed C# Editor
+bridge. After pulling this version, reinstall the bridge into each Unity project:
+
+```bash
+unity-bridge install --project "C:/Path/To/UnityProject" --force
+unity-bridge --project "C:/Path/To/UnityProject" status
+unity-bridge --project "C:/Path/To/UnityProject" test compile --wait --timeout 600
+```
+
+The upgrade includes Unity 6.5-safe test framework callbacks and test discovery,
+Addressables build-result handling, lifecycle heartbeat hooks, Build Profile creation,
+profiler frame drilldown, script hash/edit operations, external model import, base64 and
+multi-angle screenshots, and batched import-setting edits.
 
 ## Global CLI Flags
 
@@ -207,7 +226,7 @@ unity-bridge selection [--components] [--children]  # Get current editor selecti
 unity-bridge refresh [--force]                      # Refresh asset database
 unity-bridge focus OBJECT_PATH [--no-frame]         # Focus a GameObject in scene view
 unity-bridge menu MENU_PATH [--validate-only]       # Execute a menu item
-unity-bridge screenshot OUTPUT_PATH [--camera NAME] [--width N] [--height N]
+unity-bridge screenshot OUTPUT_PATH [--camera NAME] [--width N] [--height N] [--inline-base64] [--multi-angle]
 ```
 
 ```bash
@@ -216,6 +235,9 @@ unity-bridge menu "File/Save"
 
 # Example: capture a screenshot at specific resolution
 unity-bridge screenshot "./capture.png" --width 1920 --height 1080
+
+# Example: capture and return base64 PNG data in the JSON response
+unity-bridge screenshot "./capture.png" --inline-base64
 ```
 
 ### Assets
@@ -243,10 +265,12 @@ unity-bridge asset-ext copy SOURCE DEST            # Copy an asset
 unity-bridge asset-ext move SOURCE DEST            # Move/rename an asset
 unity-bridge asset-ext deps PATH [--recursive/--no-recursive]  # List dependencies
 unity-bridge asset-ext guid INPUT                  # Convert between path and GUID
+unity-bridge asset-ext hash PATH                   # Compute SHA256 for an asset file
 unity-bridge asset-ext folder-create PATH          # Create a folder
 unity-bridge asset-ext folder-list PATH            # List subfolders
 unity-bridge asset-ext export --output FILE PATHS...  # Export as .unitypackage
 unity-bridge asset-ext import-package FILE [--interactive]  # Import a .unitypackage
+unity-bridge asset-ext import-model SOURCE DEST    # Copy an external model into Assets/ and import it
 ```
 
 ```bash
@@ -258,6 +282,9 @@ unity-bridge asset-ext deps "Assets/Prefabs/Player.prefab"
 
 # Example: export assets as a package
 unity-bridge asset-ext export --output "backup.unitypackage" "Assets/Scripts" "Assets/Prefabs"
+
+# Example: import an external FBX into the project
+unity-bridge asset-ext import-model "C:/Models/Tree.fbx" "Assets/Models/Tree.fbx"
 ```
 
 ### Import Settings
@@ -354,6 +381,7 @@ unity-bridge build --target StandaloneWindows64 --dev
 ```
 unity-bridge profile list                      # List all build profiles
 unity-bridge profile active                    # Get the active profile
+unity-bridge profile create NAME --platform-id PLATFORM_GUID
 unity-bridge profile set PATH                  # Set the active profile
 unity-bridge profile info PATH                 # Get profile details
 unity-bridge profile scenes PATH               # Get profile scenes
@@ -366,6 +394,9 @@ unity-bridge profile build PATH --output Builds/Windows/Game.exe
 ```bash
 # Example: switch active build profile
 unity-bridge profile set "Assets/Settings/BuildProfiles/Android.asset"
+
+# Example: create a Unity 6.5 build profile
+unity-bridge profile create "Windows QA" --platform-id <platform-guid>
 ```
 
 ### Compilation Pipeline
@@ -519,6 +550,8 @@ Batch file format:
 
 ```
 unity-bridge script EXPRESSION [--file PATH] [--timeout N]
+unity-bridge script-edit range PATH --start-line N --end-line N --replacement TEXT [--if-match SHA256]
+unity-bridge script-edit anchor PATH --anchor TEXT --replacement TEXT [--occurrence N] [--if-match SHA256]
 ```
 
 Execute a C# expression or script file in the Unity Editor context.
@@ -529,6 +562,9 @@ unity-bridge script "Debug.Log(Application.unityVersion)"
 
 # Example: run a script file
 unity-bridge script --file "./scripts/setup-scene.cs"
+
+# Example: safely replace lines in a MonoScript
+unity-bridge script-edit range "Assets/Scripts/Player.cs" --start-line 12 --end-line 18 --replacement "    void Update() {}"
 ```
 
 ### Project Settings
@@ -655,9 +691,9 @@ unity-bridge snapshot save after.json --depth 5
 unity-bridge snapshot diff before.json after.json
 ```
 
-### Extended Command Groups (Phase 4-Unity 6.4)
+### Extended Command Groups (Phase 4-Unity 6.5)
 
-Beyond the core examples above, the live CLI exposes 92 top-level entries: 67 command groups and 25 top-level commands. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
+Beyond the core examples above, the live CLI exposes additional command groups and top-level commands. Run `unity-bridge --help` for the full list, or `unity-bridge GROUP --help` for any group below.
 
 **Selection & editor state:** `select`, `prefs`, `editor-config`, `window`, `scene-state`
 **Transform & object manipulation:** `transform`, `property`, `hierarchy`, `component`, `object-identity`
@@ -668,7 +704,7 @@ Beyond the core examples above, the live CLI exposes 92 top-level entries: 67 co
 **Built-in package inspection:** `entities`, `adaptive-performance`, `multiplayer-playmode`
 **Graphics & geometry:** `navmesh`, `animation`, `animation-clip`, `terrain`, `tilemap`
 **Component and material lifecycle extensions:** `component copy`, `component paste`, `component reset`, `component remove`, `component enable`, `component disable`, `material`
-**Profiling & diagnostics:** `profiler`, `profiler-control`, `console log`, `cloud`, `physics2d`
+**Profiling & diagnostics:** `profiler`, `profiler-control`, `profiler-frame`, `console log`, `cloud`, `physics2d`
 
 ```bash
 # Example: list all groups
@@ -756,7 +792,7 @@ unity-bridge/
 ├── src/unity_bridge/
 │   ├── app.py               # Typer entry point, AppState, global flags
 │   ├── core/                # Shared modules (bridge, config, health, operation, cache, retry, output)
-│   └── commands/            # 84 command modules (one per domain)
+│   └── commands/            # 87 command modules (one per domain)
 ├── ClaudeCodeBridge/        # C# Editor scripts installed into Unity
 ├── tests/                   # pytest suite (unit + integration)
 └── docs/                    # Tech specs

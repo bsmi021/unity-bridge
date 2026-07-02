@@ -58,10 +58,12 @@ class TestValidOperations:
             "move",
             "deps",
             "guid",
+            "hash",
             "folder-create",
             "folder-list",
             "export",
             "import-package",
+            "import-model",
             "reserialize",
         }
         assert VALID_OPERATIONS == expected
@@ -81,12 +83,13 @@ class TestValidOperations:
             "folder-create",
             "export",
             "import-package",
+            "import-model",
             "reserialize",
         }
         assert MUTATING_OPERATIONS == expected_mutating
 
     def test_read_only_operations_not_in_mutating(self) -> None:
-        read_only = {"deps", "guid", "folder-list"}
+        read_only = {"deps", "guid", "hash", "folder-list"}
         assert read_only.isdisjoint(MUTATING_OPERATIONS)
 
 
@@ -335,8 +338,27 @@ class TestCamelCaseParams:
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert "packagePath" in params
 
+    async def test_import_model_paths_are_camel_case(self, mock_bridge: MagicMock) -> None:
+        await asset_extended_operation(
+            mock_bridge,
+            "import-model",
+            source_path="C:/Models/Tree.fbx",
+            destination_path="Assets/Models/Tree.fbx",
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert "sourcePath" in params
+        assert "destinationPath" in params
+        assert "source_path" not in params
+        assert "destination_path" not in params
+
     async def test_guid_input_key_name(self, mock_bridge: MagicMock) -> None:
         await asset_extended_operation(mock_bridge, "guid", input_value="Assets/X.prefab")
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert "input" in params
         assert "input_value" not in params
+
+    async def test_hash_asset_path_key_name(self, mock_bridge: MagicMock) -> None:
+        await asset_extended_operation(mock_bridge, "hash", asset_path="Assets/X.prefab")
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert "assetPath" in params
+        assert "asset_path" not in params

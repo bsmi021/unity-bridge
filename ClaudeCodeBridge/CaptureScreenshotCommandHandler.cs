@@ -63,7 +63,11 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 // Capture screenshot based on camera type
                 CaptureScreenshotResult result;
-                if (string.Equals(parameters.cameraPath, "SceneView", StringComparison.OrdinalIgnoreCase))
+                if (parameters.multiAngle)
+                {
+                    result = CaptureMultiAngle(parameters);
+                }
+                else if (string.Equals(parameters.cameraPath, "SceneView", StringComparison.OrdinalIgnoreCase))
                 {
                     result = CaptureFromSceneView(parameters);
                 }
@@ -140,6 +144,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                     // Save to file
                     SaveScreenshot(screenshot, parameters.outputPath, out result.fileSizeBytes);
+                    MaybePopulateBase64(result, parameters);
 
                     // Cleanup
                     UnityEngine.Object.DestroyImmediate(screenshot);
@@ -214,6 +219,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                     // Save to file
                     SaveScreenshot(screenshot, parameters.outputPath, out result.fileSizeBytes);
+                    MaybePopulateBase64(result, parameters);
 
                     // Cleanup
                     UnityEngine.Object.DestroyImmediate(screenshot);
@@ -239,6 +245,76 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             return result;
+        }
+
+        private CaptureScreenshotResult CaptureMultiAngle(CaptureScreenshotParams parameters)
+        {
+            var result = new CaptureScreenshotResult
+            {
+                width = parameters.width,
+                height = parameters.height,
+                outputPath = parameters.outputPath,
+                success = true,
+                message = "Captured multi-angle scene view screenshots"
+            };
+
+            foreach (var angle in new[] { "isometric", "front", "top", "right" })
+            {
+                var captureParams = CloneForAngle(parameters, angle);
+                ApplySceneViewAngle(angle);
+                var capture = CaptureFromSceneView(captureParams);
+                capture.angle = angle;
+                result.captures.Add(capture);
+                result.fileSizeBytes += capture.fileSizeBytes;
+                if (!capture.success)
+                {
+                    result.success = false;
+                    result.message = capture.message;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        private CaptureScreenshotParams CloneForAngle(CaptureScreenshotParams parameters, string angle)
+        {
+            return new CaptureScreenshotParams
+            {
+                cameraPath = "SceneView",
+                width = parameters.width,
+                height = parameters.height,
+                outputPath = OutputPathForAngle(parameters.outputPath, angle),
+                captureUI = parameters.captureUI,
+                returnBase64 = parameters.returnBase64
+            };
+        }
+
+        private string OutputPathForAngle(string outputPath, string angle)
+        {
+            var directory = Path.GetDirectoryName(outputPath);
+            var name = Path.GetFileNameWithoutExtension(outputPath);
+            var extension = Path.GetExtension(outputPath);
+            if (string.IsNullOrEmpty(extension))
+                extension = ".png";
+            return Path.Combine(directory ?? "", $"{name}-{angle}{extension}").Replace("\\", "/");
+        }
+
+        private void ApplySceneViewAngle(string angle)
+        {
+            var sceneView = SceneView.lastActiveSceneView;
+            if (sceneView == null)
+                return;
+            Quaternion rotation;
+            switch (angle)
+            {
+                case "front": rotation = Quaternion.Euler(0f, 0f, 0f); break;
+                case "top": rotation = Quaternion.Euler(90f, 0f, 0f); break;
+                case "right": rotation = Quaternion.Euler(0f, -90f, 0f); break;
+                default: rotation = Quaternion.Euler(35f, 45f, 0f); break;
+            }
+            sceneView.LookAt(sceneView.pivot, rotation);
+            sceneView.Repaint();
         }
 
         /// <summary>
@@ -321,13 +397,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         /// </summary>
         private void SaveScreenshot(Texture2D screenshot, string outputPath, out long fileSizeBytes)
         {
-            // Ensure output path is relative to project root
-            string fullPath = outputPath;
-            if (!Path.IsPathRooted(outputPath))
-            {
-                string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-                fullPath = Path.Combine(projectRoot, outputPath);
-            }
+            string fullPath = ResolveOutputPath(outputPath);
 
             // Create directory if it doesn't exist
             string directory = Path.GetDirectoryName(fullPath);
@@ -343,6 +413,25 @@ namespace BWS.Editor.ClaudeCodeBridge
             fileSizeBytes = pngData.Length;
 
             BridgeLogger.LogDebug($"Saved screenshot to: {fullPath}");
+        }
+
+        private void MaybePopulateBase64(
+            CaptureScreenshotResult result,
+            CaptureScreenshotParams parameters)
+        {
+            if (!parameters.returnBase64 || string.IsNullOrEmpty(result.outputPath))
+                return;
+            var fullPath = ResolveOutputPath(result.outputPath);
+            if (File.Exists(fullPath))
+                result.base64Png = Convert.ToBase64String(File.ReadAllBytes(fullPath));
+        }
+
+        private string ResolveOutputPath(string outputPath)
+        {
+            if (Path.IsPathRooted(outputPath))
+                return outputPath;
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            return Path.Combine(projectRoot, outputPath);
         }
     }
 }
