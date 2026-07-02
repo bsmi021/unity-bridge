@@ -439,6 +439,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         public int height = 1080;
         public string outputPath; // e.g., "Screenshots/test_capture.png"
         public bool captureUI = false; // Include UI in capture
+        public bool returnBase64 = false;
+        public bool multiAngle = false;
     }
 
     /// <summary>
@@ -451,6 +453,9 @@ namespace BWS.Editor.ClaudeCodeBridge
         public int width;
         public int height;
         public long fileSizeBytes;
+        public string base64Png;
+        public string angle;
+        public List<CaptureScreenshotResult> captures = new List<CaptureScreenshotResult>();
         public bool success;
         public string message;
     }

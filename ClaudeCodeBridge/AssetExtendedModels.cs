@@ -49,6 +49,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         public List<string> subfolders = new List<string>();
         public string path;                // For guid result
         public string guid;                // For guid result
+        public string sha256;              // For hash result
+        public string importerType;        // For import-model result
         public string input;               // For guid input echo
         public string outputPath;
         public int exportedAssets;

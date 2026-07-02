@@ -856,6 +856,27 @@ class TestRunTestsBridgeSource:
         assert "TestRunnerApi.CancelTestRun(runGuid)" in source
         assert 'WriteTestProgress(commandId, "cancel_requested"' in source
 
+    def test_csharp_reporter_uses_static_test_callback_registration(self) -> None:
+        source = (
+            _repo_root()
+            .joinpath("ClaudeCodeBridge", "BridgeTestRunReporter.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "RegisterTestCallback" in source
+        assert ".RegisterCallbacks(" not in source
+
+    def test_csharp_test_list_prefers_retrieve_test_tree(self) -> None:
+        source = (
+            _repo_root()
+            .joinpath("ClaudeCodeBridge", "TestListCommandHandler.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "RetrieveTestTree" in source
+        assert "ExecutionSettings" in source
+        assert ".RetrieveTestList(" not in source
+
 
 # ---------------------------------------------------------------------------
 # compile_scripts

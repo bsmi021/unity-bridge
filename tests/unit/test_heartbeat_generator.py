@@ -25,6 +25,18 @@ def test_heartbeat_generator_emits_editor_readiness_fields() -> None:
     assert '"reloading_assemblies"' in source
 
 
+def test_heartbeat_generator_wires_unity_65_lifecycle_callbacks() -> None:
+    source = Path("ClaudeCodeBridge/HeartbeatGenerator.cs").read_text(encoding="utf-8")
+
+    assert "#if UNITY_6000_5_OR_NEWER" in source
+    assert "OnCodeUnloading" in source
+    assert "OnCodeLoaded" in source
+    assert "OnEnteringPlayMode" in source
+    assert "OnExitingPlayMode" in source
+    assert "MarkAssemblyReloadStarting()" in source
+    assert "MarkAssemblyReloadFinished()" in source
+
+
 def test_bridge_operation_ledger_contract_exists() -> None:
     source = Path("ClaudeCodeBridge/BridgeOperationLedger.cs").read_text(encoding="utf-8")
 

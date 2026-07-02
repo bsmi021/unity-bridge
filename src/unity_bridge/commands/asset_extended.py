@@ -21,10 +21,12 @@ VALID_OPERATIONS = frozenset(
         "move",
         "deps",
         "guid",
+        "hash",
         "folder-create",
         "folder-list",
         "export",
         "import-package",
+        "import-model",
         "reserialize",
     }
 )
@@ -38,6 +40,7 @@ MUTATING_OPERATIONS = frozenset(
         "folder-create",
         "export",
         "import-package",
+        "import-model",
         "reserialize",
     }
 )
@@ -72,10 +75,11 @@ async def asset_extended_operation(
     Args:
         bridge: Active bridge connection.
         action: Operation — create, delete, copy, move, deps, guid,
-                folder-create, folder-list, export, import-package, reserialize.
+                folder-create, folder-list, export, import-package,
+                import-model, reserialize, hash.
         asset_path: Primary asset path for create/delete/deps.
-        source_path: Source path for copy/move.
-        destination_path: Destination path for copy/move.
+        source_path: Source path for copy/move/import-model.
+        destination_path: Destination path for copy/move/import-model.
         asset_type: Asset type for create (e.g. ScriptableObject, Material).
         use_trash: Move to trash instead of permanent delete.
         recursive: Include transitive dependencies for deps.
@@ -246,6 +250,19 @@ def asset_guid_cli(
     print_result(result, state.formatter)
 
 
+@asset_ext_app.command("hash")
+def asset_hash_cli(
+    ctx: typer.Context,
+    path: Annotated[str, typer.Argument(help="Asset path to hash.")],
+) -> None:
+    """Compute a SHA256 hash for an asset file."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(asset_extended_operation(state.bridge, "hash", asset_path=path))
+    print_result(result, state.formatter)
+
+
 @asset_ext_app.command("folder-create")
 def asset_folder_create_cli(
     ctx: typer.Context,
@@ -313,6 +330,27 @@ def asset_import_package_cli(
             "import-package",
             package_path=package,
             interactive=interactive,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@asset_ext_app.command("import-model")
+def asset_import_model_cli(
+    ctx: typer.Context,
+    source: Annotated[str, typer.Argument(help="External model file path.")],
+    dest: Annotated[str, typer.Argument(help="Destination Assets/ path.")],
+) -> None:
+    """Copy an external model file into Assets/ and import it."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        asset_extended_operation(
+            state.bridge,
+            "import-model",
+            source_path=source,
+            destination_path=dest,
         )
     )
     print_result(result, state.formatter)

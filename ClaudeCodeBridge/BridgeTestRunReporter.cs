@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
@@ -38,8 +39,60 @@ namespace BWS.Editor.ClaudeCodeBridge
             // Re-register on every domain load so callbacks survive the
             // play-mode domain reload and still report the in-flight run.
             _api = ScriptableObject.CreateInstance<TestRunnerApi>();
-            _api.RegisterCallbacks(new Callbacks());
+            RegisterCallbacks();
             Diag($"ctor: registered callbacks; pendingCmdId='{SessionState.GetString(CommandIdKey, "")}'");
+        }
+
+        private static void RegisterCallbacks()
+        {
+            var callbacks = new Callbacks();
+            var staticMethod = FindRegistrationMethod(
+                typeof(TestRunnerApi),
+                "RegisterTestCallback",
+                BindingFlags.Public | BindingFlags.Static);
+            if (staticMethod is not null)
+            {
+                InvokeRegistrationMethod(staticMethod, null, callbacks);
+                return;
+            }
+
+            var instanceMethod = FindRegistrationMethod(
+                typeof(TestRunnerApi),
+                "RegisterCallbacks",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (instanceMethod is not null)
+            {
+                InvokeRegistrationMethod(instanceMethod, _api, callbacks);
+                return;
+            }
+
+            BridgeLogger.LogWarning("No Unity Test Runner callback registration API was found.");
+        }
+
+        private static MethodInfo FindRegistrationMethod(
+            Type apiType, string methodName, BindingFlags flags)
+        {
+            foreach (var method in apiType.GetMethods(flags))
+            {
+                if (method.Name != methodName)
+                    continue;
+                var parameters = method.GetParameters();
+                if (parameters.Length >= 1 && parameters.Length <= 2)
+                    return method;
+            }
+            return null;
+        }
+
+        private static void InvokeRegistrationMethod(
+            MethodInfo method, object target, Callbacks callbacks)
+        {
+            if (method.ContainsGenericParameters)
+                method = method.MakeGenericMethod(typeof(Callbacks));
+            var parameters = method.GetParameters();
+            var args = parameters.Length == 2
+                ? new object[] { callbacks, 0 }
+                : new object[] { callbacks };
+            method.Invoke(target, args);
         }
 
         // --- TEMP diagnostics: file-based lifecycle log that survives reloads ---

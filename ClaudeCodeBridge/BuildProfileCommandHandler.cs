@@ -7,6 +7,7 @@ using UnityEditor;
 using UnityEditor.Build.Profile;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace BWS.Editor.ClaudeCodeBridge
 {
@@ -29,6 +30,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "set-active",
+                "create",
                 "set-scenes",
                 "set-defines",
                 "build",
@@ -85,6 +87,8 @@ namespace BWS.Editor.ClaudeCodeBridge
             {
                 case "list":
                     return ExecuteList();
+                case "create":
+                    return ExecuteCreate(parameters);
                 case "get-active":
                     return ExecuteGetActive();
                 case "set-active":
@@ -107,7 +111,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                         operation = parameters.operation,
                         success = false,
                         message = $"Unknown operation: {parameters.operation}. " +
-                                  "Supported: list, get-active, set-active, get-info, " +
+                                  "Supported: list, create, get-active, set-active, get-info, " +
                                   "get-scenes, set-scenes, get-defines, set-defines, build"
                     };
             }
@@ -166,6 +170,37 @@ namespace BWS.Editor.ClaudeCodeBridge
             result.success = true;
             result.message = $"Active profile: {result.profile.name} ({result.profile.platform})";
             return result;
+        }
+
+        private BuildProfileOperationResult ExecuteCreate(BuildProfileOperationParams parameters)
+        {
+            var result = new BuildProfileOperationResult { operation = "create" };
+#if UNITY_6000_5_OR_NEWER
+            if (string.IsNullOrWhiteSpace(parameters.profileName))
+                return Fail(result, "profileName is required for create operation");
+            if (string.IsNullOrWhiteSpace(parameters.platformId))
+                return Fail(result, "platformId is required for create operation");
+
+            BuildProfile createdProfile = null;
+            UnityAction<BuildProfile> onProfileReady = profile => { createdProfile = profile; };
+            BuildProfile.CreateBuildProfile(
+                new GUID(parameters.platformId),
+                parameters.profileName,
+                onProfileReady);
+            AssetDatabase.SaveAssets();
+
+            result.success = true;
+            result.message = $"Build profile creation requested: {parameters.profileName}";
+            if (createdProfile != null)
+            {
+                result.profile = BuildDetailedInfo(createdProfile);
+                result.profilePath = result.profile.assetPath;
+                result.message = $"Created build profile: {result.profile.name}";
+            }
+            return result;
+#else
+            return Fail(result, "Build profile creation requires Unity 6.5 or newer.");
+#endif
         }
 
         /// <summary>

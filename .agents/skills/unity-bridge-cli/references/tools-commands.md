@@ -78,12 +78,40 @@ Stop the Unity Profiler. No arguments.
 
 Get detailed memory statistics. No arguments.
 
+### `profiler-control set-areas`
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `--areas` | TEXT | yes | Comma-separated profiler areas |
+| `--disable` | flag | no | Disable instead of enable |
+| `--allocation-callstacks` | flag | no | Enable allocation callstacks |
+
 ```bash
 unity-bridge profiler-control start
 unity-bridge profiler-control start --log-file profiler.raw
 unity-bridge profiler-control stop
 unity-bridge profiler-control save profiler-output.raw
 unity-bridge profiler-control memory
+unity-bridge profiler-control set-areas --areas Physics,Audio --allocation-callstacks
+```
+
+---
+
+## profiler-frame
+
+Per-frame profiler drill-down over retained Unity Profiler frames.
+
+```bash
+unity-bridge profiler-frame capture-start --frame-count 60
+unity-bridge profiler-frame capture-stop
+unity-bridge profiler-frame frame-range
+unity-bridge profiler-frame top-time-samples 412 --count 10
+unity-bridge profiler-frame self-time-samples 412 --count 10
+unity-bridge profiler-frame sample-time-summary PlayerLoop --start 400 --end 430
+unity-bridge profiler-frame bottom-up-tree 412 PlayerLoop --depth 8
+unity-bridge profiler-frame gc-alloc --frame 412
+unity-bridge profiler-frame sample-gc-alloc 412 PlayerLoop
+unity-bridge profiler-frame clear
 ```
 
 ---
@@ -235,6 +263,18 @@ unity-bridge script-info info Assets/Scripts/Player.cs
 unity-bridge script-info list
 unity-bridge script-info list -f "Combat" -m 50
 unity-bridge script-info find-component Player PlayerController
+```
+
+---
+
+## script-edit
+
+Safe MonoScript text replacement. Use `asset-ext hash` first and pass
+`--if-match` when you need concurrent edit protection.
+
+```bash
+unity-bridge script-edit range Assets/Scripts/Player.cs --start-line 12 --end-line 18 -r "    void Update() {}"
+unity-bridge script-edit anchor Assets/Scripts/Player.cs -a "old text" -r "new text" --if-match SHA256
 ```
 
 ---

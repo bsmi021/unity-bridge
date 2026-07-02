@@ -1,5 +1,6 @@
 using System;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -53,11 +54,14 @@ namespace BWS.Editor.ClaudeCodeBridge
                     case "memory":
                         result = GetMemoryStats();
                         break;
+                    case "set-areas":
+                        result = SetAreas(parameters);
+                        break;
                     default:
                         return BridgeResponse.Error(
                             command.commandId, command.commandType,
                             $"Unknown operation: {parameters.operation}. "
-                            + "Supported: start, stop, save, memory");
+                            + "Supported: start, stop, save, memory, set-areas");
                 }
 
                 if (result.success)
@@ -205,6 +209,42 @@ namespace BWS.Editor.ClaudeCodeBridge
 
             return result;
         }
+
+        private ProfilerControlResult SetAreas(ProfilerControlParams parameters)
+        {
+            var result = new ProfilerControlResult { operation = "set-areas" };
+            try
+            {
+                if (!string.IsNullOrEmpty(parameters.areas))
+                {
+                    foreach (var areaName in parameters.areas.Split(','))
+                    {
+                        if (Enum.TryParse(areaName.Trim(), true, out ProfilerArea area))
+                        {
+                            ProfilerDriver.SetAreaEnabled(area, parameters.enabled);
+                            result.areas = AppendArea(result.areas, area.ToString());
+                        }
+                    }
+                }
+
+                if (parameters.allocationCallstacks)
+                    Profiler.enableAllocationCallstacks = true;
+                result.allocationCallstacks = Profiler.enableAllocationCallstacks;
+                result.success = true;
+                result.message = "Profiler areas updated";
+            }
+            catch (Exception ex)
+            {
+                result.success = false;
+                result.message = $"Failed to set profiler areas: {ex.Message}";
+            }
+            return result;
+        }
+
+        private static string AppendArea(string current, string area)
+        {
+            return string.IsNullOrEmpty(current) ? area : current + "," + area;
+        }
     }
 
     [Serializable]
@@ -212,6 +252,9 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string operation;
         public string logFile;
+        public string areas;
+        public bool enabled = true;
+        public bool allocationCallstacks;
     }
 
     [Serializable]
@@ -226,6 +269,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         public long monoUsedMB;
         public long graphicsDriverMB;
         public long tempAllocatorMB;
+        public string areas;
+        public bool allocationCallstacks;
         public bool success;
         public string message;
     }

@@ -89,6 +89,38 @@ class TestSetActive:
 
 
 # ---------------------------------------------------------------------------
+# create operation
+# ---------------------------------------------------------------------------
+
+
+class TestCreate:
+    async def test_builds_create_parameters(self, mock_bridge: MagicMock) -> None:
+        bp = _import_build_profile()
+        await bp.build_profile_operation(
+            mock_bridge,
+            action="create",
+            profile_name="Windows QA",
+            platform_id="StandaloneWindows64",
+        )
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["operation"] == "create"
+        assert params["profileName"] == "Windows QA"
+        assert params["platformId"] == "StandaloneWindows64"
+
+    def test_csharp_create_uses_unity_65_guard(self) -> None:
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[2]
+        source = (
+            root.joinpath("ClaudeCodeBridge", "BuildProfileCommandHandler.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "UNITY_6000_5_OR_NEWER" in source
+        assert "CreateBuildProfile" in source
+
+
+# ---------------------------------------------------------------------------
 # get-info operation
 # ---------------------------------------------------------------------------
 

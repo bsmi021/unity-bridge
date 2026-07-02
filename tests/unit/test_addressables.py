@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
-
 
 from unity_bridge.core.bridge import CommandResult
 
@@ -67,6 +67,26 @@ class TestBuild:
         mod = _import_addressables()
         await mod.addressables_build(mock_bridge)
         assert _extract_kwarg(mock_bridge.send_command_with_retry.call_args, "timeout") == 120.0
+
+
+class TestAddressablesBridgeSource:
+    def test_csharp_build_uses_result_overload_and_error_mapping(self) -> None:
+        source = (
+            Path(__file__)
+            .resolve()
+            .parents[2]
+            .joinpath("ClaudeCodeBridge", "AddressablesCommandHandler.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "AddressablesPlayerBuildResult" in source
+        assert 'GetMethod("BuildPlayerContent",' not in source
+        assert "GetMethods(" in source
+        assert "MakeByRefType()" in source
+        assert 'GetProperty("Error")' in source
+        assert "Addressables content build failed" in source
+        assert "BridgeResponse.Error(command.commandId, command.commandType" in source
+        assert 'success = true,\n                message = "Addressable content build started"' not in source
 
 
 # ---------------------------------------------------------------------------

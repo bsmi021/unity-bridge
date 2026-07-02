@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -162,6 +163,15 @@ class TestImportSettingsBulkSet:
             await mod.import_settings_bulk_set(
                 mock_bridge, folder_path="Assets/Textures", settings={}
             )
+
+    def test_csharp_bulk_set_batches_asset_editing(self) -> None:
+        source = Path("ClaudeCodeBridge/ImportSettingsCommandHandler.cs").read_text(
+            encoding="utf-8"
+        )
+
+        assert "AssetDatabase.StartAssetEditing()" in source
+        assert "finally" in source
+        assert "AssetDatabase.StopAssetEditing()" in source
 
 
 # ---------------------------------------------------------------------------

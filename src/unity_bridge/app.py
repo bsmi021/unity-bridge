@@ -326,6 +326,9 @@ def _register_phase6_commands() -> None:
     _try_register_group("unity_bridge.commands.scene_view", "scene_view_app", "scene-view")
     _try_register_group("unity_bridge.commands.game_view", "game_view_app", "game-view")
     _try_register_group("unity_bridge.commands.profiler", "profiler_app", "profiler-control")
+    _try_register_group(
+        "unity_bridge.commands.profiler_frame", "profiler_frame_app", "profiler-frame"
+    )
     _try_register_group("unity_bridge.commands.addressables", "addressables_app", "addressables")
     _try_register_group("unity_bridge.commands.tilemap", "tilemap_app", "tilemap")
     _try_register_group("unity_bridge.commands.input_system", "input_system_app", "input-system")
@@ -334,6 +337,7 @@ def _register_phase6_commands() -> None:
     _try_register_group(
         "unity_bridge.commands.scene_template", "scene_template_app", "scene-template"
     )
+    _try_register_group("unity_bridge.commands.script_edit", "script_edit_app", "script-edit")
     _try_register_group("unity_bridge.commands.script_info", "script_info_app", "script-info")
     _try_register_group(
         "unity_bridge.commands.deep_serialize", "deep_serialize_app", "deep-serialize"

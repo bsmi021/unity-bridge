@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
@@ -152,7 +153,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     "Cannot build Addressables while in Play mode.");
             }
 
-            // Use reflection to call AddressableAssetSettings.BuildPlayerContent()
+            // Use reflection so the bridge still loads when Addressables is absent.
             Type builderType = Type.GetType(
                 "UnityEditor.AddressableAssets.Settings.AddressableAssetSettings, "
                 + "Unity.Addressables.Editor");
@@ -162,19 +163,65 @@ namespace BWS.Editor.ClaudeCodeBridge
                     "Cannot find Addressable build API.");
             }
 
-            var buildMethod = builderType.GetMethod("BuildPlayerContent",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-            if (buildMethod is not null)
-                buildMethod.Invoke(null, null);
+            Type resultType = Type.GetType(
+                "UnityEditor.AddressableAssets.Build.AddressablesPlayerBuildResult, "
+                + "Unity.Addressables.Editor");
+            if (resultType is null)
+            {
+                return BridgeResponse.Error(command.commandId, command.commandType,
+                    "Cannot find AddressablesPlayerBuildResult API.");
+            }
+
+            var buildMethod = FindBuildPlayerContentWithResult(builderType, resultType);
+            if (buildMethod is null)
+            {
+                return BridgeResponse.Error(command.commandId, command.commandType,
+                    "Cannot find Addressable build API overload with result output.");
+            }
+
+            var args = new object[] { null };
+            buildMethod.Invoke(null, args);
+            var buildResult = args[0];
+            var buildError = ReadAddressablesBuildError(buildResult);
+            if (!string.IsNullOrWhiteSpace(buildError))
+            {
+                return BridgeResponse.Error(command.commandId, command.commandType,
+                    $"Addressables content build failed: {buildError}");
+            }
 
             var result = new AddressablesResult
             {
                 operation = "build",
                 success = true,
-                message = "Addressable content build started"
+                message = "Addressable content build completed"
             };
             return BridgeResponse.Success(
                 command.commandId, command.commandType, JsonUtility.ToJson(result));
+        }
+
+        private static MethodInfo FindBuildPlayerContentWithResult(Type builderType, Type resultType)
+        {
+            var expectedResultType = resultType.MakeByRefType();
+            foreach (var method in builderType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (method.Name != "BuildPlayerContent")
+                    continue;
+
+                var parameters = method.GetParameters();
+                if (parameters.Length == 1 && parameters[0].ParameterType == expectedResultType)
+                    return method;
+            }
+
+            return null;
+        }
+
+        private static string ReadAddressablesBuildError(object buildResult)
+        {
+            if (buildResult is null)
+                return "";
+
+            var errorProperty = buildResult.GetType().GetProperty("Error");
+            return errorProperty?.GetValue(buildResult)?.ToString() ?? "";
         }
 
         private BridgeResponse ExecuteCleanCache(BridgeCommand command, Type settingsType)

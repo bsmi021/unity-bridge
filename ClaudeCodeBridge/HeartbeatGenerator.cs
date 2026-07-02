@@ -3,6 +3,10 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.Compilation;
 using UnityEditor.SceneManagement;
+#if UNITY_6000_5_OR_NEWER
+using Unity.Scripting.LifecycleManagement;
+using UnityEditor.Scripting.LifecycleManagement;
+#endif
 using UnityEngine;
 
 namespace BWS.Editor.ClaudeCodeBridge
@@ -138,18 +142,66 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             CompilationPipeline.compilationStarted += _ => MarkBusy("compiling");
             CompilationPipeline.compilationFinished += _ => MarkBusy("compiling");
-            AssemblyReloadEvents.beforeAssemblyReload += () =>
-            {
-                _isReloadingAssemblies = true;
-                MarkBusy("reloading_assemblies");
-                WriteHeartbeat();
-            };
-            AssemblyReloadEvents.afterAssemblyReload += () =>
-            {
-                _isReloadingAssemblies = false;
-                MarkBusy("reloading_assemblies");
-                WriteHeartbeat();
-            };
+            AssemblyReloadEvents.beforeAssemblyReload += MarkAssemblyReloadStarting;
+            AssemblyReloadEvents.afterAssemblyReload += MarkAssemblyReloadFinished;
+        }
+
+#if UNITY_6000_5_OR_NEWER
+        [OnCodeUnloading]
+        private static void OnUnity65CodeUnloading()
+        {
+            MarkAssemblyReloadStarting();
+        }
+
+        [OnCodeLoaded]
+        private static void OnUnity65CodeLoaded()
+        {
+            MarkAssemblyReloadFinished();
+        }
+
+        [OnEnteringEditMode]
+        private static void OnUnity65EnteringEditMode()
+        {
+            MarkPlayModeTransition();
+        }
+
+        [OnExitingEditMode]
+        private static void OnUnity65ExitingEditMode()
+        {
+            MarkPlayModeTransition();
+        }
+
+        [OnEnteringPlayMode]
+        private static void OnUnity65EnteringPlayMode()
+        {
+            MarkPlayModeTransition();
+        }
+
+        [OnExitingPlayMode]
+        private static void OnUnity65ExitingPlayMode()
+        {
+            MarkPlayModeTransition();
+        }
+#endif
+
+        private static void MarkAssemblyReloadStarting()
+        {
+            _isReloadingAssemblies = true;
+            MarkBusy("reloading_assemblies");
+            WriteHeartbeat();
+        }
+
+        private static void MarkAssemblyReloadFinished()
+        {
+            _isReloadingAssemblies = false;
+            MarkBusy("reloading_assemblies");
+            WriteHeartbeat();
+        }
+
+        private static void MarkPlayModeTransition()
+        {
+            MarkBusy("playmode_transition");
+            WriteHeartbeat();
         }
 
         private static bool IsEditorBusy()
