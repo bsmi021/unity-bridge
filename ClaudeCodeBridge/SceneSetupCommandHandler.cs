@@ -233,6 +233,14 @@ namespace BWS.Editor.ClaudeCodeBridge
                     command.commandId, command.commandType, JsonUtility.ToJson(errorResult));
             }
 
+            var ready = BridgeSceneModalRecovery.PrepareForAutomation("scene-setup restore",
+                out var modalMessage);
+            if (!ready)
+            {
+                return BridgeResponse.Error(
+                    command.commandId, command.commandType, modalMessage);
+            }
+
             // Build SceneSetup array for RestoreSceneManagerSetup
             var sceneSetups = new SceneSetup[setupFile.scenes.Count];
             for (int i = 0; i < setupFile.scenes.Count; i++)

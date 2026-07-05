@@ -33,7 +33,7 @@ async def scene_load(
     params: dict[str, object] = {
         "operation": "load",
         "scenePath": path,
-        "saveCurrent": save_current,
+        "saveCurrentScene": save_current,
     }
     if additive:
         params["mode"] = "additive"

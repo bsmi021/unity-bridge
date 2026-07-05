@@ -126,6 +126,17 @@ namespace BWS.Editor.ClaudeCodeBridge
                         );
                     }
 
+                    var ready = BridgeSceneModalRecovery.PrepareForAutomation("playmode-control play",
+                        out var modalMessage);
+                    if (!ready)
+                    {
+                        return BridgeResponse.Error(
+                            command.commandId,
+                            command.commandType,
+                            modalMessage
+                        );
+                    }
+
                     BridgeLogger.LogDebug($"Loading scene: {parameters.targetScene}");
                     EditorSceneManager.OpenScene(parameters.targetScene, OpenSceneMode.Single);
                 }

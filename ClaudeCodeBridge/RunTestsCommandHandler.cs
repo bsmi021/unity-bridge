@@ -38,6 +38,10 @@ namespace BWS.Editor.ClaudeCodeBridge
 
                 // Determine test mode
                 var testMode = parameters.testPlatform == "PlayMode" ? TestMode.PlayMode : TestMode.EditMode;
+                if (!BridgeSceneModalRecovery.PrepareForAutomation("run-tests", out var modalMessage))
+                {
+                    return BridgeResponse.Error(command.commandId, command.commandType, modalMessage);
+                }
 
                 // Build filter
                 var filter = new Filter
