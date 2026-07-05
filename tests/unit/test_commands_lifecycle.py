@@ -218,6 +218,38 @@ class TestClean:
         assert str(command_file) not in result.data["files"]
         assert str(response_file) not in result.data["files"]
 
+    async def test_keeps_active_files_when_operation_paths_use_windows_separators(
+        self,
+        fake_project: Path,
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        store = OperationStore(fake_project)
+        command_file = fake_project / ".claude" / "unity" / "commands" / "active-query.json"
+        response_file = fake_project / ".claude" / "unity" / "responses" / "active-query.json"
+        command_file.write_text("{}", encoding="utf-8")
+        response_file.write_text('{"status":"running"}', encoding="utf-8")
+        old_time = time.time() - 600
+        os.utime(command_file, (old_time, old_time))
+        os.utime(response_file, (old_time, old_time))
+        store.create_queued(
+            command_id="active",
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=Path(r"C:\UnityProject\.claude\unity\commands\active-query.json"),
+            response_path=Path(r"C:\UnityProject\.claude\unity\responses\active-query.json"),
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+        store.transition("active", STATE_RUNNING, reason="setup")
+
+        result = await lifecycle.clean(fake_project, all_files=True)
+
+        assert result.success is True
+        assert command_file.exists()
+        assert response_file.exists()
+        assert str(command_file) not in result.data["files"]
+        assert str(response_file) not in result.data["files"]
+
     async def test_dry_run_reports_terminal_operations_without_deleting(
         self,
         fake_project: Path,

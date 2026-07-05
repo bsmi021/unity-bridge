@@ -11,7 +11,7 @@ import platform
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Annotated
 
 import typer
@@ -525,13 +525,29 @@ def _path_key(path: Path) -> str:
     return os.path.normcase(str(resolved))
 
 
-def _active_operation_file_keys(operation_store: object) -> set[str]:
+def _operation_file_keys(raw_path: str, bridge_dir: Path) -> set[str]:
+    """Return path keys that can identify an operation file across OS path styles."""
+    keys = {_path_key(Path(raw_path))}
+    file_name = PureWindowsPath(raw_path).name
+    if file_name:
+        keys.add(_path_key(bridge_dir / file_name))
+    return keys
+
+
+def _active_operation_file_keys(
+    operation_store: object,
+    commands_dir: Path,
+    responses_dir: Path,
+) -> set[str]:
     """Return command/response path keys referenced by non-terminal operations."""
     protected: set[str] = set()
     for record in operation_store.list_records(include_terminal=False, limit=10_000):
-        for raw_path in (record.command_path, record.response_path):
+        for raw_path, bridge_dir in (
+            (record.command_path, commands_dir),
+            (record.response_path, responses_dir),
+        ):
             if raw_path:
-                protected.add(_path_key(Path(raw_path)))
+                protected.update(_operation_file_keys(raw_path, bridge_dir))
     return protected
 
 
@@ -557,7 +573,11 @@ async def clean(
     effective_age = 0 if all_files else age_minutes
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=effective_age)
     delete_all = effective_age == 0
-    protected_paths = _active_operation_file_keys(operation_store)
+    protected_paths = _active_operation_file_keys(
+        operation_store,
+        paths.commands_dir,
+        paths.responses_dir,
+    )
 
     deleted, skipped = _cleanup_files_by_age(
         [paths.commands_dir, paths.responses_dir],
