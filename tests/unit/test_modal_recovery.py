@@ -110,6 +110,13 @@ class TestModalRecoverySource:
         assert "Refusing to trigger Unity save modal" in source
         assert "if (!TryDiscardUnsavedBlankScenes(context, out message))" in source
 
+    def test_modal_recovery_never_discards_dirty_untitled_scenes(self) -> None:
+        # Arrange
+        source = _read_bridge_source("BridgeSceneModalRecovery.cs")
+
+        # Act / Assert
+        assert "if (!scene.IsValid() || !scene.isLoaded || scene.isDirty" in source
+
 
 def _read_bridge_source(file_name: str) -> str:
     return (BRIDGE_DIR / file_name).read_text(encoding="utf-8")

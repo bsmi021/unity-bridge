@@ -26,10 +26,10 @@ and `RestoreSceneManagerSetup`
 
 Before single-scene `scene load`, `scene create`, `scene-ext setup restore`, or
 playmode target-scene launch, the bridge discards only blank untitled scenes
-left by test cleanup. A blank scene has no roots, or only clean default
-`Main Camera` and `Directional Light` roots. If real unsaved content remains,
-the command returns a structured error telling the user to save or discard the
-scene manually.
+left by test cleanup. A blank scene is not dirty and has no roots, or only clean
+default `Main Camera` and `Directional Light` roots. If real unsaved content or
+dirty scene state remains, the command returns a structured error telling the
+user to save or discard the scene manually.
 
 Use `--save-current` only when the current scene should be explicitly saved.
 The CLI sends the C# field `saveCurrentScene`; omitting the flag does not imply

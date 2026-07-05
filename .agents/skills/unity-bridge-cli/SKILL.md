@@ -365,10 +365,10 @@ The bridge prevents this class of hang before automation reaches the modal
 surface. Before `test run`, single-scene `scene load`, `scene create`,
 `scene-ext setup restore`, or playmode target-scene launch, the C# bridge
 discards only blank untitled scenes left by test cleanup. "Blank" means an
-untitled scene with no root GameObjects or only clean default `Main Camera` and
-`Directional Light` roots. If any real unsaved scene content remains, the command
-returns a structured error that asks the user to save or discard the scene
-manually instead of opening Unity's modal.
+untitled, not-dirty scene with no root GameObjects or only clean default
+`Main Camera` and `Directional Light` roots. If any real unsaved scene content
+or dirty scene state remains, the command returns a structured error that asks
+the user to save or discard the scene manually instead of opening Unity's modal.
 
 `scene load --save-current` is explicit. It sends `saveCurrentScene` to the C#
 bridge, and omitted flags no longer imply an automatic save.

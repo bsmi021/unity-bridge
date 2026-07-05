@@ -149,7 +149,8 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private static bool IsUntitledBlankScene(Scene scene)
         {
-            if (!scene.IsValid() || !scene.isLoaded || !string.IsNullOrEmpty(scene.path))
+            if (!scene.IsValid() || !scene.isLoaded || scene.isDirty
+                || !string.IsNullOrEmpty(scene.path))
                 return false;
 
             var roots = scene.GetRootGameObjects();
