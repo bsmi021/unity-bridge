@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from unity_bridge.core.operation import STATE_COMPLETED, OperationStore
+from unity_bridge.core.operation import STATE_COMPLETED, STATE_RUNNING, OperationStore
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +186,38 @@ class TestClean:
         assert not store.record_path("done").exists()
         assert not store.events_path("done").exists()
 
+    async def test_keeps_active_operation_command_and_response_files_when_cleaning_all(
+        self,
+        fake_project: Path,
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        store = OperationStore(fake_project)
+        command_file = fake_project / ".claude" / "unity" / "commands" / "active-query.json"
+        response_file = fake_project / ".claude" / "unity" / "responses" / "active-query.json"
+        command_file.write_text("{}", encoding="utf-8")
+        response_file.write_text('{"status":"running"}', encoding="utf-8")
+        old_time = time.time() - 600
+        os.utime(command_file, (old_time, old_time))
+        os.utime(response_file, (old_time, old_time))
+        store.create_queued(
+            command_id="active",
+            command_type="query-hierarchy",
+            parameters={},
+            command_path=command_file,
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="read_only",
+        )
+        store.transition("active", STATE_RUNNING, reason="setup")
+
+        result = await lifecycle.clean(fake_project, all_files=True)
+
+        assert result.success is True
+        assert command_file.exists()
+        assert response_file.exists()
+        assert str(command_file) not in result.data["files"]
+        assert str(response_file) not in result.data["files"]
+
     async def test_dry_run_reports_terminal_operations_without_deleting(
         self,
         fake_project: Path,
@@ -241,14 +273,19 @@ class TestVersion:
 # ---------------------------------------------------------------------------
 
 
-def _create_fake_bridge_source(tmp_path: Path) -> Path:
+def _create_fake_bridge_source(
+    tmp_path: Path,
+    extra_files: dict[str, str] | None = None,
+) -> Path:
     """Create a fake ClaudeCodeBridge source directory with test files."""
     source = tmp_path / "ClaudeCodeBridge"
-    source.mkdir()
+    source.mkdir(parents=True)
     (source / "ClaudeUnityBridge.cs").write_text("// main bridge", encoding="utf-8")
     (source / "ClaudeUnityBridge.cs.meta").write_text("meta", encoding="utf-8")
     (source / "BridgeModels.cs").write_text("// models", encoding="utf-8")
     (source / "BridgeModels.cs.meta").write_text("meta", encoding="utf-8")
+    for name, content in (extra_files or {}).items():
+        (source / name).write_text(content, encoding="utf-8")
     return source
 
 
@@ -394,6 +431,45 @@ class TestInstall:
         assert (target / "BridgeModels.cs").is_file()
         assert (target / "BridgeModels.cs.meta").is_file()
 
+    async def test_install_prunes_obsolete_managed_bridge_files(
+        self,
+        fake_project: Path,
+        tmp_path: Path,
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        initial_source = _create_fake_bridge_source(
+            tmp_path / "initial",
+            extra_files={
+                "ObsoleteHandler.cs": "// stale handler",
+                "ObsoleteHandler.cs.meta": "stale meta",
+            },
+        )
+        updated_source = _create_fake_bridge_source(tmp_path / "updated")
+        skill_source = _create_fake_skill_source(tmp_path / "skill")
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=initial_source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            await lifecycle.install(fake_project)
+
+        target = fake_project / "Assets" / "Scripts" / "Editor" / "ClaudeCodeBridge"
+        assert (target / "ObsoleteHandler.cs").is_file()
+        assert (target / "ObsoleteHandler.cs.meta").is_file()
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=updated_source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            result = await lifecycle.install(fake_project)
+
+        assert result.success is True
+        assert result.data["action"] == "update"
+        assert not (target / "ObsoleteHandler.cs").exists()
+        assert not (target / "ObsoleteHandler.cs.meta").exists()
+        manifest = json.loads((target / "bridge_manifest.json").read_text(encoding="utf-8"))
+        assert "ObsoleteHandler.cs" not in manifest["files"]
+
     async def test_install_updates_skill_when_bridge_is_up_to_date(
         self, fake_project: Path, tmp_path: Path
     ) -> None:
@@ -470,9 +546,7 @@ class TestInstallIncludeClaude:
         assert result.data["claude_link"]["included"] is False
         assert not (fake_project / ".claude" / "skills" / "unity-bridge-cli").exists()
 
-    async def test_include_claude_creates_link(
-        self, fake_project: Path, tmp_path: Path
-    ) -> None:
+    async def test_include_claude_creates_link(self, fake_project: Path, tmp_path: Path) -> None:
         lifecycle = _import_lifecycle()
         bridge_source = _create_fake_bridge_source(tmp_path)
         skill_source = _create_fake_skill_source(tmp_path)
@@ -492,9 +566,7 @@ class TestInstallIncludeClaude:
 
         assert is_directory_link(link_dir)
 
-    async def test_include_claude_idempotent(
-        self, fake_project: Path, tmp_path: Path
-    ) -> None:
+    async def test_include_claude_idempotent(self, fake_project: Path, tmp_path: Path) -> None:
         lifecycle = _import_lifecycle()
         bridge_source = _create_fake_bridge_source(tmp_path)
         skill_source = _create_fake_skill_source(tmp_path)

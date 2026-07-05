@@ -39,7 +39,7 @@ unity-bridge test run --platform EditMode
 unity-bridge hierarchy --depth 3
 ```
 
-The `install` command copies the C# bridge scripts into `Assets/Scripts/Editor/ClaudeCodeBridge/` inside your Unity project. The bridge runs as an Editor script via `EditorApplication.update` and requires no manual setup beyond installation.
+The `install` command syncs the managed C# bridge scripts into `Assets/Scripts/Editor/ClaudeCodeBridge/` inside your Unity project, including pruning obsolete managed bridge files when handlers are removed or renamed. The bridge runs as an Editor script via `EditorApplication.update` and requires no manual setup beyond installation.
 
 Packaged installs include the C# bridge scripts and the `unity-bridge-cli` Codex skill bundle, so `unity-bridge install` works from both editable source installs and normal `pip install .` / wheel installs.
 
@@ -106,7 +106,7 @@ unity-bridge doctor --human
 ```
 unity-bridge install [--check] [--force] [--include-claude]  # Install/update C# bridge files
 unity-bridge init                             # Create .claude/unity/ directory structure
-unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response files, stale temp files, and old terminal operation files
+unity-bridge clean [--age N] [--all] [--dry-run]  # Remove orphaned command/response files, stale temp files, and old terminal operation files while preserving active operations
 ```
 
 ```bash
@@ -750,7 +750,7 @@ Config file search order:
 
 The Python CLI writes JSON command files to `<project>/.claude/unity/commands/`. A C# Editor script (`ClaudeUnityBridge.cs`) running via `EditorApplication.update` picks them up, executes them inside Unity, and writes JSON responses to `<project>/.claude/unity/responses/`. Each command is identified by a unique UUID. This file-based IPC works across WSL2/Windows boundaries via `/mnt/c/` path mapping.
 
-Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations.
+Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations and their live command/response files.
 
 ### Single Interface
 
