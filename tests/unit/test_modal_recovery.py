@@ -117,6 +117,18 @@ class TestModalRecoverySource:
         # Act / Assert
         assert "if (!scene.IsValid() || !scene.isLoaded || scene.isDirty" in source
 
+    def test_legacy_editor_scene_cleanup_api_forwards_to_modal_recovery(self) -> None:
+        # Arrange
+        source_path = BRIDGE_DIR / "BridgeEditorSceneCleanup.cs"
+
+        # Act / Assert
+        assert source_path.is_file()
+        source = source_path.read_text(encoding="utf-8")
+        assert "public static class BridgeEditorSceneCleanup" in source
+        assert "BridgeSceneModalRecovery.PrepareForAutomation(context, out message)" in source
+        assert "BridgeSceneModalRecovery.PrepareForExplicitSave(context, out message)" in source
+        assert "BridgeSceneModalRecovery.DiscardUnsavedBlankScenes(context)" in source
+
 
 def _read_bridge_source(file_name: str) -> str:
     return (BRIDGE_DIR / file_name).read_text(encoding="utf-8")
