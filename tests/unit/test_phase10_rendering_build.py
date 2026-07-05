@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 from unity_bridge.commands import build_profile, graphics_state, render_pipeline
 
+ROOT = Path(__file__).resolve().parents[2]
+BRIDGE_DIR = ROOT / "ClaudeCodeBridge"
+
 
 def _call_args(mock: MagicMock) -> dict[str, Any]:
     call = mock.send_command_with_retry.call_args
-    return call.kwargs if call.kwargs else dict(
-        zip(["command_type", "parameters", "timeout"], call.args, strict=False)
+    return (
+        call.kwargs
+        if call.kwargs
+        else dict(zip(["command_type", "parameters", "timeout"], call.args, strict=False))
     )
 
 
@@ -58,6 +64,23 @@ class TestGraphicsState:
             "assetPath": "Temp/pso.graphicsstate",
             "progressiveBatchSize": 8,
         }
+
+    def test_csharp_handler_aliases_graphics_state_collection_by_unity_version(
+        self,
+    ) -> None:
+        # Arrange
+        source = (BRIDGE_DIR / "GraphicsStateCommandHandler.cs").read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert "#if UNITY_6000_5_OR_NEWER" in source
+        assert (
+            "using GraphicsStateCollection = UnityEngine.Rendering.GraphicsStateCollection;"
+        ) in source
+        assert (
+            "using GraphicsStateCollection = "
+            "UnityEngine.Experimental.Rendering.GraphicsStateCollection;"
+        ) in source
+        assert "using UnityEngine.Experimental.Rendering;" not in source
 
 
 class TestBuildProfileDeepening:

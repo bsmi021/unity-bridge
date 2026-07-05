@@ -3,7 +3,11 @@ using System.IO;
 using Unity.Jobs;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
+#if UNITY_6000_5_OR_NEWER
+using GraphicsStateCollection = UnityEngine.Rendering.GraphicsStateCollection;
+#else
+using GraphicsStateCollection = UnityEngine.Experimental.Rendering.GraphicsStateCollection;
+#endif
 
 namespace BWS.Editor.ClaudeCodeBridge
 {
