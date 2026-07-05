@@ -6,11 +6,12 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import platform
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Annotated
 
 import typer
@@ -89,12 +90,48 @@ def _copy_bridge_files(source_dir: Path, target_dir: Path) -> dict[str, str]:
     """Copy bridge files from source to target, returning {name: sha256} map."""
     target_dir.mkdir(parents=True, exist_ok=True)
     checksums: dict[str, str] = {}
+    for name, src_file in _source_bridge_files(source_dir).items():
+        dest = target_dir / name
+        shutil.copy2(src_file, dest)
+        checksums[name] = _compute_file_checksum(dest)
+    return checksums
+
+
+def _source_bridge_files(source_dir: Path) -> dict[str, Path]:
+    """Return current bridge source files keyed by target file name."""
+    files: dict[str, Path] = {}
     for glob in _BRIDGE_FILE_GLOBS:
         for src_file in source_dir.glob(glob):
-            dest = target_dir / src_file.name
-            shutil.copy2(src_file, dest)
-            checksums[src_file.name] = _compute_file_checksum(dest)
-    return checksums
+            files[src_file.name] = src_file
+    return files
+
+
+def _target_bridge_files(target_dir: Path) -> list[Path]:
+    """Return bridge-managed target files that match install globs."""
+    files: list[Path] = []
+    if not target_dir.is_dir():
+        return files
+    for glob in _BRIDGE_FILE_GLOBS:
+        files.extend(path for path in target_dir.glob(glob) if path.is_file())
+    return files
+
+
+def _obsolete_bridge_files(source_dir: Path, target_dir: Path) -> list[Path]:
+    """Return installed bridge files that no longer exist in the source bundle."""
+    source_names = set(_source_bridge_files(source_dir))
+    return [path for path in _target_bridge_files(target_dir) if path.name not in source_names]
+
+
+def _prune_obsolete_bridge_files(source_dir: Path, target_dir: Path) -> list[str]:
+    """Delete obsolete bridge-managed files from the target directory."""
+    pruned: list[str] = []
+    for path in _obsolete_bridge_files(source_dir, target_dir):
+        try:
+            path.unlink()
+            pruned.append(str(path))
+        except OSError as exc:
+            logger.warning("Could not prune obsolete bridge file %s: %s", path, exc)
+    return pruned
 
 
 def _get_skill_target_dir(project_root: Path) -> Path:
@@ -134,9 +171,7 @@ def _check_claude_link_status(project_root: Path) -> dict[str, object]:
 
     link_dir = _get_claude_skill_link_dir(project_root)
     skill_target_dir = _get_skill_target_dir(project_root)
-    linked = is_directory_link(link_dir) and _is_claude_link_up_to_date(
-        link_dir, skill_target_dir
-    )
+    linked = is_directory_link(link_dir) and _is_claude_link_up_to_date(link_dir, skill_target_dir)
     return {"path": str(link_dir), "linked": linked}
 
 
@@ -200,13 +235,16 @@ def _is_bridge_up_to_date(source_dir: Path, target_dir: Path) -> bool:
     if not (target_dir / "ClaudeUnityBridge.cs").is_file():
         return False
 
-    for glob in _BRIDGE_FILE_GLOBS:
-        for source_file in source_dir.glob(glob):
-            target_file = target_dir / source_file.name
-            if not target_file.is_file():
-                return False
-            if _compute_file_checksum(source_file) != _compute_file_checksum(target_file):
-                return False
+    source_files = _source_bridge_files(source_dir)
+    for target_file in _target_bridge_files(target_dir):
+        if target_file.name not in source_files:
+            return False
+    for name, source_file in source_files.items():
+        target_file = target_dir / name
+        if not target_file.is_file():
+            return False
+        if _compute_file_checksum(source_file) != _compute_file_checksum(target_file):
+            return False
     return True
 
 
@@ -293,7 +331,9 @@ async def install(
             manifest_path.unlink(missing_ok=True)
 
     checksums: dict[str, str] = {}
+    pruned_bridge_files: list[str] = []
     if force or not bridge_up_to_date:
+        pruned_bridge_files = _prune_obsolete_bridge_files(source_dir, target_dir)
         checksums = _copy_bridge_files(source_dir, target_dir)
         _save_manifest(target_dir, bridge_version, checksums)
 
@@ -324,6 +364,7 @@ async def install(
             "action": action,
             "version": bridge_version,
             "files_copied": len(checksums),
+            "files_pruned": len(pruned_bridge_files),
             "target_dir": str(target_dir),
             "skill": _skill_result(skill_action, skill_target_dir, len(skill_checksums)),
             "claude_link": _claude_link_result(include_claude, claude_link_dir, claude_link_action),
@@ -443,14 +484,19 @@ def _cleanup_files_by_age(
     cutoff: datetime,
     delete_all: bool,
     dry_run: bool,
+    protected_paths: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Delete files matching a pattern when they are stale enough."""
     deleted: list[str] = []
     skipped: list[str] = []
+    protected_paths = protected_paths or set()
     for directory in directories:
         if not directory.is_dir():
             continue
         for path in directory.glob(pattern):
+            if _path_key(path) in protected_paths:
+                skipped.append(str(path))
+                continue
             try:
                 file_mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
             except OSError:
@@ -468,6 +514,41 @@ def _cleanup_files_by_age(
             except OSError:
                 skipped.append(str(path))
     return deleted, skipped
+
+
+def _path_key(path: Path) -> str:
+    """Return a normalized path key for cross-process ledger path comparison."""
+    try:
+        resolved = path.resolve(strict=False)
+    except OSError:
+        resolved = path.absolute()
+    return os.path.normcase(str(resolved))
+
+
+def _operation_file_keys(raw_path: str, bridge_dir: Path) -> set[str]:
+    """Return path keys that can identify an operation file across OS path styles."""
+    keys = {_path_key(Path(raw_path))}
+    file_name = PureWindowsPath(raw_path).name
+    if file_name:
+        keys.add(_path_key(bridge_dir / file_name))
+    return keys
+
+
+def _active_operation_file_keys(
+    operation_store: object,
+    commands_dir: Path,
+    responses_dir: Path,
+) -> set[str]:
+    """Return command/response path keys referenced by non-terminal operations."""
+    protected: set[str] = set()
+    for record in operation_store.list_records(include_terminal=False, limit=10_000):
+        for raw_path, bridge_dir in (
+            (record.command_path, commands_dir),
+            (record.response_path, responses_dir),
+        ):
+            if raw_path:
+                protected.update(_operation_file_keys(raw_path, bridge_dir))
+    return protected
 
 
 async def clean(
@@ -492,6 +573,11 @@ async def clean(
     effective_age = 0 if all_files else age_minutes
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=effective_age)
     delete_all = effective_age == 0
+    protected_paths = _active_operation_file_keys(
+        operation_store,
+        paths.commands_dir,
+        paths.responses_dir,
+    )
 
     deleted, skipped = _cleanup_files_by_age(
         [paths.commands_dir, paths.responses_dir],
@@ -499,6 +585,7 @@ async def clean(
         cutoff,
         delete_all,
         dry_run,
+        protected_paths,
     )
     temp_deleted, temp_skipped = _cleanup_files_by_age(
         [paths.commands_dir, paths.responses_dir, operation_store.operations_path],

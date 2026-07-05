@@ -457,7 +457,7 @@ For detailed argument tables, types, defaults, and examples, read the appropriat
 - `unity-bridge install` deploys both the C# bridge and this skill to the Unity project; the canonical skill target is `.agents/skills/unity-bridge-cli`. Codex and GitHub Copilot both scan `.agents/skills` natively, so no further step is needed for them. Claude Code only scans `.claude/skills`, so pass `--include-claude` to also create `.claude/skills/unity-bridge-cli` as a symlink (or an NTFS junction on Windows when symlink privilege is unavailable) back to the canonical directory -- one physical skill, reused across agents.
 - Runtime bridge files live under `.claude/unity/`; do not write raw command JSON there unless you are debugging the bridge protocol itself.
 - In-flight command lifecycle state lives under `.claude/unity/operations/`; use `unity-bridge operation status COMMAND_ID` or `operation list` to inspect accepted/running/recovered commands.
-- `unity-bridge clean` prunes orphaned command/response files, stale `*.tmp` bridge files, and old terminal operation records while preserving active operation records.
+- `unity-bridge clean` prunes orphaned command/response files, stale `*.tmp` bridge files, and old terminal operation records while preserving active operation records and their live command/response files.
 - Asset paths use forward slashes relative to project root: `Assets/Scenes/Main.unity`.
 - The `-u` flag is shorthand for `--update` on `component set`. Pass multiple: `-u "a:1" -u "b:2"`.
 - The `-s` flag on `import-settings` is `--setting`; on `prefs` it is `--scope`.
