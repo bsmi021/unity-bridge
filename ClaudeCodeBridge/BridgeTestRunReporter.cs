@@ -237,6 +237,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 }
                 finally
                 {
+                    BridgeSceneModalRecovery.DiscardUnsavedBlankScenes("run-tests-finished");
                     Clear();
                 }
             }

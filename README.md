@@ -136,6 +136,13 @@ unity-bridge scene create PATH                 # Create a new scene
 unity-bridge scene load "Assets/Scenes/Main.unity" --save-current
 ```
 
+Before replacing scenes for tests, scene load/create, scene setup restore, or
+play-mode target-scene launch, the bridge discards blank untitled scenes left by
+test cleanup. A discardable blank scene must be untitled, not dirty, and contain
+no roots or only clean default Unity roots. If real unsaved scene content
+remains, the command fails with a structured error instead of opening Unity's
+blocking save modal.
+
 ### Extended Scene Management
 
 ```

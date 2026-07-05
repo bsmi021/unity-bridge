@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **This repo's own `.claude/skills/unity-bridge-cli` is now a symlink to `.agents/skills/unity-bridge-cli`** instead of a second, independently-maintained copy, eliminating a drift bug where the two had silently diverged (the `.claude` copy was missing dozens of newer command groups). `core.symlinks` defaults to `false` on Git for Windows and is a **per-clone setting, not something a commit can carry** -- on a fresh Windows clone without it, git materializes the symlink as a plain text file (no `SKILL.md`), silently dropping the skill for Claude Code. Every Windows contributor must run `git config core.symlinks true` *before* cloning/checking out this repo, and have Developer Mode (or admin) enabled for the symlink to actually resolve on disk.
 
 ### Fixed
+- Bridge-initiated test, scene-load/create/restore, and play-target-scene flows now discard only blank untitled test scenes and otherwise fail fast on unsaved scene changes instead of letting Unity open a blocking Save/Don't Save/Cancel modal.
+- `scene load --save-current` now sends the C# bridge field `saveCurrentScene`, and C# no longer implicitly saves current scenes when the flag is omitted.
 - `HeartbeatGenerator` is now declared as a partial class so Unity 6.5 lifecycle callbacks compile under the UAC0031 analyzer rule.
 - `addressables build` now invokes the `BuildPlayerContent(out AddressablesPlayerBuildResult)` overload and reports result errors instead of hard-coding success.
 - Unity Test Framework callback registration and test discovery now prefer newer callback/tree APIs with reflection fallbacks for older package versions.

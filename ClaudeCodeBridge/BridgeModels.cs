@@ -404,7 +404,7 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string operation; // "load", "save", "create", "list", "unload", "set-active"
         public string scenePath; // e.g., "Assets/Scenes/GameplayScene.unity"
-        public bool saveCurrentScene = true; // Save before switching
+        public bool saveCurrentScene; // Save before switching
         public string mode; // "single" (default), "additive", "additive-without-loading"
         public bool removeScene = true; // For "unload" operation
         public string gameObjectPath; // For "move-object" operation

@@ -10,6 +10,14 @@ input system, script info, deep serialize, find references, execution order, and
 `test run` supports Unity Test Framework selector fields in addition to the
 legacy `--filter` option.
 
+Before bridge-initiated `test run`, the C# bridge preflights scene state to avoid
+Unity's blocking Save/Don't Save/Cancel modal. Blank untitled scenes left by
+previous test cleanup are discarded only when they are not dirty; real unsaved
+scene content or dirty scene state returns a structured error and must be saved
+or discarded manually before retrying. When a test run finishes, the bridge
+performs the same blank-untitled-scene cleanup before clearing the test reporter
+state.
+
 ```bash
 unity-bridge test run --platform EditMode --test-name Game.Tests.CombatTests.Attack
 unity-bridge test run --platform EditMode --group "^Game\\.Tests\\.Combat\\."

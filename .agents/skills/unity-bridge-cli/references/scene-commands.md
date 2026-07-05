@@ -4,6 +4,37 @@ Commands for scene loading, saving, multi-scene editing, and scene view control.
 
 ---
 
+## modal-safe scene replacement
+
+As of Unity 6.5, `EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo`
+still opens an interactive Save/Don't Save/Cancel dialog, and `OpenScene`,
+`NewScene`, `CloseScene`, and `RestoreSceneManagerSetup` are the scene APIs that
+can close or replace loaded scene state. The bridge must prevent that modal
+instead of trying to recover after it appears.
+
+References checked 2026-07-05:
+`SaveCurrentModifiedScenesIfUserWantsTo`
+(https://docs.unity3d.com/ScriptReference/SceneManagement.EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo.html),
+`OpenScene`
+(https://docs.unity3d.com/ScriptReference/SceneManagement.EditorSceneManager.OpenScene.html),
+`NewScene`
+(https://docs.unity3d.com/ScriptReference/SceneManagement.EditorSceneManager.NewScene.html),
+`CloseScene`
+(https://docs.unity3d.com/ScriptReference/SceneManagement.EditorSceneManager.CloseScene.html),
+and `RestoreSceneManagerSetup`
+(https://docs.unity3d.com/ScriptReference/SceneManagement.EditorSceneManager.RestoreSceneManagerSetup.html).
+
+Before single-scene `scene load`, `scene create`, `scene-ext setup restore`, or
+playmode target-scene launch, the bridge discards only blank untitled scenes
+left by test cleanup. A blank scene is not dirty and has no roots, or only clean
+default `Main Camera` and `Directional Light` roots. If real unsaved content or
+dirty scene state remains, the command returns a structured error telling the
+user to save or discard the scene manually.
+
+Use `--save-current` only when the current scene should be explicitly saved.
+The CLI sends the C# field `saveCurrentScene`; omitting the flag does not imply
+an automatic save.
+
 ## scene (core)
 
 ### `scene load`
@@ -11,7 +42,7 @@ Commands for scene loading, saving, multi-scene editing, and scene view control.
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `PATH` | positional | yes | Scene asset path |
-| `--save-current` | flag | no | Save current scene before loading |
+| `--save-current` | flag | no | Explicitly save current scene before loading |
 
 ```bash
 unity-bridge scene load Assets/Scenes/Main.unity
@@ -35,6 +66,10 @@ unity-bridge scene save
 ```bash
 unity-bridge scene create Assets/Scenes/NewLevel.unity
 ```
+
+`scene create` also preflights the current scene state before replacing it. It
+will discard blank untitled test scenes, but refuses to proceed if real unsaved
+scene content would trigger Unity's save modal.
 
 ### `scene load-additive`
 
@@ -103,6 +138,10 @@ unity-bridge scene-ext setup save my-layout
 ```bash
 unity-bridge scene-ext setup restore my-layout
 ```
+
+Restore replaces the active scene setup. It uses the same modal preflight as
+single-scene load/create: blank untitled test scenes are discarded, real unsaved
+content becomes a structured error.
 
 ### `scene-ext setup list`
 

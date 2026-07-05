@@ -109,6 +109,8 @@ with `unity-bridge test compile` and `unity-bridge console read -T error` --
 - `scene load-additive Assets/Scenes/UI.unity` -- additive load
 - `scene save` -- save current scene
 - `scene-ext setup save my-layout` -- save multi-scene layout
+- Scene replacement commands are modal-safe: see "Scene Modal Safety" before
+  assuming Unity will prompt for Save/Don't Save/Cancel.
 
 **Work with prefabs:**
 - `prefab instantiate Assets/Prefabs/Enemy.prefab --position 5,0,3`
@@ -348,6 +350,28 @@ unity-bridge vfx get-info [--asset-path PATH | --guid GUID]
 ```
 
 ## Common Multi-Step Patterns
+
+### Scene Modal Safety
+
+Current Unity 6.5 EditorSceneManager documentation still treats modified-scene
+closure as an interactive Save/Don't Save/Cancel dialog:
+`SaveCurrentModifiedScenesIfUserWantsTo` opens that modal, `OpenScene` and
+`NewScene` replace scene state in single-scene mode, `CloseScene` removes
+loaded scenes, and `RestoreSceneManagerSetup` restores a saved scene layout.
+Because that dialog blocks the bridge update loop, do not rely on responding to
+it after it appears.
+
+The bridge prevents this class of hang before automation reaches the modal
+surface. Before `test run`, single-scene `scene load`, `scene create`,
+`scene-ext setup restore`, or playmode target-scene launch, the C# bridge
+discards only blank untitled scenes left by test cleanup. "Blank" means an
+untitled, not-dirty scene with no root GameObjects or only clean default
+`Main Camera` and `Directional Light` roots. If any real unsaved scene content
+or dirty scene state remains, the command returns a structured error that asks
+the user to save or discard the scene manually instead of opening Unity's modal.
+
+`scene load --save-current` is explicit. It sends `saveCurrentScene` to the C#
+bridge, and omitted flags no longer imply an automatic save.
 
 ### TDD Cycle
 ```bash
