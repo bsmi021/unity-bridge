@@ -674,6 +674,51 @@ class TestRetryPolicyEnforcement:
         result = CommandResult(success=False, error="timeout", command_id="cmd-ro")
         assert bridge._retry_allowed(result, RETRY_READ_ONLY, None) is True
 
+    def test_non_idempotent_unknown_operation_state_is_not_retryable(
+        self,
+        fake_project: Path,
+    ) -> None:
+        from unity_bridge.core.operation import RETRY_NON_IDEMPOTENT
+
+        bridge = DirectBridge(fake_project)
+        result = CommandResult(
+            success=False,
+            error="[Errno 13] Permission denied: operations/cmd-missing.json",
+            command_id="cmd-missing",
+        )
+
+        assert bridge._retry_allowed(result, RETRY_NON_IDEMPOTENT, None) is False
+
+    async def test_non_idempotent_failure_with_command_id_is_not_resent(
+        self,
+        fake_project: Path,
+    ) -> None:
+        from unity_bridge.core.retry import RetryConfig
+
+        bridge = DirectBridge(fake_project)
+        first = CommandResult(
+            success=False,
+            error="[WinError 32] file is being used: operations/cmd-first.json",
+            command_id="cmd-first",
+        )
+        duplicate = CommandResult(success=True, command_id="cmd-duplicate")
+
+        with patch.object(
+            bridge,
+            "send_command",
+            new_callable=AsyncMock,
+            side_effect=[first, duplicate],
+        ) as send:
+            result = await bridge.send_command_with_retry(
+                "run-tests",
+                {},
+                timeout=1.0,
+                retry_config=RetryConfig(max_retries=1, base_delay=0.0),
+            )
+
+        assert result is first
+        assert send.await_count == 1
+
 
 class TestReconcileOrphans:
     """B5: a late response for a timed-out (terminal) operation must be reaped."""

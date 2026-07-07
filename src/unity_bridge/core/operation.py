@@ -50,12 +50,15 @@ def _best_effort_write(do_write: Callable[[], None], path: Path) -> bool:
         except (PermissionError, OSError) as exc:
             last_exc = exc
             if attempt < _LEDGER_WRITE_ATTEMPTS - 1:
-                time.sleep(_LEDGER_WRITE_BASE_DELAY * (2 ** attempt))
+                time.sleep(_LEDGER_WRITE_BASE_DELAY * (2**attempt))
     logger.warning(
         "Ledger write failed for %s after %d attempts: %s",
-        path, _LEDGER_WRITE_ATTEMPTS, last_exc,
+        path,
+        _LEDGER_WRITE_ATTEMPTS,
+        last_exc,
     )
     return False
+
 
 STATE_QUEUED = "queued"
 STATE_ACCEPTED = "accepted"
@@ -257,7 +260,29 @@ class OperationStore:
         path = self.record_path(command_id)
         if not path.exists():
             return None
-        return OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
+        last_exc: Exception | None = None
+        for attempt in range(_LEDGER_WRITE_ATTEMPTS):
+            try:
+                return OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
+            except FileNotFoundError:
+                return None
+            except (
+                PermissionError,
+                OSError,
+                json.JSONDecodeError,
+                KeyError,
+                ValueError,
+            ) as exc:
+                last_exc = exc
+                if attempt < _LEDGER_WRITE_ATTEMPTS - 1:
+                    time.sleep(_LEDGER_WRITE_BASE_DELAY * (2**attempt))
+        logger.warning(
+            "Ledger read failed for %s after %d attempts: %s",
+            path,
+            _LEDGER_WRITE_ATTEMPTS,
+            last_exc,
+        )
+        return None
 
     def list_records(
         self,
@@ -444,5 +469,3 @@ def _touch(
     if to_state in TERMINAL_STATES and record.terminal_at is None:
         updates["terminal_at"] = timestamp
     return replace(record, **updates)
-
-

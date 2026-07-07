@@ -296,9 +296,9 @@ class DirectBridge:
         if not command_id:
             return True
         record = self._operation_store.load(command_id)
-        if record is not None and record.state != STATE_QUEUED:
+        if record is None:
             return False
-        return True
+        return record.state == STATE_QUEUED
 
     def reconcile_orphans(self) -> list[str]:
         """Reap stale response files left by timed-out/terminal operations.
@@ -365,9 +365,7 @@ class DirectBridge:
                 busy_elapsed,
             )
             current_busy_elapsed = (now - busy_started) if busy_started is not None else 0.0
-            active_elapsed = self._active_elapsed(
-                elapsed, busy_elapsed, current_busy_elapsed
-            )
+            active_elapsed = self._active_elapsed(elapsed, busy_elapsed, current_busy_elapsed)
             if self._domain_generation_changed(status, origin_generation):
                 self._mark_recovering_after_reload(
                     command_id,

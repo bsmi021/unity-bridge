@@ -344,10 +344,18 @@ namespace BWS.Editor.ClaudeCodeBridge
                 }
 
                 TryMarkAccepted(command, commandFilePath);
+                if (!SafeDelete(commandFilePath))
+                {
+                    WriteResponse(BridgeResponse.Error(
+                        commandId,
+                        commandType,
+                        "Failed to remove accepted command file before execution; command was not run to avoid duplicate execution after domain reload."));
+                    return;
+                }
+
                 var response = handler.Execute(command);
                 WriteResponse(response);
                 HeartbeatGenerator.IncrementCommandCount();
-                SafeDelete(commandFilePath);
                 BridgeLogger.LogDebug($"Completed command: {commandType} (ID: {commandId})");
             }
             catch (Exception ex)
@@ -460,12 +468,18 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
         }
 
-        private void SafeDelete(string path)
+        private bool SafeDelete(string path)
         {
-            try { if (File.Exists(path)) File.Delete(path); }
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+                return true;
+            }
             catch (Exception ex)
             {
                 WriteDiagnostic("delete-failed", $"Failed to delete '{path}'", path, ex);
+                return false;
             }
         }
 

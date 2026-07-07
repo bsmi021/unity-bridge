@@ -877,6 +877,21 @@ class TestRunTestsBridgeSource:
         assert "ExecutionSettings" in source
         assert ".RetrieveTestList(" not in source
 
+    def test_csharp_bridge_removes_accepted_command_before_test_handler_can_reload(
+        self,
+    ) -> None:
+        source = (
+            _repo_root()
+            .joinpath("ClaudeCodeBridge", "ClaudeUnityBridge.cs")
+            .read_text(encoding="utf-8")
+        )
+
+        accepted_index = source.index("TryMarkAccepted(command, commandFilePath);")
+        delete_index = source.index("SafeDelete(commandFilePath)", accepted_index)
+        execute_index = source.index("var response = handler.Execute(command);", accepted_index)
+
+        assert accepted_index < delete_index < execute_index
+
 
 # ---------------------------------------------------------------------------
 # compile_scripts
