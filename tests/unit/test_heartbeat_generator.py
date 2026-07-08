@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -60,6 +61,13 @@ def test_bridge_operation_ledger_atomic_writes_are_retryable() -> None:
     assert "File.Replace(tempPath, path, null)" in source
     assert "Thread.Sleep(RetryDelayMs(attempt))" in source
     assert "TryDeleteTemp(tempPath)" in source
+
+
+def test_bridge_operation_ledger_retry_attempts_are_debug_only() -> None:
+    source = Path("ClaudeCodeBridge/BridgeOperationLedger.cs").read_text(encoding="utf-8")
+
+    assert re.search(r'BridgeLogger\.LogDebug\(\s*\$"Atomic write attempt', source)
+    assert not re.search(r'BridgeLogger\.LogWarning\(\s*\$"Atomic write attempt', source)
 
 
 def test_bridge_operation_ledger_writes_utf8_without_bom() -> None:

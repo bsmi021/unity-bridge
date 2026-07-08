@@ -261,7 +261,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     if (attempt >= AtomicWriteMaxAttempts)
                         break;
 
-                    BridgeLogger.LogWarning(
+                    BridgeLogger.LogDebug(
                         $"Atomic write attempt {attempt}/{AtomicWriteMaxAttempts} failed for '{path}': {ex.Message}");
                     Thread.Sleep(RetryDelayMs(attempt));
                 }
