@@ -62,6 +62,13 @@ def test_bridge_operation_ledger_atomic_writes_are_retryable() -> None:
     assert "TryDeleteTemp(tempPath)" in source
 
 
+def test_bridge_operation_ledger_retry_attempts_are_debug_only() -> None:
+    source = Path("ClaudeCodeBridge/BridgeOperationLedger.cs").read_text(encoding="utf-8")
+
+    assert 'BridgeLogger.LogDebug(\n                        $"Atomic write attempt' in source
+    assert 'BridgeLogger.LogWarning(\n                        $"Atomic write attempt' not in source
+
+
 def test_bridge_operation_ledger_writes_utf8_without_bom() -> None:
     source = Path("ClaudeCodeBridge/BridgeOperationLedger.cs").read_text(encoding="utf-8")
 
