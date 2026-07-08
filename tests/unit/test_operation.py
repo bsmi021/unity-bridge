@@ -116,6 +116,36 @@ class TestLedgerWriteResilience:
         assert record.command_id == "locked"
         assert calls["n"] == 2
 
+    def test_load_retries_transient_decode_error_then_succeeds(
+        self,
+        fake_project: Path,
+    ) -> None:
+        store = OperationStore(fake_project)
+        store.create_queued(
+            command_id="partial",
+            command_type="run-tests",
+            parameters={},
+            command_path=fake_project / "command.json",
+            response_path=fake_project / "response.json",
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+        calls = {"n": 0}
+        real_read_text = Path.read_text
+
+        def flaky_read_text(self: Path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if self == store.record_path("partial") and calls["n"] < 2:
+                calls["n"] += 1
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+            return real_read_text(self, *args, **kwargs)
+
+        with patch.object(Path, "read_text", flaky_read_text):
+            record = store.load("partial")
+
+        assert record is not None
+        assert record.command_id == "partial"
+        assert calls["n"] == 2
+
 
 def test_parameters_hash_is_stable_for_sorted_json() -> None:
     left = parameters_hash({"b": 2, "a": 1})

@@ -269,6 +269,7 @@ class OperationStore:
             except (
                 PermissionError,
                 OSError,
+                UnicodeDecodeError,
                 json.JSONDecodeError,
                 KeyError,
                 ValueError,
