@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unity Bridge - Unity 6.5 Full Editor Coverage Audit</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #121a2e;
+      --panel-2: #17213a;
+      --text: #edf3ff;
+      --muted: #a9b5cc;
+      --line: #2a3858;
+      --accent: #69d2ff;
+      --good: #70e0a1;
+      --warn: #ffd166;
+      --bad: #ff7b88;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 10% 0%, #16264a 0, var(--bg) 34rem);
+      color: var(--text);
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+    h1 { font-size: clamp(2rem, 5vw, 3.7rem); line-height: 1.05; margin: 0 0 1rem; }
+    h2 { margin-top: 3.2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+    h3 { margin-top: 2rem; }
+    p, li { max-width: 86ch; }
+    a { color: var(--accent); }
+    code { color: #b8e8ff; background: #0a1224; padding: .1rem .3rem; border-radius: .3rem; }
+    .kicker { color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-weight: 750; }
+    .lead { font-size: 1.25rem; color: #dce7fb; }
+    .verdict { padding: 1.25rem 1.4rem; border: 1px solid #6e5527; background: #2a2417; border-radius: .75rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .8rem; margin: 1.4rem 0; }
+    .card { background: linear-gradient(145deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: .75rem; padding: 1rem; }
+    .card strong { display: block; font-size: 1.8rem; color: var(--accent); }
+    .card span { color: var(--muted); }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: .7rem; }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; background: rgba(10, 17, 33, .72); }
+    th, td { text-align: left; vertical-align: top; padding: .72rem .8rem; border-bottom: 1px solid var(--line); }
+    th { background: #17233e; color: #dff4ff; }
+    tr:last-child td { border-bottom: 0; }
+    .pill { display: inline-block; border: 1px solid currentColor; border-radius: 999px; padding: .05rem .48rem; font-size: .82rem; white-space: nowrap; }
+    .note { color: var(--muted); font-size: .94rem; }
+    .priority { border-left: 4px solid var(--line); padding: .2rem 0 .2rem 1rem; margin: 1rem 0; }
+    .priority.p0 { border-color: var(--bad); }
+    .priority.p1 { border-color: var(--warn); }
+    .priority.p2 { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="kicker">Evidence-backed capability audit</div>
+  <h1>Unity Bridge and the Unity 6.5 Editor API universe</h1>
+  <p class="lead">Last updated: 2026-07-09. Baseline: Unity <code>6000.5.1f1</code>, revision <code>0d9463e84828</code>, Windows 11.</p>
+
+  <div class="verdict">
+    <strong>Verdict: broad control, not full coverage.</strong>
+    The bridge has a strong CLI and durable operation layer, but it cannot yet make a defensible claim that every public Unity 6.5 Editor capability is safely reachable and behaviorally proven. The most urgent work is contract and mutation safety, followed by a generated API catalog and a hardened long-tail execution path.
+  </div>
+
+  <div class="cards">
+    <div class="card"><strong>377</strong><span>invokable CLI paths</span></div>
+    <div class="card"><strong>99</strong><span>Unity 6.5 C# handlers</span></div>
+    <div class="card"><strong>5,354</strong><span>public core Unity types</span></div>
+    <div class="card"><strong>54,979</strong><span>public core member endpoints</span></div>
+    <div class="card"><strong>93.32%</strong><span>current Python coverage proof</span></div>
+    <div class="card"><strong>31</strong><span>Unity-dependent tests skipped in full gate</span></div>
+  </div>
+
+  <h2>What was inspected</h2>
+  <ul>
+    <li>The live Typer command tree, Python dispatch values, timeout and parallel-safety tables, C# registry, handlers, tests, README, skill documentation, and the July 2 Unity 6.5 audit/planning suite.</li>
+    <li>The local Unity <code>6000.5.1f1</code> reference and implementation assemblies using Mono.Cecil, with nested accessibility enforced and overloads counted separately.</li>
+    <li>The official <a href="https://docs.unity3d.com/6000.5/Documentation/ScriptReference/index.html">Unity 6.5 Scripting API</a>, its type index, the exact <a href="https://github.com/Unity-Technologies/UnityCsReference/tree/6000.5.1f1">UnityCsReference 6000.5.1f1 tag</a>, and the <a href="https://unity.com/releases/editor/whats-new/6000.5.0f1">6000.5 release notes</a>.</li>
+    <li>A live Builder Editor on <code>6000.5.1f1</code>: health and doctor were green, and <code>test compile --wait</code> returned zero errors and warnings.</li>
+    <li>A Builder loaded-assembly snapshot: 177 project/package assemblies, 8,318 public types, and 60,863 public endpoints. This is project-specific and includes project, test, vendor, and package code; it is not a universal Unity package count.</li>
+  </ul>
+
+  <h2>The API universe is not one static number</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Surface</th><th>Types</th><th>Member endpoints</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Core Editor</td><td>1,886</td><td>15,799</td><td><code>UnityEditor.dll</code> plus the public Graphs assembly.</td></tr>
+        <tr><td>Core runtime usable from Editor</td><td>3,468</td><td>39,180</td><td>83 <code>UnityEngine.*Module.dll</code> reference assemblies.</td></tr>
+        <tr><td>Local core union</td><td>5,354</td><td>54,979</td><td>Exact local Windows 6000.5.1f1 metadata snapshot.</td></tr>
+        <tr><td>Online 6.5 documentation</td><td>4,715 pages</td><td>Not indexed</td><td>Type-level index only; not patch-identical proof and not member-complete.</td></tr>
+        <tr><td>Builder loaded assemblies</td><td>8,318</td><td>60,863</td><td>Additional project/package/plugin surface; provenance filtering is still required.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Endpoint counting excludes property/event accessors from method totals, counts constructors and overloads separately, and counts public properties/events once. Public metadata does not automatically mean documented or supported API.</p>
+
+  <h2>Current capability map</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Family</th><th>Current strength</th><th>Proof boundary and material gaps</th></tr></thead>
+      <tbody>
+        <tr><td>Bridge lifecycle and operations</td><td><span class="pill good">Strong</span></td><td>Health, doctor, durable ledger, detached queue, reload recovery, install, cleanup, status, operation polling.</td></tr>
+        <tr><td>Scenes, hierarchy, objects, components, prefabs</td><td><span class="pill good">Strong</span></td><td>Broad typed read/write surface. Serialized-property writes still omit several property kinds and all mutations need shared error-envelope proof.</td></tr>
+        <tr><td>Assets, importers, materials, packages</td><td><span class="pill warn">Partial</span></td><td>Broad common workflows. Canonical path containment, overwrite policy, rollback, text-writer hash guards, scoped registries, lockfile/outdated operations, and raw AssetBundle workflows remain incomplete.</td></tr>
+        <tr><td>Build and Build Profiles</td><td><span class="pill warn">Partial</span></td><td>Build/profile CRUD is present. Profile creation reports request acceptance before asynchronous initialization is proven complete.</td></tr>
+        <tr><td>Compilation, tests, coverage</td><td><span class="pill good">Strong</span></td><td>Selectors, cancellation, progress, persisted results, compile, and coverage utilities exist. Live PlayMode reload closure and a serialization-analyzer-specific filter remain open.</td></tr>
+        <tr><td>Profiler and memory</td><td><span class="pill warn">Partial</span></td><td>Frame drill-down and snapshot capture exist. <code>frameCount</code> is ignored by the handler, marker/allocation fixtures are not live-proven, and snapshot load/diff has no public Unity API.</td></tr>
+        <tr><td>Rendering and lighting</td><td><span class="pill warn">Partial</span></td><td>Materials, shaders, pipelines, graphics state, lightmaps, probes, and occlusion are covered. Renderer features, volume profiles, APV workflows, 2D profiler, shader upload statistics, and VFX prewarm remain absent or package/API-limited.</td></tr>
+        <tr><td>Animation, Timeline, Cinemachine</td><td><span class="pill warn">Partial</span></td><td>Common operations exist, but animation controller/rig authoring is incomplete and three animation operations have no CLI wrapper. Timeline supports top-level tracks only.</td></tr>
+        <tr><td>Terrain and Tilemap</td><td><span class="pill warn">Partial</span></td><td>Handlers implement useful mutations, but terrain set-heights/set-settings and tilemap fill-box/compress-bounds are hidden from the supported typed CLI.</td></tr>
+        <tr><td>Input, UI Toolkit, localization, accessibility</td><td><span class="pill warn">Partial</span></td><td>Input asset and basic UXML/panel authoring plus string localization exist. Full USS/UI Builder, asset tables, metadata/smart strings, accessibility inspection, and richer UI automation are not closed.</td></tr>
+        <tr><td>Entities, Graph Toolkit, Adaptive Performance, MPPM, VFX</td><td><span class="pill warn">Mostly read-only</span></td><td>Package-aware discovery and inspection are good; authoring/mutation is limited. Some missing authoring has no stable public API.</td></tr>
+        <tr><td>Code authoring</td><td><span class="pill warn">Partial</span></td><td>Existing scripts can be range/anchor edited with a hash guard. Create/delete and AST-aware edits are absent.</td></tr>
+        <tr><td>Long-tail public API fallback</td><td><span class="pill bad">Unreliable</span></td><td><code>script</code> is synchronous, returns <code>ToString()</code>, lacks change/Undo tracking, and failed a live LINQ probe because duplicated core references produced compiler ambiguity.</td></tr>
+        <tr><td>Shader Graph/VFX Graph internals and UI-only workflows</td><td><span class="pill bad">No public contract</span></td><td>Do not claim coverage through unsupported reflection. Record as public-API unavailable or UI-only unless Unity exposes a supported surface.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Findings that block a full-coverage claim</h2>
+  <div class="priority p0">
+    <h3 class="bad">P0 - mutation containment and rollback</h3>
+    <p><code>import-model</code>, asset hashing, and script editing rely on textual prefix checks before or around canonicalization. Traversal and sibling-prefix cases can escape the intended project area; model import can overwrite a destination and then delete it if importer validation fails. Every file mutation needs canonical containment, explicit overwrite behavior, precondition support, and rollback proof.</p>
+  </div>
+  <div class="priority p0">
+    <h3 class="bad">P0 - inner failures can be outer successes</h3>
+    <p>Several handlers wrap an operation result with <code>success=false</code> inside <code>BridgeResponse.Success</code>. Python trusts the outer response, so a failed mutation can exit zero. This must be fixed centrally and contract-tested across every handler.</p>
+  </div>
+  <div class="priority p0">
+    <h3 class="bad">P0 - menu validation can execute</h3>
+    <p>Python sends <code>validateOnly</code>, while C# reads <code>validate</code>. The requested validation flag is dropped and the execution branch is selected. Do not use <code>menu --validate-only</code> until this cross-language contract is repaired.</p>
+  </div>
+  <div class="priority p1">
+    <h3 class="warn">P1 - generic API execution is not a universal fallback</h3>
+    <p>A live 6.5.1f1 probe took about 10.5 seconds, emitted extensive CS1685 duplicate-core-type warnings, and failed a simple LINQ query with ambiguous extension methods. It also serializes results through <code>ToString()</code>, has no durable async contract, and does not automatically record Undo or changed objects.</p>
+  </div>
+  <div class="priority p1">
+    <h3 class="warn">P1 - eight implemented operations are unreachable through typed CLI paths</h3>
+    <p>Missing wrappers: animation <code>set-curve</code>, <code>add-event</code>, <code>set-properties</code>; terrain <code>set-heights</code>, <code>set-settings</code>; tilemap <code>fill-box</code>, <code>compress-bounds</code>; and asset <code>reserialize</code>.</p>
+  </div>
+  <div class="priority p1">
+    <h3 class="warn">P1 - parameter, async, and state-restoration defects</h3>
+    <ul>
+      <li>Screenshot sends <code>camera</code>; C# reads <code>cameraPath</code>.</li>
+      <li>Multi-angle capture leaves Scene View at the last angle instead of restoring it.</li>
+      <li>Build Profile creation returns success before asynchronous initialization completes.</li>
+      <li>Profiler capture accepts <code>frameCount</code> in Python but does not use it in C#.</li>
+      <li>Protocol policy contains stale <code>health-check</code> while the registry uses <code>bridge-status</code>.</li>
+    </ul>
+  </div>
+
+  <h2>Unity 6.5-specific public surfaces to reconcile</h2>
+  <p>The release adds or changes APIs beyond the July 2 backlog. The coverage program must explicitly classify Android window insets, Build Profile helper APIs, asynchronous Project Auditor analysis and auto-fix, Graph Toolkit connect/disconnect, shader variants uploaded to the GPU, VFX compute-shader prewarm, UI Toolkit callback/resource APIs, and platform-specific APIs. Package versions and installed playback modules must be pinned before claiming availability.</p>
+
+  <h2>Recommended architecture for honest full coverage</h2>
+  <ol>
+    <li><strong>Generated API catalog.</strong> Snapshot documented types plus exact public assembly metadata for the installed Editor, active build target, defines, and resolved project packages. Key every symbol by canonical assembly-qualified signature and retain package/asmdef provenance.</li>
+    <li><strong>Coverage registry.</strong> Classify each symbol or workflow as typed command, hardened escape hatch, public-but-unwrapped, no public API, external dependency, obsolete, or explicit non-goal. Never infer coverage from a neighboring namespace.</li>
+    <li><strong>Bidirectional contract generation.</strong> One schema should drive Python parameters, camelCase wire payloads, C# models, result/error semantics, timeout/retry policy, and contract tests.</li>
+    <li><strong>Hardened execution host.</strong> Keep dedicated commands for common workflows, but repair the long-tail C# host with curated assembly references, structured values/logs, Undo/change tracking, time limits, cancellation, and durable async completion.</li>
+    <li><strong>Live fixture project.</strong> Compile and behavior-test every mutating/async capability on Unity 6.5. Source-token tests are supporting evidence only.</li>
+    <li><strong>Continuous drift gate.</strong> Diff API snapshots and command contracts on every supported Unity/package upgrade. New or removed symbols must produce an explicit coverage decision.</li>
+  </ol>
+
+  <h2>Definition of full coverage</h2>
+  <p>Full coverage is achieved only when every symbol/workflow in a pinned snapshot has a classification and every claimed reachable path has contract, negative-path, and live Editor proof appropriate to its risk. Python line coverage above 90% remains mandatory, but it is not Editor API coverage.</p>
+  <ul>
+    <li>No unexplained public symbols or package assemblies remain in the inventory.</li>
+    <li>No command field, command type, timeout, or result schema differs between CLI, Python, and C#.</li>
+    <li>Every mutation proves containment, overwrite policy, hash conflict behavior, rollback/atomicity, idempotence, and temporary-state restoration.</li>
+    <li>Every async API reaches terminal success or failure through the operation ledger; “requested” is not completion.</li>
+    <li>Every no-public-API or UI-only workflow is explicitly recorded and never presented as covered.</li>
+    <li>Packaged install parity, Unity compile, focused EditMode/PlayMode behavior, full Python suite, and coverage all pass.</li>
+  </ul>
+
+  <h2>Current validation evidence</h2>
+  <ul>
+    <li><code>uv run ruff check src tests</code>: passed.</li>
+    <li>Unit baseline: 2,249 passed in 44.71 seconds.</li>
+    <li>Independent full gate: 2,308 passed, 31 skipped, Python coverage 93.32%.</li>
+    <li>Builder status/doctor: healthy and ready on Unity 6000.5.1f1.</li>
+    <li>Builder compile: zero errors, zero warnings, no compile needed.</li>
+    <li>Not yet proven: member-level coverage classification, live behavior for all handlers, clean install parity, all platform modules, or all project/package combinations.</li>
+  </ul>
+
+  <h2>Primary source and repository evidence</h2>
+  <ul>
+    <li><a href="https://docs.unity3d.com/6000.5/Documentation/ScriptReference/index.html">Unity 6.5 Scripting API</a></li>
+    <li><a href="https://github.com/Unity-Technologies/UnityCsReference/tree/6000.5.1f1">UnityCsReference exact 6000.5.1f1 tag</a></li>
+    <li><a href="https://unity.com/releases/editor/whats-new/6000.5.0f1">Unity 6000.5.0f1 release and API changes</a></li>
+    <li><code>src/unity_bridge/app.py</code>, <code>src/unity_bridge/commands/</code>, <code>src/unity_bridge/core/protocol.py</code></li>
+    <li><code>ClaudeCodeBridge/BridgeCommandRegistry.cs</code>, handlers, models, and helpers</li>
+    <li><code>tests/unit/</code>, <code>docs/unity-6.5-capability-gap-audit.md</code>, and the prior Unity 6.5 implementation suite</li>
+  </ul>
+</main>
+</body>
+</html>
