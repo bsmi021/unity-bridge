@@ -45,7 +45,7 @@ Global flags go BEFORE the command name:
 - This repo ships the Codex skill from `.agents/skills/unity-bridge-cli`; `unity-bridge install` copies it into target Unity projects.
 - Keep the YAML description concise because Codex uses it for skill discovery. Put detailed command coverage in this body and the `references/` files.
 - Use the CLI first for anything it covers. It is the only interface with retries, timeouts, bridge health checks, caching, and formatted errors. This repo's own internal MCP interface (a `mcp/` package + `serve` command) has been fully retired — do not reintroduce it. The unrelated third-party `unity-mcp` MCP server (tools prefixed `mcp__unity-mcp__`) may be connected in this environment as a supplemental tool for the specific capability gaps listed in "unity-bridge vs. unity-mcp" below; it bypasses this project's ledger/retry/caching guarantees, so only reach for it when the CLI genuinely cannot do the task.
-- If Unity is busy, poll with `unity-bridge operation status COMMAND_ID` or `operation list`.
+- If Unity is busy, prefer detached control-plane calls: `unity-bridge operation submit ...`, `test run --detach`, or `test compile --detach`, then poll with `unity-bridge operation wait COMMAND_ID`, `operation status COMMAND_ID`, or `operation list`.
 - If a changed skill is not visible in Codex, start a fresh Codex session before debugging the bridge behavior.
 - Before changing this skill or its references, verify the live CLI surface with `unity-bridge --help` and targeted command help.
 
@@ -209,7 +209,8 @@ unity-bridge version                   # CLI versions
 unity-bridge install [--check|--force|--include-claude] # Install/update C# bridge + project skill
 unity-bridge init                      # Create directory structure
 unity-bridge clean [--dry-run]         # Remove orphaned/stale bridge state files
-unity-bridge operation status COMMAND_ID | operation list
+unity-bridge operation submit COMMAND_TYPE [--params-json JSON|--params-file PATH]
+unity-bridge operation wait COMMAND_ID | operation status COMMAND_ID | operation list
 unity-bridge profiler --memory --cpu   # Performance snapshot
 unity-bridge profiler-control set-areas --areas Physics,Audio [--allocation-callstacks]
 unity-bridge profiler-frame top-time-samples FRAME_INDEX [--count N]
@@ -245,10 +246,10 @@ unity-bridge prefab validate|instantiate|destroy|status|find-instances|unpack PA
 unity-bridge prefab overrides list|apply|revert PATH [-t TARGET]
 
 # Testing & TDD
-unity-bridge test run [--platform P] [--filter F] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N]
+unity-bridge test run [--platform P] [--filter F] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N] [--detach]
 unity-bridge test cancel [--command-id ID] [--timeout N]
 unity-bridge test preflight [--platform P] [--filter F] [--min-tests N]
-unity-bridge test list [--categories] [--assemblies] | compile [--no-wait]
+unity-bridge test list [--categories] [--assemblies] | compile [--no-wait] [--detach]
 unity-bridge test results|failures|progress|events [--last|--command-id ID] | rerun-failed [--last|--command-id ID] | history [--max-results N]
 unity-bridge coverage availability | install [--version V]
 unity-bridge coverage start|pause|resume|stop | find-reports | summarize [PATH]
@@ -456,8 +457,8 @@ For detailed argument tables, types, defaults, and examples, read the appropriat
 - If `unity-bridge status` shows unhealthy, run `unity-bridge doctor`.
 - `unity-bridge install` deploys both the C# bridge and this skill to the Unity project; the canonical skill target is `.agents/skills/unity-bridge-cli`. Codex and GitHub Copilot both scan `.agents/skills` natively, so no further step is needed for them. Claude Code only scans `.claude/skills`, so pass `--include-claude` to also create `.claude/skills/unity-bridge-cli` as a symlink (or an NTFS junction on Windows when symlink privilege is unavailable) back to the canonical directory -- one physical skill, reused across agents.
 - Runtime bridge files live under `.claude/unity/`; do not write raw command JSON there unless you are debugging the bridge protocol itself.
-- In-flight command lifecycle state lives under `.claude/unity/operations/`; use `unity-bridge operation status COMMAND_ID` or `operation list` to inspect accepted/running/recovered commands.
-- `unity-bridge clean` prunes orphaned command/response files, stale `*.tmp` bridge files, and old terminal operation records while preserving active operation records and their live command/response files.
+- In-flight command lifecycle state lives under `.claude/unity/operations/`; use `unity-bridge operation wait COMMAND_ID`, `unity-bridge operation status COMMAND_ID`, or `operation list` to inspect accepted/running/recovered commands. Detached queue metadata lives under `.claude/unity/queue/` until terminal completion.
+- `unity-bridge clean` prunes orphaned command/response files, stale `*.tmp` bridge files, and old terminal operation/queue records while preserving active operation records and their live command/response/queue files.
 - Asset paths use forward slashes relative to project root: `Assets/Scenes/Main.unity`.
 - The `-u` flag is shorthand for `--update` on `component set`. Pass multiple: `-u "a:1" -u "b:2"`.
 - The `-s` flag on `import-settings` is `--setting`; on `prefs` it is `--scope`.

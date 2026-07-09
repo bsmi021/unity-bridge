@@ -551,6 +551,15 @@ def _active_operation_file_keys(
     return protected
 
 
+def _active_queue_file_keys(operation_store: object, queue_dir: Path) -> set[str]:
+    """Return queue metadata and lock path keys referenced by non-terminal operations."""
+    protected: set[str] = set()
+    for record in operation_store.list_records(include_terminal=False, limit=10_000):
+        protected.add(_path_key(queue_dir / f"{record.command_id}.json"))
+        protected.add(_path_key(queue_dir / f"{record.command_id}.lock"))
+    return protected
+
+
 async def clean(
     project_root: Path,
     age_minutes: int = 5,
@@ -578,6 +587,8 @@ async def clean(
         paths.commands_dir,
         paths.responses_dir,
     )
+    queue_dir = project_root / ".claude" / "unity" / "queue"
+    protected_queue_paths = _active_queue_file_keys(operation_store, queue_dir)
 
     deleted, skipped = _cleanup_files_by_age(
         [paths.commands_dir, paths.responses_dir],
@@ -587,8 +598,28 @@ async def clean(
         dry_run,
         protected_paths,
     )
+    queue_deleted, queue_skipped = _cleanup_files_by_age(
+        [queue_dir],
+        "*.json",
+        cutoff,
+        delete_all,
+        dry_run,
+        protected_queue_paths,
+    )
+    lock_deleted, lock_skipped = _cleanup_files_by_age(
+        [queue_dir],
+        "*.lock",
+        cutoff,
+        delete_all,
+        dry_run,
+        protected_queue_paths,
+    )
+    deleted.extend(queue_deleted)
+    deleted.extend(lock_deleted)
+    skipped.extend(queue_skipped)
+    skipped.extend(lock_skipped)
     temp_deleted, temp_skipped = _cleanup_files_by_age(
-        [paths.commands_dir, paths.responses_dir, operation_store.operations_path],
+        [paths.commands_dir, paths.responses_dir, operation_store.operations_path, queue_dir],
         "*.tmp",
         cutoff,
         delete_all,

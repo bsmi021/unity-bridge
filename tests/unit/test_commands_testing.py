@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from unity_bridge.commands.testing import cancel_tests, compile_scripts, run_tests, test_app
 from unity_bridge.core.bridge import CommandResult
+from unity_bridge.core.command_queue import CommandQueue
 from unity_bridge.core.output import OutputFormatter
 
 
@@ -191,6 +192,34 @@ class TestRunTestsCli:
 
         assert result.exit_code == 0
         assert "--min-tests" in result.stdout
+
+    def test_cli_detach_queues_run_tests_payload(self, mock_bridge: MagicMock, tmp_path) -> None:
+        result = _run_test_cli(
+            [
+                "run",
+                "--detach",
+                "--platform",
+                "PlayMode",
+                "--filter",
+                "Smoke",
+                "--min-tests",
+                "2",
+                "--timeout",
+                "45",
+            ],
+            mock_bridge,
+            project_root=tmp_path,
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        command_id = payload["command_id"]
+        queued = CommandQueue(tmp_path, auto_start=False)._load_queue_file(command_id)
+        assert queued.command_type == "run-tests"
+        assert queued.parameters == {"testPlatform": "PlayMode", "testFilter": "Smoke"}
+        assert queued.timeout == 45.0
+        assert queued.client_policy == {"minTests": 2}
+        mock_bridge.send_command_with_retry.assert_not_awaited()
 
 
 class TestCancelTests:
@@ -387,6 +416,22 @@ class TestListAndCompileCli:
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert params["waitForCompletion"] is False
         assert _extract_kwarg(mock_bridge.send_command_with_retry.call_args, "timeout") == 240.0
+
+    def test_compile_cli_detach_queues_compile_payload(self, mock_bridge: MagicMock, tmp_path) -> None:
+        result = _run_test_cli(
+            ["compile", "--detach", "--no-wait", "--timeout", "240"],
+            mock_bridge,
+            project_root=tmp_path,
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        command_id = payload["command_id"]
+        queued = CommandQueue(tmp_path, auto_start=False)._load_queue_file(command_id)
+        assert queued.command_type == "compile"
+        assert queued.parameters == {"waitForCompletion": False}
+        assert queued.timeout == 240.0
+        mock_bridge.send_command_with_retry.assert_not_awaited()
 
 
 class TestTestResultArtifacts:

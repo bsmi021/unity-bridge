@@ -29,7 +29,9 @@ EXCLUDED_CLI_WRAPPERS = {
     ("lifecycle", "version_cli"),
     ("material", "material_cli"),
     ("operation", "operation_list_cli"),
+    ("operation", "operation_submit_cli"),
     ("operation", "operation_status_cli"),
+    ("operation", "operation_wait_cli"),
     ("serve", "serve_cli"),
     ("testing", "test_events_cli"),
     ("testing", "test_failures_cli"),
@@ -268,6 +270,8 @@ def _sample_parameter_value(name: str, parameter: inspect.Parameter) -> Any:
     if parameter.default is inspect.Parameter.empty or parameter.default is None:
         return _required_sample_value(name)
     if isinstance(parameter.default, bool):
+        if name == "detach":
+            return parameter.default
         return not parameter.default if name != "clear" else parameter.default
     return parameter.default
 

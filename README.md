@@ -89,12 +89,20 @@ unity-bridge doctor                           # Run full 9-check diagnostic suit
 unity-bridge profiler [--memory] [--rendering] [--cpu]  # Capture profiler metrics
 unity-bridge version                          # Show CLI, bridge, and Python versions
 unity-bridge operation status COMMAND_ID      # Inspect persisted command lifecycle state
+unity-bridge operation submit COMMAND_TYPE [--params-json JSON|--params-file PATH] [--timeout N]
+unity-bridge operation wait COMMAND_ID [--timeout N] [--poll-interval N]
 ```
 
 `status` reports both heartbeat liveness (`healthy`) and editor command readiness
 (`ready`). During compile, AssetDatabase refresh, assembly reload, or play-mode
 transition windows, Unity can be healthy but not ready; bridge commands wait for
 readiness before writing command files.
+
+Use `operation submit` or command-specific `--detach` flags when the caller must
+stay responsive while Unity is busy. Detached commands return `success: true`,
+exit code `0`, and a durable `command_id` as soon as the queue and operation
+ledger are persisted. `operation wait COMMAND_ID` dispatches queued work when the
+editor becomes ready and polls until terminal state or the caller's wait timeout.
 
 ```bash
 # Example: full health check with human-readable output
@@ -429,11 +437,11 @@ unity-bridge compile optimization --set Release
 ### Testing
 
 ```
-unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N]
+unity-bridge test run [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N] [--timeout N] [--detach]
 unity-bridge test cancel [--command-id ID] [--timeout N]
 unity-bridge test preflight [--platform PLATFORM] [--filter PATTERN] [--test-name NAME] [--group REGEX] [--category CAT] [--assembly ASM] [--min-tests N]
 unity-bridge test list [--platform PLATFORM] [--filter PATTERN] [--categories] [--assemblies]
-unity-bridge test compile [--wait/--no-wait] [--timeout N]
+unity-bridge test compile [--wait/--no-wait] [--timeout N] [--detach]
 unity-bridge test results [--last|--command-id ID]
 unity-bridge test failures [--last|--command-id ID]
 unity-bridge test progress [--last|--command-id ID]
@@ -462,6 +470,10 @@ unity-bridge test list --platform PlayMode --categories
 
 # Example: trigger a compilation and wait
 unity-bridge test compile --wait
+
+# Example: queue a test run while Unity is busy, then wait later
+unity-bridge test run --platform EditMode --filter "Combat*" --detach
+unity-bridge operation wait COMMAND_ID --timeout 600
 
 # Example: inspect the last persisted test result without re-running Unity
 unity-bridge test results --last
@@ -750,7 +762,7 @@ Config file search order:
 
 The Python CLI writes JSON command files to `<project>/.claude/unity/commands/`. A C# Editor script (`ClaudeUnityBridge.cs`) running via `EditorApplication.update` picks them up, executes them inside Unity, and writes JSON responses to `<project>/.claude/unity/responses/`. Each command is identified by a unique UUID. This file-based IPC works across WSL2/Windows boundaries via `/mnt/c/` path mapping.
 
-Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` can inspect the latest state without sending another Unity command. `unity-bridge clean` prunes old terminal operation snapshots and event logs while preserving active operations and their live command/response files.
+Each command also gets durable lifecycle state in `<project>/.claude/unity/operations/<commandId>.json` plus transition history in `<commandId>.events.jsonl`. Detached submissions keep queue metadata in `<project>/.claude/unity/queue/<commandId>.json` until the operation reaches terminal state. Current-state JSON is used for reload recovery and client polling; JSONL is diagnostic history. Unity writes accepted/running/terminal states through `BridgeOperationLedger`, and `unity-bridge operation status COMMAND_ID` can inspect the latest state without sending another Unity command. `unity-bridge operation wait COMMAND_ID` can dispatch queued work and read terminal response files for detached callers. `unity-bridge clean` prunes old terminal operation snapshots, event logs, and queue metadata while preserving active operations and their live command/response files.
 
 ### Single Interface
 

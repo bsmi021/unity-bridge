@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,7 +12,7 @@ import pytest
 
 from unity_bridge.core.bridge import CommandResult, DirectBridge
 from unity_bridge.core.command_queue import CommandQueue, _result_status
-from unity_bridge.core.operation import STATE_ABANDONED, STATE_QUEUED, OperationStore
+from unity_bridge.core.operation import STATE_ACCEPTED, STATE_QUEUED, OperationStore
 
 
 def test_submit_persists_queued_operation_without_command_file(fake_project: Path) -> None:
@@ -36,7 +38,7 @@ def test_submit_persists_queued_operation_without_command_file(fake_project: Pat
 
 async def test_dispatch_uses_queued_command_id(fake_project: Path) -> None:
     bridge = DirectBridge(fake_project)
-    bridge.send_prepared_command = AsyncMock(  # type: ignore[attr-defined]
+    bridge.dispatch_prepared_command = AsyncMock(  # type: ignore[attr-defined]
         return_value=CommandResult(success=True, command_id="placeholder")
     )
     queue = CommandQueue(fake_project, bridge=bridge, auto_start=False)
@@ -45,19 +47,20 @@ async def test_dispatch_uses_queued_command_id(fake_project: Path) -> None:
     dispatch_result = await queue.dispatch(result.command_id)
 
     assert dispatch_result.success is True
-    bridge.send_prepared_command.assert_awaited_once_with(
+    bridge.dispatch_prepared_command.assert_awaited_once_with(
         command_id=result.command_id,
         command_type="query-hierarchy",
         parameters={"maxDepth": 1},
         timeout=5.0,
         check_health=True,
         create_operation=False,
+        readiness_timeout=None,
     )
 
 
-async def test_dispatch_readiness_timeout_abandons_queued_operation(fake_project: Path) -> None:
+async def test_dispatch_readiness_timeout_keeps_operation_queued(fake_project: Path) -> None:
     bridge = DirectBridge(fake_project)
-    bridge.send_prepared_command = AsyncMock(  # type: ignore[attr-defined]
+    bridge.dispatch_prepared_command = AsyncMock(  # type: ignore[attr-defined]
         return_value=CommandResult(
             success=False,
             error="Unity Editor is busy compiling; command was not sent",
@@ -69,13 +72,55 @@ async def test_dispatch_readiness_timeout_abandons_queued_operation(fake_project
     queue = CommandQueue(fake_project, bridge=bridge, auto_start=False)
     result = queue.submit("set-component-data", {"field": "value"}, timeout=5.0)
 
-    await queue.dispatch(result.command_id)
+    dispatch_result = await queue.dispatch(result.command_id)
 
     record = OperationStore(fake_project).load(result.command_id)
+    queued = queue._load_queue_file(result.command_id)
+    assert dispatch_result.success is True
+    assert dispatch_result.exit_code == 0
+    assert dispatch_result.data["status"] == STATE_QUEUED
+    assert dispatch_result.data["retryable"] is True
     assert record is not None
-    assert record.state == STATE_ABANDONED
+    assert record.state == STATE_QUEUED
     assert "busy compiling" in record.last_error
-    assert not queue._queue_file(result.command_id).exists()
+    assert queued is not None
+    assert queued.last_deferred_reason == "Unity Editor is busy compiling; command was not sent"
+
+
+async def test_dispatch_does_not_duplicate_when_operation_already_accepted(
+    fake_project: Path,
+) -> None:
+    bridge = DirectBridge(fake_project)
+    bridge.dispatch_prepared_command = AsyncMock(  # type: ignore[attr-defined]
+        return_value=CommandResult(success=True)
+    )
+    queue = CommandQueue(fake_project, bridge=bridge, auto_start=False)
+    result = queue.submit("query-hierarchy", {"maxDepth": 1}, timeout=5.0)
+    OperationStore(fake_project).transition(result.command_id, STATE_ACCEPTED, reason="accepted")
+
+    dispatch_result = await queue.dispatch(result.command_id)
+
+    assert dispatch_result.success is True
+    assert dispatch_result.data["status"] == STATE_ACCEPTED
+    bridge.dispatch_prepared_command.assert_not_awaited()
+
+
+async def test_dispatch_removes_stale_lock_and_retries(fake_project: Path) -> None:
+    bridge = DirectBridge(fake_project)
+    bridge.dispatch_prepared_command = AsyncMock(  # type: ignore[attr-defined]
+        return_value=CommandResult(success=True, command_id="placeholder")
+    )
+    queue = CommandQueue(fake_project, bridge=bridge, auto_start=False)
+    result = queue.submit("query-hierarchy", {"maxDepth": 1}, timeout=5.0)
+    lock = queue._lock_file(result.command_id)
+    lock.write_text("stale", encoding="utf-8")
+    old_time = time.time() - 120
+    os.utime(lock, (old_time, old_time))
+
+    dispatch_result = await queue.dispatch(result.command_id)
+
+    assert dispatch_result.success is True
+    bridge.dispatch_prepared_command.assert_awaited_once()
 
 
 async def test_dispatch_requires_command_id(fake_project: Path) -> None:

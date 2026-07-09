@@ -56,6 +56,9 @@ def test_skill_mentions_cli_only_interface_and_operation_polling() -> None:
     assert "internal MCP interface (a `mcp/` package + `serve` command) has been fully retired" in skill
     assert "unity-bridge vs. unity-mcp" in skill
     assert "unity-bridge operation status COMMAND_ID" in skill
+    assert "unity-bridge operation wait COMMAND_ID" in skill
+    assert "test run --detach" in skill
+    assert "test compile --detach" in skill
     assert ".claude/unity/" in skill
     assert "UNITY_BRIDGE_EDITOR_READY_TIMEOUT" in skill
     assert "UNITY_BRIDGE_IN_FLIGHT_BUSY_GRACE" in skill
