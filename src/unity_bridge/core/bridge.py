@@ -176,16 +176,46 @@ class DirectBridge:
         create_operation: bool = True,
     ) -> CommandResult:
         """Send an already identified command, optionally reusing an operation record."""
+        dispatch = await self.dispatch_prepared_command(
+            command_id=command_id,
+            command_type=command_type,
+            parameters=parameters,
+            timeout=timeout,
+            check_health=check_health,
+            create_operation=create_operation,
+        )
+        if not dispatch.success:
+            return dispatch
+        data = dispatch.data if isinstance(dispatch.data, dict) else {}
+        return await self._wait_for_response(
+            Path(data["responseFile"]),
+            Path(data["commandFile"]),
+            command_id,
+            self._effective_timeout(command_type, timeout),
+        )
+
+    async def dispatch_prepared_command(
+        self,
+        *,
+        command_id: str,
+        command_type: str,
+        parameters: dict[str, Any] | None = None,
+        timeout: float = 30.0,
+        check_health: bool = True,
+        create_operation: bool = True,
+        readiness_timeout: float | None = None,
+    ) -> CommandResult:
+        """Write an identified command file without waiting for a terminal response."""
         timeout = self._effective_timeout(command_type, timeout)
         health = None
         if check_health and self._health_monitor:
-            health = await self._wait_for_editor_ready()
+            health = await self._wait_for_editor_ready(readiness_timeout)
             if not health.ready:
                 result = self._readiness_failure(health)
                 result.command_id = command_id
                 return result
 
-        return await self._send_command_now(
+        return await self._write_prepared_command(
             command_id=command_id,
             command_type=command_type,
             parameters=parameters,
@@ -205,6 +235,35 @@ class DirectBridge:
         create_operation: bool,
     ) -> CommandResult:
         """Write a command file and wait for Unity, assuming readiness is resolved."""
+        dispatch = await self._write_prepared_command(
+            command_id=command_id,
+            command_type=command_type,
+            parameters=parameters,
+            timeout=timeout,
+            health=health,
+            create_operation=create_operation,
+        )
+        if not dispatch.success:
+            return dispatch
+        data = dispatch.data if isinstance(dispatch.data, dict) else {}
+        return await self._wait_for_response(
+            Path(data["responseFile"]),
+            Path(data["commandFile"]),
+            command_id,
+            timeout,
+        )
+
+    async def _write_prepared_command(
+        self,
+        *,
+        command_id: str,
+        command_type: str,
+        parameters: dict[str, Any] | None,
+        timeout: float,
+        health: Any | None,
+        create_operation: bool,
+    ) -> CommandResult:
+        """Write a command file after readiness has been resolved."""
         timestamp = datetime.now(timezone.utc).isoformat()
 
         command = {
@@ -231,7 +290,16 @@ class DirectBridge:
         try:
             await self._write_command_file(command, command_file)
             logger.debug("Sent command: %s (ID: %s)", command_type, command_id)
-            return await self._wait_for_response(response_file, command_file, command_id, timeout)
+            return CommandResult(
+                success=True,
+                data={
+                    "status": "dispatched",
+                    "commandFile": str(command_file),
+                    "responseFile": str(response_file),
+                    "timeout": timeout,
+                },
+                command_id=command_id,
+            )
         except Exception as exc:
             logger.error("Error sending command: %s", exc)
             command_file.unlink(missing_ok=True)
@@ -437,6 +505,15 @@ class DirectBridge:
             exit_code=1,
         )
 
+    async def read_terminal_response(
+        self,
+        response_file: Path,
+        command_id: str,
+        elapsed: float = 0.0,
+    ) -> CommandResult | None:
+        """Read a terminal response file using the normal bridge parser."""
+        return await self._try_read_response(response_file, command_id, elapsed)
+
     def _current_in_flight_health(self) -> Any | None:
         """Read heartbeat during a response wait, if health is available."""
         if not self._health_monitor:
@@ -579,9 +656,9 @@ class DirectBridge:
         except json.JSONDecodeError:
             return raw
 
-    async def _wait_for_editor_ready(self) -> Any:
+    async def _wait_for_editor_ready(self, timeout: float | None = None) -> Any:
         """Wait for editor readiness using the configured readiness timeout."""
-        timeout = _editor_ready_timeout()
+        timeout = _editor_ready_timeout() if timeout is None else timeout
         return await asyncio.to_thread(
             self._health_monitor.wait_for_ready,
             timeout_seconds=timeout,

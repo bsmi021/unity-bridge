@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `unity-bridge operation submit` and `operation wait` provide a CLI-first detached control plane: callers can persist a command, receive a durable `command_id` with exit code `0`, and later dispatch/poll it without failing just because Unity is compiling, reloading, or otherwise busy.
+- `unity-bridge test run --detach` and `unity-bridge test compile --detach` queue the existing `run-tests` and `compile` bridge payloads while preserving synchronous behavior when `--detach` is omitted.
+
 ### Removed
 - **The MCP server interface has been fully retired.** Deleted `src/unity_bridge/mcp/` (server, tool definitions, all schema modules), `src/unity_bridge/commands/serve.py`, the `serve` CLI command, the `mcp` optional-dependency extra, and all MCP-only tests. The `unity-bridge` CLI is now the sole interface — there is no MCP compatibility layer, deprecated or otherwise.
 
@@ -24,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **This repo's own `.claude/skills/unity-bridge-cli` is now a symlink to `.agents/skills/unity-bridge-cli`** instead of a second, independently-maintained copy, eliminating a drift bug where the two had silently diverged (the `.claude` copy was missing dozens of newer command groups). `core.symlinks` defaults to `false` on Git for Windows and is a **per-clone setting, not something a commit can carry** -- on a fresh Windows clone without it, git materializes the symlink as a plain text file (no `SKILL.md`), silently dropping the skill for Claude Code. Every Windows contributor must run `git config core.symlinks true` *before* cloning/checking out this repo, and have Developer Mode (or admin) enabled for the symlink to actually resolve on disk.
 
 ### Fixed
+- Queued commands are no longer abandoned just because Unity is busy before dispatch. The Python queue now retains retry metadata and lets `operation wait` defer safely until the editor is ready.
 - Heartbeat atomic-write retries now log transient `heartbeat.json` replacement locks at debug level instead of warning level, so recovered Windows file locks no longer spam the Unity Console.
 - `graphics-state` now aliases `GraphicsStateCollection` through the Unity 6.5+ stable namespace while preserving the older experimental namespace for pre-6.5 editors, fixing installed bridge compiles in Unity 6.5 projects.
 - Added a `BridgeEditorSceneCleanup` compatibility wrapper so Unity projects with existing bridge cleanup tests compile against the modal-recovery implementation.

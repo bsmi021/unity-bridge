@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from unity_bridge.core.command_queue import CommandQueue
 from unity_bridge.core.operation import STATE_COMPLETED, STATE_RUNNING, OperationStore
 
 
@@ -217,6 +218,51 @@ class TestClean:
         assert response_file.exists()
         assert str(command_file) not in result.data["files"]
         assert str(response_file) not in result.data["files"]
+
+    async def test_keeps_active_queue_metadata_when_cleaning_all(
+        self,
+        fake_project: Path,
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        queue = CommandQueue(fake_project, auto_start=False)
+        submitted = queue.submit("query-hierarchy", {"maxDepth": 1}, timeout=5.0)
+        queue_file = queue._queue_file(submitted.command_id)
+        lock_file = queue.queue_path / f"{submitted.command_id}.lock"
+        lock_file.write_text("locked", encoding="utf-8")
+        old_time = time.time() - 600
+        os.utime(queue_file, (old_time, old_time))
+        os.utime(lock_file, (old_time, old_time))
+
+        result = await lifecycle.clean(fake_project, all_files=True)
+
+        assert result.success is True
+        assert queue_file.exists()
+        assert lock_file.exists()
+        assert str(queue_file) not in result.data["files"]
+        assert str(lock_file) not in result.data["files"]
+
+    async def test_removes_terminal_queue_metadata_when_cleaning_all(
+        self,
+        fake_project: Path,
+    ) -> None:
+        lifecycle = _import_lifecycle()
+        queue = CommandQueue(fake_project, auto_start=False)
+        submitted = queue.submit("query-hierarchy", {"maxDepth": 1}, timeout=5.0)
+        OperationStore(fake_project).transition(submitted.command_id, STATE_COMPLETED, reason="done")
+        queue_file = queue._queue_file(submitted.command_id)
+        lock_file = queue.queue_path / f"{submitted.command_id}.lock"
+        lock_file.write_text("locked", encoding="utf-8")
+        old_time = time.time() - 600
+        os.utime(queue_file, (old_time, old_time))
+        os.utime(lock_file, (old_time, old_time))
+
+        result = await lifecycle.clean(fake_project, all_files=True)
+
+        assert result.success is True
+        assert not queue_file.exists()
+        assert not lock_file.exists()
+        assert str(queue_file) in result.data["files"]
+        assert str(lock_file) in result.data["files"]
 
     async def test_keeps_active_files_when_operation_paths_use_windows_separators(
         self,

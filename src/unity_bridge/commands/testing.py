@@ -1,8 +1,4 @@
-"""Testing commands: test run, compile, test listing.
-
-Async core functions are shared between CLI and MCP entry points.
-Typer wrappers provide the CLI surface with ``asyncio.run()``.
-"""
+"""Testing commands: test run, compile, and test listing."""
 
 from __future__ import annotations
 
@@ -21,6 +17,7 @@ from unity_bridge.commands.test_artifacts import (
     read_test_result_artifact,
 )
 from unity_bridge.core.bridge import CommandResult, DirectBridge
+from unity_bridge.core.operation_control import submit_operation
 
 # ---------------------------------------------------------------------------
 # Valid list modes
@@ -29,7 +26,7 @@ from unity_bridge.core.bridge import CommandResult, DirectBridge
 VALID_LIST_MODES = frozenset({"tests", "categories", "assemblies"})
 
 # ---------------------------------------------------------------------------
-# Core async functions (CLI + MCP)
+# Core async functions
 # ---------------------------------------------------------------------------
 
 
@@ -60,20 +57,50 @@ async def run_tests(
     Returns:
         CommandResult with test outcome data.
     """
-    params: dict[str, object] = {"testPlatform": platform}
-    if filter_pattern is not None:
-        params["testFilter"] = filter_pattern
-    _add_selector(params, "testNames", test_names)
-    _add_selector(params, "groupNames", group_names)
-    _add_selector(params, "categoryNames", categories)
-    _add_selector(params, "assemblyNames", assemblies)
-
+    params = _run_tests_params(
+        platform=platform,
+        filter_pattern=filter_pattern,
+        test_names=test_names,
+        group_names=group_names,
+        categories=categories,
+        assemblies=assemblies,
+    )
     result = await bridge.send_command_with_retry(
         command_type="run-tests",
         parameters=params,
         timeout=float(timeout),
     )
     return _enforce_min_tests(result, min_tests)
+
+
+async def detach_run_tests(
+    project_root: Path,
+    platform: str = "EditMode",
+    filter_pattern: str | None = None,
+    timeout: int = 300,
+    test_names: list[str] | None = None,
+    group_names: list[str] | None = None,
+    categories: list[str] | None = None,
+    assemblies: list[str] | None = None,
+    min_tests: int = 0,
+) -> CommandResult:
+    """Queue a Unity Test Runner command and return immediately."""
+    params = _run_tests_params(
+        platform=platform,
+        filter_pattern=filter_pattern,
+        test_names=test_names,
+        group_names=group_names,
+        categories=categories,
+        assemblies=assemblies,
+    )
+    policy = {"minTests": min_tests} if min_tests > 0 else None
+    return submit_operation(
+        project_root,
+        "run-tests",
+        params,
+        timeout=float(timeout),
+        client_policy=policy,
+    )
 
 
 async def cancel_tests(
@@ -148,7 +175,21 @@ async def compile_scripts(
     """
     return await bridge.send_command_with_retry(
         command_type="compile",
-        parameters={"waitForCompletion": wait},
+        parameters=_compile_params(wait),
+        timeout=float(timeout),
+    )
+
+
+async def detach_compile_scripts(
+    project_root: Path,
+    wait: bool = True,
+    timeout: int = 120,
+) -> CommandResult:
+    """Queue a compile command and return immediately."""
+    return submit_operation(
+        project_root,
+        "compile",
+        _compile_params(wait),
         timeout=float(timeout),
     )
 
@@ -295,24 +336,43 @@ def test_run_cli(
         int,
         typer.Option("--min-tests", help="Minimum executed test count required for success."),
     ] = 0,
+    detach: Annotated[
+        bool,
+        typer.Option("--detach", help="Queue the test run and return a command id immediately."),
+    ] = False,
 ) -> None:
     """Run tests via the Unity Test Runner."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(
-        run_tests(
-            state.bridge,
-            platform=platform,
-            filter_pattern=filter_pattern,
-            timeout=timeout,
-            test_names=test_names,
-            group_names=group_names,
-            categories=categories,
-            assemblies=assemblies,
-            min_tests=min_tests,
+    if detach:
+        result = asyncio.run(
+            detach_run_tests(
+                state.project_root,
+                platform=platform,
+                filter_pattern=filter_pattern,
+                timeout=timeout,
+                test_names=test_names,
+                group_names=group_names,
+                categories=categories,
+                assemblies=assemblies,
+                min_tests=min_tests,
+            )
         )
-    )
+    else:
+        result = asyncio.run(
+            run_tests(
+                state.bridge,
+                platform=platform,
+                filter_pattern=filter_pattern,
+                timeout=timeout,
+                test_names=test_names,
+                group_names=group_names,
+                categories=categories,
+                assemblies=assemblies,
+                min_tests=min_tests,
+            )
+        )
     print_result(result, state.formatter)
 
 
@@ -452,12 +512,19 @@ def compile_cli(
         int,
         typer.Option("--timeout", help="Timeout in seconds."),
     ] = 120,
+    detach: Annotated[
+        bool,
+        typer.Option("--detach", help="Queue compilation and return a command id immediately."),
+    ] = False,
 ) -> None:
     """Trigger script compilation in Unity."""
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(compile_scripts(state.bridge, wait, timeout))
+    if detach:
+        result = asyncio.run(detach_compile_scripts(state.project_root, wait, timeout))
+    else:
+        result = asyncio.run(compile_scripts(state.bridge, wait, timeout))
     print_result(result, state.formatter)
 
 
@@ -616,6 +683,29 @@ def _add_selector(
     cleaned = [value for value in values if value]
     if cleaned:
         params[key] = cleaned
+
+
+def _run_tests_params(
+    *,
+    platform: str,
+    filter_pattern: str | None,
+    test_names: list[str] | None,
+    group_names: list[str] | None,
+    categories: list[str] | None,
+    assemblies: list[str] | None,
+) -> dict[str, object]:
+    params: dict[str, object] = {"testPlatform": platform}
+    if filter_pattern is not None:
+        params["testFilter"] = filter_pattern
+    _add_selector(params, "testNames", test_names)
+    _add_selector(params, "groupNames", group_names)
+    _add_selector(params, "categoryNames", categories)
+    _add_selector(params, "assemblyNames", assemblies)
+    return params
+
+
+def _compile_params(wait: bool) -> dict[str, object]:
+    return {"waitForCompletion": wait}
 
 
 def _enforce_min_tests(result: CommandResult, min_tests: int) -> CommandResult:

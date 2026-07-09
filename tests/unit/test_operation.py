@@ -7,7 +7,17 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from typer.testing import CliRunner
 
+from unity_bridge.commands.operation import (
+    operation_app,
+    operation_list,
+    operation_status,
+    operation_submit,
+    operation_wait,
+)
+from unity_bridge.core.bridge import CommandResult
+from unity_bridge.core.command_queue import CommandQueue
 from unity_bridge.core.operation import (
     RETRY_NON_IDEMPOTENT,
     RETRY_READ_ONLY,
@@ -23,7 +33,7 @@ from unity_bridge.core.operation import (
     retry_policy_for_command,
     terminal_state_for_response_status,
 )
-from unity_bridge.commands.operation import operation_list, operation_status
+from unity_bridge.core.output import OutputFormatter
 
 
 def _record(command_id: str = "rec", state: str = "queued") -> OperationRecord:
@@ -360,3 +370,202 @@ async def test_operation_list_command_hides_terminal_by_default(fake_project: Pa
     assert active_only.data["count"] == 1
     assert active_only.data["operations"][0]["commandId"] == "active"
     assert include_all.data["count"] == 2
+
+
+async def test_operation_submit_accepts_command_without_contacting_unity(
+    fake_project: Path,
+) -> None:
+    result = await operation_submit(
+        fake_project,
+        "query-hierarchy",
+        {"maxDepth": 1},
+        timeout=12.0,
+    )
+
+    assert result.success is True
+    assert result.exit_code == 0
+    assert result.command_id is not None
+    assert result.data["status"] == STATE_QUEUED
+    assert result.data["commandId"] == result.command_id
+    assert result.data["waitCommand"].endswith(f"operation wait {result.command_id}")
+    record = OperationStore(fake_project).load(result.command_id)
+    assert record is not None
+    assert record.state == STATE_QUEUED
+
+
+async def test_operation_wait_dispatches_and_returns_busy_timeout_as_queued(
+    fake_project: Path,
+) -> None:
+    queue = CommandQueue(fake_project, auto_start=False)
+    queued = queue.submit("query-hierarchy", {"maxDepth": 1}, timeout=5.0)
+
+    with patch.object(
+        CommandQueue,
+        "dispatch",
+        return_value=CommandResult(
+            success=True,
+            command_id=queued.command_id,
+            data={"status": "queued", "retryable": True},
+        ),
+    ) as dispatch:
+        result = await operation_wait(
+            fake_project,
+            queued.command_id,
+            timeout=0.01,
+            poll_interval=0.001,
+        )
+
+    assert result.success is True
+    assert result.exit_code == 0
+    assert result.data["status"] == STATE_QUEUED
+    assert result.data["retryable"] is True
+    assert result.data["waitTimedOut"] is True
+    dispatch.assert_called()
+    assert dispatch.call_args.kwargs["readiness_timeout"] <= 0.001
+
+
+async def test_operation_wait_returns_terminal_response_and_cleans_queue(
+    fake_project: Path,
+) -> None:
+    queue = CommandQueue(fake_project, auto_start=False)
+    queued = queue.submit(
+        "run-tests",
+        {"testPlatform": "EditMode"},
+        timeout=5.0,
+        client_policy={"minTests": 1},
+    )
+    queue._queue_file(queued.command_id).write_text(
+        json.dumps(
+            {
+                **queue._load_queue_file(queued.command_id).to_dict(),
+                "dispatchState": "dispatched",
+            }
+        ),
+        encoding="utf-8",
+    )
+    OperationStore(fake_project).transition(queued.command_id, STATE_ACCEPTED, reason="accepted")
+    response = fake_project / ".claude" / "unity" / "responses" / f"{queued.command_id}-run-tests.json"
+    response.write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "dataJson": json.dumps({"total": 1, "passed": 1, "failed": 0}),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = await operation_wait(fake_project, queued.command_id, timeout=1.0, poll_interval=0.001)
+
+    assert result.success is True
+    assert result.data["total"] == 1
+    assert not response.exists()
+    assert not queue._queue_file(queued.command_id).exists()
+
+
+async def test_operation_wait_enforces_detached_min_tests_policy(fake_project: Path) -> None:
+    queue = CommandQueue(fake_project, auto_start=False)
+    queued = queue.submit(
+        "run-tests",
+        {"testPlatform": "EditMode"},
+        timeout=5.0,
+        client_policy={"minTests": 2},
+    )
+    OperationStore(fake_project).transition(queued.command_id, STATE_ACCEPTED, reason="accepted")
+    response = fake_project / ".claude" / "unity" / "responses" / f"{queued.command_id}-run-tests.json"
+    response.write_text(
+        json.dumps({"status": "success", "dataJson": json.dumps({"total": 1})}),
+        encoding="utf-8",
+    )
+
+    result = await operation_wait(fake_project, queued.command_id, timeout=1.0, poll_interval=0.001)
+
+    assert result.success is False
+    assert result.exit_code == 1
+    assert "Expected at least 2 test(s)" in result.error
+
+
+async def test_operation_wait_reports_stale_queued_operation(fake_project: Path) -> None:
+    store = OperationStore(fake_project)
+    store.create_queued(
+        command_id="stale",
+        command_type="query-hierarchy",
+        parameters={},
+        command_path=fake_project / ".claude" / "unity" / "commands" / "stale-query.json",
+        response_path=fake_project / ".claude" / "unity" / "responses" / "stale-query.json",
+        domain_generation=None,
+        retry_policy=RETRY_READ_ONLY,
+    )
+
+    result = await operation_wait(fake_project, "stale", timeout=0.01, poll_interval=0.001)
+
+    assert result.success is False
+    assert result.exit_code == 2
+    assert result.data["status"] == "stale_queue"
+
+
+async def test_operation_wait_parses_response_when_ledger_is_missing(fake_project: Path) -> None:
+    response_dir = fake_project / ".claude" / "unity" / "responses"
+    response_dir.mkdir(parents=True, exist_ok=True)
+    response = response_dir / "orphan-run-tests.json"
+    response.write_text(
+        json.dumps({"status": "success", "dataJson": json.dumps({"total": 3})}),
+        encoding="utf-8",
+    )
+
+    result = await operation_wait(fake_project, "orphan", timeout=1.0, poll_interval=0.001)
+
+    assert result.success is True
+    assert result.data["total"] == 3
+    assert not response.exists()
+
+
+async def test_operation_wait_treats_orphan_command_file_as_in_flight(
+    fake_project: Path,
+) -> None:
+    command_dir = fake_project / ".claude" / "unity" / "commands"
+    command_dir.mkdir(parents=True, exist_ok=True)
+    (command_dir / "orphan-query-hierarchy.json").write_text("{}", encoding="utf-8")
+
+    result = await operation_wait(fake_project, "orphan", timeout=0.01, poll_interval=0.001)
+
+    assert result.success is True
+    assert result.exit_code == 0
+    assert result.data["status"] == "in_flight"
+    assert result.data["retryable"] is True
+    assert result.data["waitTimedOut"] is True
+
+
+def test_operation_submit_cli_accepts_inline_json(fake_project: Path) -> None:
+    result = CliRunner().invoke(
+        operation_app,
+        ["submit", "query-hierarchy", "--params-json", '{"maxDepth":1}', "--timeout", "9"],
+        obj=_state(fake_project),
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["success"] is True
+    assert payload["data"]["command_type"] == "query-hierarchy"
+    assert payload["command_id"]
+
+
+def test_operation_submit_cli_rejects_non_object_json(fake_project: Path) -> None:
+    result = CliRunner().invoke(
+        operation_app,
+        ["submit", "query-hierarchy", "--params-json", "[]"],
+        obj=_state(fake_project),
+    )
+
+    assert result.exit_code == 3
+    payload = json.loads(result.stdout)
+    assert payload["success"] is False
+    assert "JSON object" in payload["error"]
+
+
+def _state(project_root: Path):
+    return type(
+        "State",
+        (),
+        {"project_root": project_root, "formatter": OutputFormatter()},
+    )()
