@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEditor.Profiling;
 using UnityEditorInternal;
 using UnityEngine;
@@ -9,6 +10,13 @@ namespace BWS.Editor.ClaudeCodeBridge
 {
     public class ProfilerFrameCommandHandler : ICommandHandler
     {
+        private static int _captureStopFrameIndex = -1;
+        private static int _captureRequestedFrameCount;
+        private static int _captureStartFrameIndex = -1;
+        private static int _captureStopObservedFrameIndex = -1;
+        private static string _captureOwner = "";
+        private static bool _captureStopRegistered;
+
         public string CommandType => "profiler-frame";
 
         public BridgeResponse Execute(BridgeCommand command)
@@ -53,20 +61,87 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private ProfilerFrameResult CaptureStart(ProfilerFrameParams p)
         {
+            ClearFrameBudget();
+            ResetCaptureState(p.frameCount, "profiler-frame");
             if (!string.IsNullOrEmpty(p.logFile))
             {
                 Profiler.logFile = p.logFile;
                 Profiler.enableBinaryLog = true;
             }
+            ProfilerDriver.profileEditor = true;
+            ProfilerDriver.enabled = true;
             Profiler.enabled = true;
-            return FrameRange("capture-start", "Profiler capture started");
+            ConfigureFrameBudget(p.frameCount);
+            string message = p.frameCount > 0
+                ? $"Profiler capture started with a {p.frameCount}-frame budget"
+                : "Profiler capture started";
+            return FrameRange("capture-start", message);
         }
 
         private ProfilerFrameResult CaptureStop()
         {
             Profiler.enabled = false;
+            ProfilerDriver.enabled = false;
             Profiler.enableBinaryLog = false;
+            RecordCaptureStop();
+            ClearFrameBudget();
             return FrameRange("capture-stop", "Profiler capture stopped");
+        }
+
+        private static void ConfigureFrameBudget(int frameCount)
+        {
+            if (frameCount <= 0)
+                return;
+            EditorApplication.update += StopCaptureAtFrameBudget;
+            _captureStopRegistered = true;
+        }
+
+        private static void StopCaptureAtFrameBudget()
+        {
+            if (ProfilerDriver.lastFrameIndex < _captureStopFrameIndex)
+                return;
+            Profiler.enabled = false;
+            ProfilerDriver.enabled = false;
+            Profiler.enableBinaryLog = false;
+            RecordCaptureStop();
+            ClearFrameBudget();
+        }
+
+        private static void ClearFrameBudget()
+        {
+            if (_captureStopRegistered)
+                EditorApplication.update -= StopCaptureAtFrameBudget;
+            _captureStopRegistered = false;
+        }
+
+        private static void ResetCaptureState(int frameCount, string owner)
+        {
+            _captureRequestedFrameCount = Math.Max(frameCount, 0);
+            _captureStartFrameIndex = ProfilerDriver.lastFrameIndex;
+            _captureStopObservedFrameIndex = -1;
+            long target = (long)_captureStartFrameIndex + _captureRequestedFrameCount;
+            _captureStopFrameIndex = _captureRequestedFrameCount > 0
+                ? (int)Math.Min(target, int.MaxValue)
+                : -1;
+            _captureOwner = owner;
+        }
+
+        private static void RecordCaptureStop()
+        {
+            _captureStopObservedFrameIndex = ProfilerDriver.lastFrameIndex;
+        }
+
+        internal static void StartExternalCapture()
+        {
+            ClearFrameBudget();
+            ResetCaptureState(0, "profiler-control");
+        }
+
+        internal static void StopExternalCapture()
+        {
+            if (!string.IsNullOrEmpty(_captureOwner))
+                RecordCaptureStop();
+            ClearFrameBudget();
         }
 
         private ProfilerFrameResult FrameRange(string operation, string message = "Profiler frame range")
@@ -77,8 +152,33 @@ namespace BWS.Editor.ClaudeCodeBridge
                 success = true,
                 message = message,
                 firstFrameIndex = ProfilerDriver.firstFrameIndex,
-                lastFrameIndex = ProfilerDriver.lastFrameIndex
+                lastFrameIndex = ProfilerDriver.lastFrameIndex,
+                requestedFrameCount = _captureRequestedFrameCount,
+                startFrameIndex = _captureStartFrameIndex,
+                targetFrameIndex = _captureStopFrameIndex,
+                stopObservedFrameIndex = _captureStopObservedFrameIndex,
+                actualFrameCount = ActualFrameCount(),
+                overshootFrames = OvershootFrames(),
+                runtimeProfilerEnabled = Profiler.enabled,
+                editorDriverEnabled = ProfilerDriver.enabled,
+                profileEditor = ProfilerDriver.profileEditor,
+                captureOwner = _captureOwner,
+                frameBudgetArmed = _captureStopRegistered
             };
+        }
+
+        private static int ActualFrameCount()
+        {
+            if (string.IsNullOrEmpty(_captureOwner))
+                return 0;
+            return Math.Max(0, ProfilerDriver.lastFrameIndex - _captureStartFrameIndex);
+        }
+
+        private static int OvershootFrames()
+        {
+            return _captureRequestedFrameCount > 0
+                ? Math.Max(0, ActualFrameCount() - _captureRequestedFrameCount)
+                : 0;
         }
 
         private ProfilerFrameResult TopTimeSamples(ProfilerFrameParams p)
@@ -175,7 +275,9 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private ProfilerFrameResult ClearFrames()
         {
+            ClearFrameBudget();
             ProfilerDriver.ClearAllFrames();
+            ResetCaptureState(0, "");
             return FrameRange("clear", "Profiler frames cleared");
         }
 

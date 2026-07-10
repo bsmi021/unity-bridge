@@ -35,6 +35,8 @@ namespace BWS.Editor.ClaudeCodeBridge
             registerHandler(new CompileCommandHandler());
             registerHandler(new ExecuteMenuItemCommandHandler());
             registerHandler(new ExecuteScriptCommandHandler());
+            registerHandler(new ExecuteScriptJobCommandHandler());
+            registerHandler(new CancelExecuteScriptJobCommandHandler());
             registerHandler(new ScriptEditCommandHandler());
 
             // Phase 2: Developer Workflow APIs

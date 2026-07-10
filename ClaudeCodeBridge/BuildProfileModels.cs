@@ -33,8 +33,10 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string operation;
         public List<BuildProfileInfo> profiles = new List<BuildProfileInfo>();
+        public List<BuildProfilePlatformInfo> platforms = new List<BuildProfilePlatformInfo>();
         public BuildProfileInfo profile; // Single profile result
         public string profilePath;
+        public string completionSource;
         public string outputPath;
         public List<BuildProfileSceneInfo> scenes = new List<BuildProfileSceneInfo>();
         public List<string> scriptingDefines = new List<string>();
@@ -73,6 +75,13 @@ namespace BWS.Editor.ClaudeCodeBridge
     {
         public string path;
         public bool enabled;
+    }
+
+    [Serializable]
+    public class BuildProfilePlatformInfo
+    {
+        public string displayName;
+        public string platformId;
     }
 
     #endregion

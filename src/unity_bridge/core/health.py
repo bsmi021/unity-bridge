@@ -122,6 +122,8 @@ class HealthMonitor:
 
     MAX_HEARTBEAT_AGE_SECONDS: float = 15.0
     BUSY_STALE_GRACE_SECONDS: float = 120.0
+    TRANSIENT_READ_ATTEMPTS: int = 10
+    TRANSIENT_READ_DELAY_SECONDS: float = 0.01
 
     def __init__(self, project_root: Path) -> None:
         self.project_root = project_root
@@ -138,21 +140,27 @@ class HealthMonitor:
         Returns:
             HealthStatus with current bridge health information.
         """
-        if not self.heartbeat_path.exists():
-            return HealthStatus(
-                healthy=False,
-                reason="No heartbeat file found. Unity Bridge may not be running.",
-            )
-
-        try:
-            with open(self.heartbeat_path, "r", encoding="utf-8") as f:
-                heartbeat = json.load(f)
-        except json.JSONDecodeError as exc:
-            return HealthStatus(healthy=False, reason=f"Invalid heartbeat JSON: {exc}")
-        except IOError as exc:
-            return HealthStatus(healthy=False, reason=f"Failed to read heartbeat: {exc}")
-
+        heartbeat, error = self._read_heartbeat()
+        if heartbeat is None:
+            return HealthStatus(healthy=False, reason=error)
         return self._evaluate_heartbeat(heartbeat)
+
+    def _read_heartbeat(self) -> tuple[dict[str, Any] | None, str]:
+        """Retry the short replace window used by Unity's atomic heartbeat write."""
+        last_error = "No heartbeat file found. Unity Bridge may not be running."
+        for attempt in range(self.TRANSIENT_READ_ATTEMPTS):
+            try:
+                with open(self.heartbeat_path, "r", encoding="utf-8") as heartbeat_file:
+                    return json.load(heartbeat_file), ""
+            except FileNotFoundError:
+                last_error = "No heartbeat file found. Unity Bridge may not be running."
+            except json.JSONDecodeError as exc:
+                last_error = f"Invalid heartbeat JSON: {exc}"
+            except IOError as exc:
+                last_error = f"Failed to read heartbeat: {exc}"
+            if attempt + 1 < self.TRANSIENT_READ_ATTEMPTS:
+                time.sleep(self.TRANSIENT_READ_DELAY_SECONDS)
+        return None, last_error
 
     def wait_for_healthy(
         self,

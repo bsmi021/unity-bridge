@@ -56,6 +56,7 @@ async def prefab_instantiate(
             "x": position[0],
             "y": position[1],
             "z": position[2],
+            "isSet": True,
         }
 
     return await bridge.send_command_with_retry(

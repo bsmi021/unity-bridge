@@ -27,6 +27,17 @@ namespace BWS.Editor.ClaudeCodeBridge
         public int firstFrameIndex;
         public int lastFrameIndex;
         public int frameIndex;
+        public int requestedFrameCount;
+        public int startFrameIndex = -1;
+        public int targetFrameIndex = -1;
+        public int stopObservedFrameIndex = -1;
+        public int actualFrameCount;
+        public int overshootFrames;
+        public bool runtimeProfilerEnabled;
+        public bool editorDriverEnabled;
+        public bool profileEditor;
+        public string captureOwner;
+        public bool frameBudgetArmed;
         public long totalGcBytes;
         public List<ProfilerFrameSampleInfo> samples = new List<ProfilerFrameSampleInfo>();
         public List<ProfilerFrameSummaryInfo> summaries = new List<ProfilerFrameSummaryInfo>();

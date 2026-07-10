@@ -42,7 +42,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         public static bool IsTerminalWithResponse(string commandId)
         {
             var record = Load(commandId);
-            return record != null && IsTerminal(record.state) && ResponseExists(record);
+            return record != null && IsTerminal(record.state) && TerminalResponseExists(record);
         }
 
         public static void MarkAccepted(BridgeCommand command, string commandFilePath)
@@ -158,7 +158,7 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private static bool ShouldInterruptAfterReload(OperationRecord record)
         {
-            if (ResponseExists(record)) return false;
+            if (TerminalResponseExists(record)) return false;
             // Commands that intentionally span a domain reload (a PlayMode test
             // run, or a compile that triggered the reload) own their own
             // completion and must not be force-interrupted here, or the caller
@@ -173,12 +173,31 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             if (string.IsNullOrEmpty(commandId)) return false;
             return commandId == SessionState.GetString(BridgeTestRunReporter.CommandIdKey, "")
-                || commandId == SessionState.GetString(CompileCommandHandler.PendingCommandIdKey, "");
+                || commandId == SessionState.GetString(CompileCommandHandler.PendingCommandIdKey, "")
+                || commandId == SessionState.GetString(
+                    PlayModeTransitionStore.PendingCommandIdKey, "");
         }
 
         private static bool ResponseExists(OperationRecord record)
         {
             return !string.IsNullOrEmpty(record.responsePath) && File.Exists(record.responsePath);
+        }
+
+        private static bool TerminalResponseExists(OperationRecord record)
+        {
+            if (!ResponseExists(record))
+                return false;
+            try
+            {
+                var response = JsonUtility.FromJson<BridgeResponse>(
+                    File.ReadAllText(record.responsePath));
+                return response != null
+                    && (response.status == "success" || response.status == "error");
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static OperationRecord Load(string commandId)

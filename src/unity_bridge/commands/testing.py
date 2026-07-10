@@ -175,7 +175,7 @@ async def compile_scripts(
     """
     return await bridge.send_command_with_retry(
         command_type="compile",
-        parameters=_compile_params(wait),
+        parameters=_compile_params(wait, timeout),
         timeout=float(timeout),
     )
 
@@ -189,7 +189,7 @@ async def detach_compile_scripts(
     return submit_operation(
         project_root,
         "compile",
-        _compile_params(wait),
+        _compile_params(wait, timeout),
         timeout=float(timeout),
     )
 
@@ -704,8 +704,8 @@ def _run_tests_params(
     return params
 
 
-def _compile_params(wait: bool) -> dict[str, object]:
-    return {"waitForCompletion": wait}
+def _compile_params(wait: bool, timeout: int) -> dict[str, object]:
+    return {"waitForCompletion": wait, "timeout": timeout}
 
 
 def _enforce_min_tests(result: CommandResult, min_tests: int) -> CommandResult:

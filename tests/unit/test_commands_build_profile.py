@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -108,16 +109,80 @@ class TestCreate:
         assert params["platformId"] == "StandaloneWindows64"
 
     def test_csharp_create_uses_unity_65_guard(self) -> None:
-        from pathlib import Path
-
         root = Path(__file__).resolve().parents[2]
-        source = (
-            root.joinpath("ClaudeCodeBridge", "BuildProfileCommandHandler.cs")
-            .read_text(encoding="utf-8")
+        handler_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+        create_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCreateOperation.cs"
+        ).read_text(encoding="utf-8")
+
+        assert "BuildProfileCreateOperation.Execute" in handler_source
+        assert "UNITY_6000_5_OR_NEWER" in create_source
+        assert "CreateBuildProfile" in create_source
+
+    def test_csharp_create_finishes_only_after_profile_callback(self) -> None:
+        # Arrange
+        root = Path(__file__).resolve().parents[2]
+        handler_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+        create_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCreateOperation.cs"
+        ).read_text(encoding="utf-8")
+        source = handler_source + create_source
+
+        # Act / Assert
+        assert "BridgeResponse.Running(" in source
+        assert "WriteCreateResult" in source
+        assert "ClaudeUnityBridge.WriteResponseStatic(" in source
+        assert "creation requested" not in source
+
+    def test_csharp_create_rejects_invalid_or_empty_platform_guid(self) -> None:
+        # Arrange
+        root = Path(__file__).resolve().parents[2]
+        source = root.joinpath("ClaudeCodeBridge", "BuildProfileCreateOperation.cs").read_text(
+            encoding="utf-8"
         )
 
-        assert "UNITY_6000_5_OR_NEWER" in source
-        assert "CreateBuildProfile" in source
+        # Act / Assert
+        assert "GUID.TryParse(parameters.platformId" in source
+        assert "platformId.Empty()" in source
+        assert "Invalid build profile platform GUID" in source
+
+    def test_csharp_create_uses_unity_object_callback_target(self) -> None:
+        # Arrange
+        root = Path(__file__).resolve().parents[2]
+        create_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCreateOperation.cs"
+        ).read_text(encoding="utf-8")
+        callback_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCreateCallback.cs"
+        ).read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert "CreateInstance<BuildProfileCreateCallback>" in create_source
+        assert "callback.OnProfileReady" in create_source
+        assert "profile =>" not in create_source
+        assert "BuildProfileCreateCallback : ScriptableObject" in callback_source
+        assert "public void OnProfileReady(BuildProfile profile)" in callback_source
+
+    def test_csharp_create_has_bounded_persisted_asset_fallback(self) -> None:
+        # Arrange
+        root = Path(__file__).resolve().parents[2]
+        create_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCreateOperation.cs"
+        ).read_text(encoding="utf-8")
+        callback_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCreateCallback.cs"
+        ).read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert "callback.Begin(profile)" in create_source
+        assert "EditorApplication.update += CheckPersistedFallback" in callback_source
+        assert "AssetDatabase.GetAssetPath(_profile)" in callback_source
+        assert 'ScheduleSuccess(_profile, "persisted-asset-fallback")' in callback_source
+        assert "WriteTerminalFailure" in callback_source
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +202,38 @@ class TestGetInfo:
         params = _extract_parameters(call_args)
         assert params["operation"] == "get-info"
         assert params["profilePath"] == "Assets/Settings/BuildProfiles/Win64.asset"
+
+
+class TestListPlatforms:
+    async def test_builds_read_only_platform_list_parameters(
+        self,
+        mock_bridge: MagicMock,
+    ) -> None:
+        # Arrange
+        bp = _import_build_profile()
+
+        # Act
+        await bp.build_profile_operation(mock_bridge, action="list-platforms")
+
+        # Assert
+        call_args = mock_bridge.send_command_with_retry.call_args
+        assert _extract_parameters(call_args) == {"operation": "list-platforms"}
+
+    def test_csharp_returns_display_names_and_platform_guids(self) -> None:
+        # Arrange
+        root = Path(__file__).resolve().parents[2]
+        handler_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfileCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+        operation_source = root.joinpath(
+            "ClaudeCodeBridge", "BuildProfilePlatformOperation.cs"
+        ).read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert 'case "list-platforms"' in handler_source
+        assert "GetInstalledPlatformModules" in operation_source
+        assert "platform.platformGuid.ToString()" in operation_source
+        assert "platform.displayName" in operation_source
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Asset extended commands: create, delete, copy, move, deps, guid, folders, export/import."""
+"""Extended asset commands for creation, movement, import, and reserialization."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ MUTATING_OPERATIONS = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Core async function (CLI + MCP)
+# Core async function
 # ---------------------------------------------------------------------------
 
 
@@ -67,6 +67,7 @@ async def asset_extended_operation(
     include_dependencies: bool = True,
     interactive: bool = False,
     package_path: str | None = None,
+    overwrite: bool = False,
     reserialize_mode: str | None = None,
     timeout: float = 60.0,
 ) -> CommandResult:
@@ -90,6 +91,7 @@ async def asset_extended_operation(
         include_dependencies: Include dependencies in export.
         interactive: Show import dialog for import-package.
         package_path: Path to .unitypackage for import-package.
+        overwrite: Explicitly replace an existing model destination.
         reserialize_mode: Mode for reserialize (assets, metadata, both).
         timeout: Command timeout in seconds.
 
@@ -131,6 +133,8 @@ async def asset_extended_operation(
         params["interactive"] = True
     if package_path is not None:
         params["packagePath"] = package_path
+    if overwrite:
+        params["overwrite"] = True
     if reserialize_mode is not None:
         params["reserializeMode"] = reserialize_mode
 
@@ -340,6 +344,10 @@ def asset_import_model_cli(
     ctx: typer.Context,
     source: Annotated[str, typer.Argument(help="External model file path.")],
     dest: Annotated[str, typer.Argument(help="Destination Assets/ path.")],
+    overwrite: Annotated[
+        bool,
+        typer.Option("--overwrite", help="Explicitly replace an existing destination."),
+    ] = False,
 ) -> None:
     """Copy an external model file into Assets/ and import it."""
     from unity_bridge.core.output import print_result
@@ -351,6 +359,36 @@ def asset_import_model_cli(
             "import-model",
             source_path=source,
             destination_path=dest,
+            overwrite=overwrite,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@asset_ext_app.command("reserialize")
+def asset_reserialize_cli(
+    ctx: typer.Context,
+    paths: Annotated[
+        list[str] | None,
+        typer.Option("--paths", help="Asset path to reserialize; repeat as needed."),
+    ] = None,
+    mode: Annotated[
+        str | None,
+        typer.Option("--mode", help="Reserialize assets, metadata, or both."),
+    ] = None,
+) -> None:
+    """Force-reserialize selected assets or the entire project."""
+    from unity_bridge.core.output import print_result
+
+    if mode is not None and mode not in {"assets", "metadata", "both"}:
+        raise typer.BadParameter("--mode must be assets, metadata, or both.")
+    state = ctx.obj
+    result = asyncio.run(
+        asset_extended_operation(
+            state.bridge,
+            "reserialize",
+            asset_paths=paths,
+            reserialize_mode=mode,
         )
     )
     print_result(result, state.formatter)

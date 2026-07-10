@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Annotated
 
 import typer
@@ -25,8 +26,31 @@ def _parse_size(value: str) -> tuple[float, float, float]:
         raise typer.BadParameter(f"Non-numeric value in '{value}'")
 
 
+def _parse_heights(raw: str) -> list[list[float]]:
+    """Parse a rectangular, non-empty JSON height array."""
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"Invalid JSON for --heights: {exc}") from exc
+    if not isinstance(parsed, list) or not parsed:
+        raise typer.BadParameter("--heights must be a non-empty JSON 2D array.")
+    width: int | None = None
+    heights: list[list[float]] = []
+    for row in parsed:
+        if not isinstance(row, list) or not row:
+            raise typer.BadParameter("Every --heights row must be a non-empty array.")
+        if width is None:
+            width = len(row)
+        elif len(row) != width:
+            raise typer.BadParameter("--heights rows must have equal lengths.")
+        if not all(type(value) in (int, float) for value in row):
+            raise typer.BadParameter("--heights values must be numeric.")
+        heights.append([float(value) for value in row])
+    return heights
+
+
 # ---------------------------------------------------------------------------
-# Core async functions (CLI + MCP)
+# Core async functions
 # ---------------------------------------------------------------------------
 
 
@@ -232,6 +256,63 @@ def terrain_info_cli(
 
     state = ctx.obj
     result = asyncio.run(terrain_get_info(state.bridge, terrain_name))
+    print_result(result, state.formatter)
+
+
+@terrain_app.command("set-heights")
+def terrain_set_heights_cli(
+    ctx: typer.Context,
+    heights_json: Annotated[
+        str,
+        typer.Option("--heights", help="Rectangular JSON 2D array of heights."),
+    ],
+    x: Annotated[int, typer.Option(help="Start X coordinate.")] = 0,
+    y: Annotated[int, typer.Option(help="Start Y coordinate.")] = 0,
+    terrain_name: Annotated[
+        str | None,
+        typer.Option("--terrain-name", help="Terrain name; defaults to active terrain."),
+    ] = None,
+) -> None:
+    """Set a rectangular heightmap region."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    heights = _parse_heights(heights_json)
+    result = asyncio.run(
+        terrain_set_heights(state.bridge, x, y, heights, terrain_name=terrain_name)
+    )
+    print_result(result, state.formatter)
+
+
+@terrain_app.command("set-settings")
+def terrain_set_settings_cli(
+    ctx: typer.Context,
+    size: Annotated[
+        str | None,
+        typer.Option("--size", "-s", help="Terrain size as X,Y,Z."),
+    ] = None,
+    heightmap_resolution: Annotated[
+        int | None,
+        typer.Option("--heightmap-resolution", help="Heightmap resolution."),
+    ] = None,
+    terrain_name: Annotated[
+        str | None,
+        typer.Option("--terrain-name", help="Terrain name; defaults to active terrain."),
+    ] = None,
+) -> None:
+    """Set terrain size or heightmap resolution."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    parsed_size = _parse_size(size) if size else None
+    result = asyncio.run(
+        terrain_set_settings(
+            state.bridge,
+            size=parsed_size,
+            heightmap_resolution=heightmap_resolution,
+            terrain_name=terrain_name,
+        )
+    )
     print_result(result, state.formatter)
 
 

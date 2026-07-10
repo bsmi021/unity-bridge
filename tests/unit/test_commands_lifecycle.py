@@ -248,7 +248,9 @@ class TestClean:
         lifecycle = _import_lifecycle()
         queue = CommandQueue(fake_project, auto_start=False)
         submitted = queue.submit("query-hierarchy", {"maxDepth": 1}, timeout=5.0)
-        OperationStore(fake_project).transition(submitted.command_id, STATE_COMPLETED, reason="done")
+        OperationStore(fake_project).transition(
+            submitted.command_id, STATE_COMPLETED, reason="done"
+        )
         queue_file = queue._queue_file(submitted.command_id)
         lock_file = queue.queue_path / f"{submitted.command_id}.lock"
         lock_file.write_text("locked", encoding="utf-8")
@@ -547,6 +549,37 @@ class TestInstall:
         assert not (target / "ObsoleteHandler.cs.meta").exists()
         manifest = json.loads((target / "bridge_manifest.json").read_text(encoding="utf-8"))
         assert "ObsoleteHandler.cs" not in manifest["files"]
+
+    async def test_install_ignores_unity_generated_meta_for_current_source_asset(
+        self,
+        fake_project: Path,
+        tmp_path: Path,
+    ) -> None:
+        # Arrange
+        lifecycle = _import_lifecycle()
+        source = _create_fake_bridge_source(
+            tmp_path,
+            extra_files={"AGENTS.md": "# Managed agent instructions"},
+        )
+        skill_source = _create_fake_skill_source(tmp_path / "skill")
+
+        with (
+            patch.object(lifecycle, "_get_bridge_source_dir", return_value=source),
+            patch.object(lifecycle, "_get_skill_source_dir", return_value=skill_source),
+        ):
+            await lifecycle.install(fake_project)
+            target = fake_project / "Assets" / "Scripts" / "Editor" / "ClaudeCodeBridge"
+            generated_meta = target / "AGENTS.md.meta"
+            generated_meta.write_text("unity-generated", encoding="utf-8")
+
+            # Act
+            check_result = await lifecycle.install(fake_project, check=True)
+            install_result = await lifecycle.install(fake_project)
+
+        # Assert
+        assert check_result.data["status"] == "up_to_date"
+        assert install_result.data["action"] == "up_to_date"
+        assert generated_meta.read_text(encoding="utf-8") == "unity-generated"
 
     async def test_install_updates_skill_when_bridge_is_up_to_date(
         self, fake_project: Path, tmp_path: Path

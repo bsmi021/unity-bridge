@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Annotated
 
 import typer
@@ -10,7 +11,7 @@ import typer
 from unity_bridge.core.bridge import CommandResult, DirectBridge
 
 # ---------------------------------------------------------------------------
-# Core async functions (CLI + MCP)
+# Core async functions
 # ---------------------------------------------------------------------------
 
 
@@ -181,6 +182,26 @@ async def animation_set_properties(
     )
 
 
+def _parse_keyframes(raw: str) -> list[dict[str, float]]:
+    """Parse and validate an inline JSON animation keyframe array."""
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"Invalid JSON for --keyframes: {exc}") from exc
+    if not isinstance(parsed, list) or not parsed:
+        raise typer.BadParameter("--keyframes must be a non-empty JSON array.")
+    keyframes: list[dict[str, float]] = []
+    for item in parsed:
+        if not isinstance(item, dict) or set(item) != {"time", "value"}:
+            raise typer.BadParameter(
+                "Each keyframe must contain exactly numeric 'time' and 'value' fields."
+            )
+        if not all(type(item[key]) in (int, float) for key in ("time", "value")):
+            raise typer.BadParameter("Keyframe 'time' and 'value' fields must be numeric.")
+        keyframes.append({"time": float(item["time"]), "value": float(item["value"])})
+    return keyframes
+
+
 # ---------------------------------------------------------------------------
 # Typer CLI wrappers
 # ---------------------------------------------------------------------------
@@ -228,4 +249,116 @@ def animation_curves_cli(
 
     state = ctx.obj
     result = asyncio.run(animation_get_curves(state.bridge, clip_path))
+    print_result(result, state.formatter)
+
+
+@animation_app.command("set-curve")
+def animation_set_curve_cli(
+    ctx: typer.Context,
+    clip_path: Annotated[str, typer.Argument(help="Asset path to the AnimationClip.")],
+    property_name: Annotated[str, typer.Argument(help="Serialized property to animate.")],
+    keyframes_json: Annotated[
+        str,
+        typer.Option(
+            "--keyframes",
+            help='JSON array of keyframes, e.g. [{"time":0,"value":0}].',
+        ),
+    ],
+    relative_path: Annotated[
+        str,
+        typer.Option("--relative-path", help="Path relative to the animated root."),
+    ] = "",
+    component_type: Annotated[
+        str,
+        typer.Option("--component-type", help="Animated component type."),
+    ] = "Transform",
+) -> None:
+    """Set a serialized property curve on an AnimationClip."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    keyframes = _parse_keyframes(keyframes_json)
+    result = asyncio.run(
+        animation_set_curve(
+            state.bridge,
+            clip_path,
+            property_name,
+            keyframes,
+            relative_path,
+            component_type,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@animation_app.command("add-event")
+def animation_add_event_cli(
+    ctx: typer.Context,
+    clip_path: Annotated[str, typer.Argument(help="Asset path to the AnimationClip.")],
+    time: Annotated[float, typer.Option("--time", help="Event time in seconds.")],
+    function_name: Annotated[
+        str,
+        typer.Option("--function", help="Function invoked by the event."),
+    ] = "OnAnimationEvent",
+    string_param: Annotated[
+        str,
+        typer.Option("--string-param", help="String event parameter."),
+    ] = "",
+    int_param: Annotated[
+        int,
+        typer.Option("--int-param", help="Integer event parameter."),
+    ] = 0,
+    float_param: Annotated[
+        float,
+        typer.Option("--float-param", help="Float event parameter."),
+    ] = 0.0,
+) -> None:
+    """Add an AnimationEvent to an AnimationClip."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        animation_add_event(
+            state.bridge,
+            clip_path,
+            time,
+            function_name,
+            string_param,
+            int_param,
+            float_param,
+        )
+    )
+    print_result(result, state.formatter)
+
+
+@animation_app.command("set-properties")
+def animation_set_properties_cli(
+    ctx: typer.Context,
+    clip_path: Annotated[str, typer.Argument(help="Asset path to the AnimationClip.")],
+    looping: Annotated[
+        bool | None,
+        typer.Option("--loop/--no-loop", help="Set clip looping."),
+    ] = None,
+    wrap_mode: Annotated[
+        str | None,
+        typer.Option("--wrap-mode", help="Unity WrapMode name."),
+    ] = None,
+    frame_rate: Annotated[
+        float | None,
+        typer.Option("--frame-rate", help="Clip frame rate."),
+    ] = None,
+) -> None:
+    """Set AnimationClip looping, wrap mode, or frame rate."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        animation_set_properties(
+            state.bridge,
+            clip_path,
+            looping=looping,
+            wrap_mode=wrap_mode,
+            frame_rate=frame_rate,
+        )
+    )
     print_result(result, state.formatter)

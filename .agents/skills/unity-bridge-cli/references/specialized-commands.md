@@ -61,11 +61,44 @@ unity-bridge navmesh areas
 
 List all curve bindings on a clip. Takes CLIP_PATH positional arg.
 
+### `animation set-curve`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `CLIP_PATH` | positional | yes | Asset path to the AnimationClip |
+| `PROPERTY_NAME` | positional | yes | Serialized property to animate |
+| `--keyframes` | JSON | yes | Non-empty array of `{time, value}` objects |
+| `--relative-path` | TEXT | no | Path relative to the animated root |
+| `--component-type` | TEXT | no | Animated component type (default: Transform) |
+
+### `animation add-event`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `CLIP_PATH` | positional | yes | Asset path to the AnimationClip |
+| `--time` | FLOAT | yes | Event time in seconds |
+| `--function` | TEXT | no | Function name (default: OnAnimationEvent) |
+| `--string-param` | TEXT | no | String event parameter |
+| `--int-param` | INT | no | Integer event parameter |
+| `--float-param` | FLOAT | no | Float event parameter |
+
+### `animation set-properties`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `CLIP_PATH` | positional | yes | Asset path to the AnimationClip |
+| `--loop/--no-loop` | flag pair | no | Set clip looping |
+| `--wrap-mode` | TEXT | no | Unity WrapMode name |
+| `--frame-rate` | FLOAT | no | Clip frame rate |
+
 ```bash
 unity-bridge animation create Assets/Animations/Walk.anim
 unity-bridge animation create Assets/Animations/Walk.anim --frame-rate 30
 unity-bridge animation info Assets/Animations/Walk.anim
 unity-bridge animation curves Assets/Animations/Walk.anim
+unity-bridge animation set-curve Assets/Animations/Walk.anim m_LocalPosition.y --keyframes '[{"time":0,"value":0},{"time":1,"value":1}]'
+unity-bridge animation add-event Assets/Animations/Walk.anim --time 0.5 --function FootStep
+unity-bridge animation set-properties Assets/Animations/Walk.anim --loop --wrap-mode Loop
 ```
 
 ---
@@ -85,15 +118,35 @@ unity-bridge animation curves Assets/Animations/Walk.anim
 |----------|------|----------|-------------|
 | `TERRAIN_NAME` | positional | no | Terrain name (uses active terrain if omitted) |
 
-### `terrain heights` (subgroup)
+### `terrain heights get`
 
-Height get/set operations.
+Read a rectangular heightmap region with `--x`, `--y`, `--width`, and
+`--height` options.
+
+### `terrain set-heights`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `--heights` | JSON | yes | Non-empty rectangular 2D numeric array |
+| `--x` | INT | no | Start X coordinate (default: 0) |
+| `--y` | INT | no | Start Y coordinate (default: 0) |
+| `--terrain-name` | TEXT | no | Terrain name; defaults to active terrain |
+
+### `terrain set-settings`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `--size` / `-s` | TEXT | no | Terrain size as X,Y,Z |
+| `--heightmap-resolution` | INT | no | Heightmap resolution |
+| `--terrain-name` | TEXT | no | Terrain name; defaults to active terrain |
 
 ```bash
 unity-bridge terrain create
 unity-bridge terrain create -n "Island" -s 500,100,500
 unity-bridge terrain info
 unity-bridge terrain info "Island"
+unity-bridge terrain set-heights --heights '[[0.1,0.2],[0.3,0.4]]' --x 4 --y 6
+unity-bridge terrain set-settings --terrain-name Island --size 500,100,500
 ```
 
 ---
@@ -122,11 +175,26 @@ unity-bridge terrain info "Island"
 
 Both take TILEMAP_PATH as positional arg.
 
+### `tilemap fill-box`
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `TILEMAP_PATH` | positional | yes | Hierarchy path to Tilemap |
+| `TILE_PATH` | positional | yes | Asset path to tile |
+| `--start-x` / `--start-y` | INT | yes | Inclusive start cell |
+| `--end-x` / `--end-y` | INT | yes | Inclusive end cell |
+
+### `tilemap compress-bounds`
+
+Compress used bounds. Takes TILEMAP_PATH as a positional argument.
+
 ```bash
 unity-bridge tilemap set-tile "Grid/Tilemap" Assets/Tiles/Grass.asset --x 5 --y 3
 unity-bridge tilemap get-tile "Grid/Tilemap" --x 5 --y 3
+unity-bridge tilemap fill-box "Grid/Tilemap" Assets/Tiles/Grass.asset --start-x 0 --start-y 0 --end-x 5 --end-y 5
 unity-bridge tilemap clear "Grid/Tilemap"
 unity-bridge tilemap bounds "Grid/Tilemap"
+unity-bridge tilemap compress-bounds "Grid/Tilemap"
 ```
 
 ---

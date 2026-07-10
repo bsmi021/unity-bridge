@@ -97,6 +97,9 @@ namespace BWS.Editor.ClaudeCodeBridge
                     Profiler.enableBinaryLog = true;
                 }
 
+                ProfilerFrameCommandHandler.StartExternalCapture();
+                ProfilerDriver.profileEditor = true;
+                ProfilerDriver.enabled = true;
                 Profiler.enabled = true;
 
                 result.success = true;
@@ -120,7 +123,9 @@ namespace BWS.Editor.ClaudeCodeBridge
             try
             {
                 Profiler.enabled = false;
+                ProfilerDriver.enabled = false;
                 Profiler.enableBinaryLog = false;
+                ProfilerFrameCommandHandler.StopExternalCapture();
 
                 result.success = true;
                 result.profilerEnabled = false;
@@ -153,15 +158,13 @@ namespace BWS.Editor.ClaudeCodeBridge
                 Profiler.logFile = parameters.logFile;
                 Profiler.enableBinaryLog = true;
 
-                // If profiler is not currently running, enable it briefly
-                bool wasEnabled = Profiler.enabled;
-                if (!wasEnabled)
-                {
-                    Profiler.enabled = true;
-                }
+                ProfilerFrameCommandHandler.StartExternalCapture();
+                ProfilerDriver.profileEditor = true;
+                ProfilerDriver.enabled = true;
+                Profiler.enabled = true;
 
                 result.success = true;
-                result.profilerEnabled = Profiler.enabled;
+                result.profilerEnabled = Profiler.enabled || ProfilerDriver.enabled;
                 result.logFile = parameters.logFile;
                 result.message = $"Profiler data will be saved to: "
                     + parameters.logFile;
@@ -194,7 +197,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     / (1024L * 1024L);
                 result.tempAllocatorMB =
                     Profiler.GetTempAllocatorSize() / (1024L * 1024L);
-                result.profilerEnabled = Profiler.enabled;
+                result.profilerEnabled = Profiler.enabled || ProfilerDriver.enabled;
 
                 result.success = true;
                 result.message = $"Total allocated: {result.totalAllocatedMB}MB, "

@@ -203,6 +203,48 @@ class TestProfilerFrameBridgeSource:
         assert "ProfilerFrameSampleInfo" in model_source
         assert "new ProfilerFrameCommandHandler()" in registry_source
 
+    def test_capture_start_consumes_positive_frame_budget(self) -> None:
+        # Arrange
+        handler_source = ROOT.joinpath(
+            "ClaudeCodeBridge", "ProfilerFrameCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+        model_source = ROOT.joinpath(
+            "ClaudeCodeBridge", "ProfilerFrameModels.cs"
+        ).read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert "p.frameCount > 0" in handler_source
+        assert "ProfilerDriver.lastFrameIndex" in handler_source
+        assert "ProfilerDriver.profileEditor = true" in handler_source
+        assert "ProfilerDriver.enabled = true" in handler_source
+        assert "ProfilerDriver.enabled = false" in handler_source
+        assert "EditorApplication.update += StopCaptureAtFrameBudget" in handler_source
+        assert "EditorApplication.update -= StopCaptureAtFrameBudget" in handler_source
+        assert "requestedFrameCount" in model_source
+        assert "startFrameIndex" in model_source
+        assert "targetFrameIndex" in model_source
+        assert "stopObservedFrameIndex" in model_source
+        assert "actualFrameCount" in model_source
+        assert "overshootFrames" in model_source
+        assert "editorDriverEnabled" in model_source
+        assert "runtimeProfilerEnabled" in model_source
+        assert "profileEditor" in model_source
+        assert "captureOwner" in model_source
+        assert "frameBudgetArmed" in model_source
+
+    def test_profiler_control_start_stop_controls_editor_driver(self) -> None:
+        # Arrange
+        handler_source = ROOT.joinpath(
+            "ClaudeCodeBridge", "ProfilerControlCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert "ProfilerDriver.profileEditor = true" in handler_source
+        assert "ProfilerDriver.enabled = true" in handler_source
+        assert "ProfilerDriver.enabled = false" in handler_source
+        assert "ProfilerFrameCommandHandler.StartExternalCapture()" in handler_source
+        assert "ProfilerFrameCommandHandler.StopExternalCapture()" in handler_source
+
 
 def _extract_parameters(call_args: Any) -> dict:
     if call_args.kwargs.get("parameters") is not None:

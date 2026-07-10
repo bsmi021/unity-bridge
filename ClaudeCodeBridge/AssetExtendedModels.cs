@@ -16,6 +16,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string assetPath;
         public string sourcePath;
         public string destinationPath;
+        public bool overwrite = false;
         public string assetType;
         public bool useTrash = false;
         public bool recursive = true;

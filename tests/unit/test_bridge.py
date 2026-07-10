@@ -13,6 +13,8 @@ from unity_bridge.core.health import HealthStatus
 from unity_bridge.core.operation import (
     STATE_ABANDONED,
     STATE_ACCEPTED,
+    STATE_COMPLETED,
+    STATE_FAILED,
     STATE_QUEUED,
     STATE_RECOVERING,
     STATE_RUNNING,
@@ -265,6 +267,90 @@ class TestResponseParsing:
         resp = {"dataJson": "not-json"}
         result = DirectBridge._parse_data_json(resp)
         assert result == "not-json"
+
+    async def test_inner_failure_payload_returns_failed_command_result(
+        self,
+        fake_project: Path,
+    ) -> None:
+        # Arrange
+        bridge = DirectBridge(fake_project)
+        command_id = "cmd-inner-failure"
+        response_file = bridge.responses_path / "cmd-inner-failure-asset-ext.json"
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="asset-ext",
+            parameters={"operation": "delete"},
+            command_path=bridge.commands_path / "cmd-inner-failure-asset-ext.json",
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+        data = {
+            "success": False,
+            "operation": "delete",
+            "message": "Asset path escapes the project root.",
+        }
+        response_file.write_text(
+            json.dumps({"status": "success", "dataJson": json.dumps(data)}),
+            encoding="utf-8",
+        )
+        bridge._operation_store.transition(command_id, STATE_COMPLETED, reason="success")
+
+        # Act
+        result = await bridge._try_read_response(response_file, command_id, elapsed=0.1)
+
+        # Assert
+        assert result is not None
+        assert result.success is False
+        assert result.exit_code == 1
+        assert result.error == "Asset path escapes the project root."
+        assert result.data == data
+        record = bridge._operation_store.load(command_id)
+        assert record is not None
+        assert record.state == STATE_FAILED
+
+    async def test_error_envelope_preserves_structured_data(
+        self,
+        fake_project: Path,
+    ) -> None:
+        # Arrange
+        bridge = DirectBridge(fake_project)
+        command_id = "cmd-structured-error"
+        response_file = bridge.responses_path / "cmd-structured-error-execute-script.json"
+        bridge._operation_store.create_queued(
+            command_id=command_id,
+            command_type="execute-script",
+            parameters={},
+            command_path=bridge.commands_path / "cmd-structured-error-execute-script.json",
+            response_path=response_file,
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+        data = {
+            "success": False,
+            "compilerDiagnostics": [{"code": "CS1002", "severity": "error"}],
+            "unityLogs": [],
+        }
+        response_file.write_text(
+            json.dumps(
+                {
+                    "status": "error",
+                    "errorMessage": "Script compilation failed.",
+                    "dataJson": json.dumps(data),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        # Act
+        result = await bridge._try_read_response(response_file, command_id, elapsed=0.1)
+
+        # Assert
+        assert result is not None
+        assert result.success is False
+        assert result.error == "Script compilation failed."
+        assert result.data == data
+        assert result.exit_code == 1
 
     async def test_running_response_transitions_operation(
         self,

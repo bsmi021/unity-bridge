@@ -7,7 +7,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from typer.testing import CliRunner
 
+from unity_bridge.app import app
 from unity_bridge.commands.asset_extended import asset_extended_operation
 from unity_bridge.core.bridge import CommandResult
 
@@ -191,9 +193,7 @@ class TestAssetGuid:
 
 class TestAssetHash:
     async def test_sends_hash_with_asset_path(self, mock_bridge: MagicMock) -> None:
-        await asset_extended_operation(
-            mock_bridge, "hash", asset_path="Assets/Scripts/Player.cs"
-        )
+        await asset_extended_operation(mock_bridge, "hash", asset_path="Assets/Scripts/Player.cs")
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert params["operation"] == "hash"
         assert params["assetPath"] == "Assets/Scripts/Player.cs"
@@ -215,17 +215,14 @@ class TestAssetHash:
 
     def test_csharp_hash_contract(self) -> None:
         root = Path(__file__).resolve().parents[2]
-        handler_source = (
-            root.joinpath("ClaudeCodeBridge", "AssetExtendedCommandHandler.cs")
-            .read_text(encoding="utf-8")
+        handler_source = root.joinpath(
+            "ClaudeCodeBridge", "AssetExtendedCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+        helper_source = root.joinpath("ClaudeCodeBridge", "AssetExtendedHelpers.cs").read_text(
+            encoding="utf-8"
         )
-        helper_source = (
-            root.joinpath("ClaudeCodeBridge", "AssetExtendedHelpers.cs")
-            .read_text(encoding="utf-8")
-        )
-        model_source = (
-            root.joinpath("ClaudeCodeBridge", "AssetExtendedModels.cs")
-            .read_text(encoding="utf-8")
+        model_source = root.joinpath("ClaudeCodeBridge", "AssetExtendedModels.cs").read_text(
+            encoding="utf-8"
         )
 
         assert 'case "hash":' in handler_source
@@ -358,26 +355,43 @@ class TestAssetImportModel:
         assert params["operation"] == "import-model"
         assert params["sourcePath"] == "C:/Models/character.fbx"
         assert params["destinationPath"] == "Assets/Models/character.fbx"
+        assert "overwrite" not in params
+
+    async def test_explicit_overwrite_is_sent_to_unity(self, mock_bridge: MagicMock) -> None:
+        await asset_extended_operation(
+            mock_bridge,
+            "import-model",
+            source_path="C:/Models/character.fbx",
+            destination_path="Assets/Models/character.fbx",
+            overwrite=True,
+        )
+
+        params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
+        assert params["overwrite"] is True
+
+    def test_cli_exposes_explicit_overwrite_flag(self) -> None:
+        result = CliRunner().invoke(app, ["asset-ext", "import-model", "--help"])
+
+        assert result.exit_code == 0, result.output
+        assert "--overwrite" in result.output
 
     def test_csharp_import_model_contract(self) -> None:
         root = Path(__file__).resolve().parents[2]
-        handler_source = (
-            root.joinpath("ClaudeCodeBridge", "AssetExtendedCommandHandler.cs")
-            .read_text(encoding="utf-8")
+        handler_source = root.joinpath(
+            "ClaudeCodeBridge", "AssetExtendedCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+        helper_source = root.joinpath("ClaudeCodeBridge", "AssetExtendedHelpers.cs").read_text(
+            encoding="utf-8"
         )
-        helper_source = (
-            root.joinpath("ClaudeCodeBridge", "AssetExtendedHelpers.cs")
-            .read_text(encoding="utf-8")
-        )
-        model_source = (
-            root.joinpath("ClaudeCodeBridge", "AssetExtendedModels.cs")
-            .read_text(encoding="utf-8")
+        model_source = root.joinpath("ClaudeCodeBridge", "AssetExtendedModels.cs").read_text(
+            encoding="utf-8"
         )
 
         assert 'case "import-model":' in handler_source
         assert "ExecuteImportModel" in helper_source
         assert "AssetDatabase.GetImporterType" in helper_source
         assert "DefaultImporter" in helper_source
+        assert "typeof(AssetImporter)" in helper_source
         assert '".gltf"' in helper_source
         assert '".glb"' in helper_source
         assert "importerType" in model_source

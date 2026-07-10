@@ -31,9 +31,15 @@ def _src_dir() -> str:
 CLI = [sys.executable, "-m", "unity_bridge"]
 
 
-def _run(*args: str, timeout: int = 15) -> subprocess.CompletedProcess:
+def _run(
+    *args: str,
+    timeout: int = 15,
+    clear_project: bool = False,
+) -> subprocess.CompletedProcess:
     """Run a CLI command with src/ on PYTHONPATH."""
     env = os.environ.copy()
+    if clear_project:
+        env.pop("UNITY_BRIDGE_PROJECT", None)
     # Prepend src/ so `python -m unity_bridge` resolves correctly
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = _src_dir() + (os.pathsep + existing if existing else "")
@@ -68,7 +74,6 @@ _skip_reason = "CLI module not available (app.py may be incomplete)"
 
 
 class TestVersionCommand:
-
     def test_version_returns_zero(self) -> None:
         result = _run("version")
         if result.returncode != 0 and "No module" in result.stderr:
@@ -89,7 +94,6 @@ class TestVersionCommand:
 
 
 class TestHelpCommand:
-
     def test_help_returns_zero(self) -> None:
         result = _run("--help")
         if result.returncode != 0 and "No module" in result.stderr:
@@ -118,7 +122,6 @@ class TestHelpCommand:
 
 
 class TestStatusCommand:
-
     def test_status_returns_valid_json(self) -> None:
         result = _run("status")
         if "No module" in result.stderr:
@@ -132,7 +135,7 @@ class TestStatusCommand:
                 pass  # Human-mode output is acceptable
 
     def test_status_nonzero_without_unity(self) -> None:
-        result = _run("status")
+        result = _run("status", clear_project=True)
         if "No module" in result.stderr:
             pytest.skip(_skip_reason)
         # Should be non-zero since Unity is not running
@@ -145,7 +148,6 @@ class TestStatusCommand:
 
 
 class TestDoctorCommand:
-
     def test_doctor_returns_valid_json(self) -> None:
         result = _run("doctor")
         if "No module" in result.stderr:
@@ -171,7 +173,6 @@ class TestDoctorCommand:
 
 
 class TestCommandGroupHelp:
-
     @pytest.mark.parametrize(
         "group",
         [

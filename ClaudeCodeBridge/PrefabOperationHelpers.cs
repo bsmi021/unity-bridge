@@ -82,6 +82,41 @@ namespace BWS.Editor.ClaudeCodeBridge
         }
 
         /// <summary>
+        /// Destroy an instantiated prefab root without deleting its source asset.
+        /// </summary>
+        private PrefabOperationResult DestroyPrefabInstance(PrefabOperationParams parameters)
+        {
+            var result = new PrefabOperationResult { operation = "destroy" };
+            if (string.IsNullOrEmpty(parameters.gameObjectPath))
+            {
+                result.message = "gameObjectPath is required for destroy operation.";
+                return result;
+            }
+
+            var gameObject = FindGameObject(parameters.gameObjectPath);
+            if (gameObject == null)
+            {
+                result.message = $"GameObject not found: {parameters.gameObjectPath}";
+                return result;
+            }
+
+            if (!PrefabUtility.IsPartOfPrefabInstance(gameObject))
+            {
+                result.message = $"GameObject is not a prefab instance: {parameters.gameObjectPath}";
+                return result;
+            }
+
+            var root = PrefabUtility.GetOutermostPrefabInstanceRoot(gameObject);
+            result.gameObjectPath = GetGameObjectPath(root);
+            result.prefabPath = AssetDatabase.GetAssetPath(
+                PrefabUtility.GetCorrespondingObjectFromSource(root));
+            Undo.DestroyObjectImmediate(root);
+            result.success = true;
+            result.message = $"Destroyed prefab instance: {result.gameObjectPath}";
+            return result;
+        }
+
+        /// <summary>
         /// Get the full hierarchy path of a GameObject.
         /// </summary>
         private string GetGameObjectPath(GameObject obj)

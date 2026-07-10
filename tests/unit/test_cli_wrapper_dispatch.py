@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import inspect
 import json
@@ -55,6 +56,11 @@ CUSTOM_KWARGS: dict[tuple[str, str], dict[str, Any] | str] = {
         "action": "get-state",
         "object_path": "Player",
     },
+    ("animation", "animation_set_curve_cli"): {
+        "clip_path": "Assets/Walk.anim",
+        "property_name": "m_LocalPosition.y",
+        "keyframes_json": '[{"time":0,"value":0}]',
+    },
     ("asset", "asset_cli"): {
         "action": "find",
         "path": "Assets",
@@ -69,6 +75,10 @@ CUSTOM_KWARGS: dict[tuple[str, str], dict[str, Any] | str] = {
         "output": "Build/out.unitypackage",
         "paths": ["Assets/A.asset"],
         "include_deps": True,
+    },
+    ("asset_extended", "asset_reserialize_cli"): {
+        "paths": ["Assets/A.asset"],
+        "mode": "both",
     },
     ("batch", "batch_cli"): "batch_file",
     ("build", "build_cli"): {
@@ -149,7 +159,30 @@ CUSTOM_KWARGS: dict[tuple[str, str], dict[str, Any] | str] = {
     ("scripting", "script_cli"): {
         "expression": "Debug.Log(1);",
         "file": None,
+        "intent": "read-only",
+        "assembly": [],
+        "assembly_identity": [],
+        "object_id": [],
+        "asset_path": [],
+        "undo_label": None,
+        "return_schema": "auto",
+        "allow_internal_reflection": False,
         "timeout": 30,
+    },
+    ("scripting_assembly_probe", "script_probe_assemblies_cli"): "assembly_snapshot_file",
+    ("scripting_job_cli", "script_job_cli"): {
+        "expression": "new TestJob()",
+        "file": None,
+        "intent": "read-only",
+        "assembly": [],
+        "assembly_identity": [],
+        "object_id": [],
+        "asset_path": [],
+        "undo_label": None,
+        "return_schema": "auto",
+        "allow_internal_reflection": False,
+        "timeout": 30,
+        "detach": False,
     },
     ("select", "select_cli"): {
         "objects": ["Player"],
@@ -158,6 +191,12 @@ CUSTOM_KWARGS: dict[tuple[str, str], dict[str, Any] | str] = {
     ("terrain", "terrain_create_cli"): {
         "name": "TestTerrain",
         "size": "100,20,100",
+    },
+    ("terrain", "terrain_set_heights_cli"): {
+        "heights_json": "[[0.1,0.2],[0.3,0.4]]",
+        "x": 0,
+        "y": 0,
+        "terrain_name": "TestTerrain",
     },
     ("transform", "transform_set_cli"): {
         "object_path": "Player",
@@ -197,6 +236,11 @@ def test_cli_wrapper_dispatches_with_fake_bridge(
     state, bridge = _state(tmp_path)
     ctx = SimpleNamespace(obj=state, invoked_subcommand=None)
     kwargs = _kwargs_for(module_name, function_name, wrapper, tmp_path)
+    if (module_name, function_name) == (
+        "scripting_assembly_probe",
+        "script_probe_assemblies_cli",
+    ):
+        _configure_assembly_probe_bridge(bridge, tmp_path)
 
     wrapper(ctx, **kwargs)
 
@@ -250,6 +294,26 @@ def _kwargs_for(
             encoding="utf-8",
         )
         return {"file": batch, "stop_on_error": True, "parallel": True}
+    if custom == "assembly_snapshot_file":
+        assembly_path = tmp_path / "UnityEditor.CoreModule.dll"
+        assembly_path.write_bytes(b"runtime-module")
+        snapshot = tmp_path / "unity-api-snapshot.jsonl"
+        snapshot.write_text(
+            json.dumps(
+                {
+                    "context": {"unity": {"version": "6000.5.1f1"}},
+                    "assembly": {
+                        "name": "UnityEditor.CoreModule",
+                        "path": assembly_path.as_posix(),
+                        "mvid": "11111111-1111-1111-1111-111111111111",
+                        "sha256": hashlib.sha256(assembly_path.read_bytes()).hexdigest(),
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return {"snapshot": snapshot, "output": None, "timeout": 30}
     if custom == "snapshot_diff_files":
         first = tmp_path / "before.json"
         second = tmp_path / "after.json"
@@ -264,6 +328,34 @@ def _kwargs_for(
             continue
         kwargs[name] = _sample_parameter_value(name, parameter)
     return kwargs
+
+
+def _configure_assembly_probe_bridge(bridge: MagicMock, tmp_path: Path) -> None:
+    identity = {
+        "kind": "dto",
+        "fields": [
+            _dto_string("name", "UnityEditor.CoreModule"),
+            _dto_string(
+                "fullName",
+                "UnityEditor.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+            ),
+            _dto_string("mvid", "11111111-1111-1111-1111-111111111111"),
+            _dto_string("path", str(tmp_path / "UnityEditor.CoreModule.dll")),
+        ],
+    }
+    listed = CommandResult(
+        success=True,
+        data={"value": {"kind": "collection", "items": [identity]}},
+    )
+    compiled = CommandResult(success=True, data={"value": {"kind": "scalar"}})
+    bridge.send_command_with_retry = AsyncMock(side_effect=[listed, compiled])
+
+
+def _dto_string(name: str, value: str) -> dict[str, object]:
+    return {
+        "name": name,
+        "value": {"kind": "scalar", "string_value": value},
+    }
 
 
 def _sample_parameter_value(name: str, parameter: inspect.Parameter) -> Any:
@@ -289,7 +381,15 @@ def _required_sample_value(name: str) -> Any:
         return "0,-9.81,0"
     if name in {"json_data", "data"}:
         return "{}"
-    if name in {"paths", "objects", "devices", "test_names", "group_names", "categories", "assemblies"}:
+    if name in {
+        "paths",
+        "objects",
+        "devices",
+        "test_names",
+        "group_names",
+        "categories",
+        "assemblies",
+    }:
         return ["Name"]
     if name in {"width", "height", "x", "y", "z", "index", "order", "layer", "limit"}:
         return 1

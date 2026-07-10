@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unity-bridge.local/schemas/api-inventory-record.schema.json",
+  "title": "Unity API inventory record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "symbol_id",
+    "canonical_signature",
+    "record_kind",
+    "member_kind",
+    "visibility",
+    "is_static",
+    "generic_arity",
+    "obsolete",
+    "availability",
+    "provenance",
+    "assembly",
+    "context",
+    "capability_tags",
+    "coverage_classification"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "symbol_id": { "type": "string", "minLength": 1 },
+    "canonical_signature": { "type": "string", "minLength": 1 },
+    "record_kind": { "enum": ["type", "member", "type_forwarder"] },
+    "member_kind": {
+      "enum": ["type", "constructor", "method", "property", "event", "field", "type_forwarder"]
+    },
+    "type_kind": { "type": ["string", "null"] },
+    "declaring_type": { "type": ["string", "null"] },
+    "visibility": { "const": "public" },
+    "is_static": { "type": "boolean" },
+    "generic_arity": { "type": "integer", "minimum": 0 },
+    "obsolete": { "$ref": "#/$defs/obsolete" },
+    "availability": { "$ref": "#/$defs/availability" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "assembly": { "$ref": "#/$defs/assembly" },
+    "context": { "$ref": "#/$defs/context" },
+    "capability_tags": { "type": "array", "items": { "type": "string" } },
+    "documentation_url": { "type": ["string", "null"] },
+    "source_url": { "type": ["string", "null"] },
+    "coverage_classification": {
+      "type": ["string", "null"],
+      "enum": [null, "typed", "generic", "public_unwrapped", "no_public_api", "external_dependency", "obsolete", "explicit_non_goal"]
+    }
+  },
+  "$defs": {
+    "obsolete": {
+      "type": "object",
+      "required": ["is_obsolete", "message", "is_error"],
+      "properties": {
+        "is_obsolete": { "type": "boolean" },
+        "message": { "type": ["string", "null"] },
+        "is_error": { "type": "boolean" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["classification", "package_id", "asmdef", "package_source", "package_version", "source_root", "source_file_count", "manifest_path", "package_lock_path", "variant_evidence", "resolution"],
+      "properties": {
+        "classification": { "type": "string", "minLength": 1 },
+        "package_id": { "type": ["string", "null"] },
+        "asmdef": { "type": ["string", "null"] },
+        "package_source": { "type": ["string", "null"] },
+        "package_version": { "type": ["string", "null"] },
+        "source_root": { "type": ["string", "null"] },
+        "source_file_count": { "type": ["integer", "null"], "minimum": 0 },
+        "manifest_path": { "type": ["string", "null"] },
+        "package_lock_path": { "type": ["string", "null"] },
+        "variant_evidence": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["include_platforms", "exclude_platforms", "define_constraints", "optional_unity_references", "auto_referenced"],
+              "properties": {
+                "include_platforms": { "type": "array", "items": { "type": "string" } },
+                "exclude_platforms": { "type": "array", "items": { "type": "string" } },
+                "define_constraints": { "type": "array", "items": { "type": "string" } },
+                "optional_unity_references": { "type": "array", "items": { "type": "string" } },
+                "auto_referenced": { "type": "boolean" }
+              }
+            }
+          ]
+        },
+        "resolution": { "type": "string" }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "required": ["key", "editor", "runtime", "build_target", "defines", "api_compatibility"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "editor": { "type": "boolean" },
+        "runtime": { "type": "boolean" },
+        "build_target": { "type": "string" },
+        "defines": { "type": "array", "items": { "type": "string" } },
+        "api_compatibility": { "type": "string" }
+      }
+    },
+    "assembly": {
+      "type": "object",
+      "required": ["name", "path", "mvid", "sha256", "provenance"],
+      "properties": {
+        "name": { "type": "string" },
+        "path": { "type": "string" },
+        "mvid": { "type": "string", "format": "uuid" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "context": {
+      "type": "object",
+      "required": ["unity", "host_os", "build_target", "defines", "api_compatibility", "extractor_version", "capture_time"],
+      "properties": {
+        "unity": {
+          "type": "object",
+          "required": ["version", "revision"],
+          "properties": {
+            "version": { "type": "string" },
+            "revision": { "type": "string" }
+          }
+        },
+        "host_os": { "enum": ["windows", "macos", "linux", "unknown"] },
+        "build_target": { "type": "string" },
+        "defines": { "type": "array", "items": { "type": "string" } },
+        "api_compatibility": { "type": "string" },
+        "extractor_version": { "type": "string" },
+        "capture_time": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

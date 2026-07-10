@@ -50,22 +50,68 @@ namespace BWS.Editor.ClaudeCodeBridge
             if (!TryBuildUpdatedContent(parameters, content, out var updated, out message))
                 return Fail(parameters, message, beforeHash);
 
-            File.WriteAllText(fullPath, updated);
-            AssetDatabase.ImportAsset(parameters.assetPath);
-            AssetDatabase.Refresh();
-
-            return new ScriptEditResult
+            if (!AssetFileMutationScope.TryBegin(
+                fullPath, true, out var mutation, out var mutationError))
             {
-                operation = parameters.operation,
-                assetPath = parameters.assetPath,
-                success = true,
-                message = $"Edited {parameters.assetPath}",
-                sha256Before = beforeHash,
-                sha256After = ComputeSha256(fullPath),
-                imported = true,
-                compileRequested = true,
-                compileFeedback = "Asset imported; run unity-bridge test compile for compiler results."
-            };
+                return Fail(parameters, mutationError, beforeHash);
+            }
+
+            using (mutation)
+                return ApplyScriptEditTransaction(
+                    parameters, fullPath, updated, beforeHash, mutation);
+        }
+
+        private static ScriptEditResult ApplyScriptEditTransaction(
+            ScriptEditParams parameters,
+            string fullPath,
+            string updated,
+            string beforeHash,
+            AssetFileMutationScope mutation)
+        {
+            try
+            {
+                File.WriteAllText(fullPath, updated);
+                AssetDatabase.ImportAsset(parameters.assetPath);
+                AssetDatabase.Refresh();
+                mutation.Commit();
+
+                return new ScriptEditResult
+                {
+                    operation = parameters.operation,
+                    assetPath = parameters.assetPath,
+                    success = true,
+                    message = $"Edited {parameters.assetPath}",
+                    sha256Before = beforeHash,
+                    sha256After = ComputeSha256(fullPath),
+                    imported = true,
+                    compileRequested = true,
+                    compileFeedback = "Asset imported; run unity-bridge test compile for compiler results."
+                };
+            }
+            catch (Exception ex)
+            {
+                string rollbackError = RollbackScriptEdit(parameters.assetPath, mutation);
+                return Fail(
+                    parameters,
+                    $"Script edit failed: {ex.Message}{rollbackError}",
+                    beforeHash);
+            }
+        }
+
+        private static string RollbackScriptEdit(
+            string assetPath, AssetFileMutationScope mutation)
+        {
+            try
+            {
+                mutation.Rollback();
+                AssetDatabase.ImportAsset(assetPath);
+                AssetDatabase.Refresh();
+                return "";
+            }
+            catch (Exception ex)
+            {
+                return $" Rollback failed: {ex.Message}";
+            }
         }
 
         private static bool TryResolveScriptPath(
@@ -78,9 +124,9 @@ namespace BWS.Editor.ClaudeCodeBridge
                 message = "assetPath is required.";
                 return false;
             }
-            if (!assetPath.StartsWith("Assets/"))
+            if (!ProjectAssetPath.TryResolve(
+                Application.dataPath, assetPath, out fullPath, out message))
             {
-                message = $"Invalid asset path: '{assetPath}'. Must start with 'Assets/'.";
                 return false;
             }
             if (!assetPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
@@ -88,13 +134,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 message = "Script edit only supports .cs assets.";
                 return false;
             }
-
-            var projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            fullPath = Path.GetFullPath(Path.Combine(
-                projectRoot,
-                assetPath.Replace('/', Path.DirectorySeparatorChar)));
-            if (!fullPath.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase)
-                || !File.Exists(fullPath))
+            if (!File.Exists(fullPath))
             {
                 message = $"Script asset does not exist: {assetPath}";
                 return false;

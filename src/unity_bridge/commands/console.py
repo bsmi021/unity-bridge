@@ -51,7 +51,7 @@ async def console_read(
     if stack_trace:
         params["includeStackTrace"] = True
     if max_stack_lines is not None:
-        params["maxStackLines"] = max_stack_lines
+        params["maxStackTraceLines"] = max_stack_lines
     if max_message_length is not None:
         params["maxMessageLength"] = max_message_length
 
@@ -221,9 +221,7 @@ def console_watch_cli(
     signal.signal(signal.SIGINT, _handle_sigint)
 
     try:
-        asyncio.run(
-            console_watch(state.bridge, types=types, poll_interval=poll_interval)
-        )
+        asyncio.run(console_watch(state.bridge, types=types, poll_interval=poll_interval))
     except (KeyboardInterrupt, SystemExit):
         pass
 

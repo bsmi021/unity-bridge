@@ -80,7 +80,10 @@ namespace BWS.Editor.ClaudeCodeBridge
                 }
 
                 // Frame time
-                result.lastFrameTime = Time.deltaTime * 1000f; // Convert to ms
+                if (parameters.includeCPU)
+                {
+                    result.lastFrameTime = Time.deltaTime * 1000f; // Convert to ms
+                }
 
                 // Get top memory allocators (simplified)
                 if (parameters.includeMemory)

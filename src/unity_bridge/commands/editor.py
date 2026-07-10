@@ -10,7 +10,7 @@ import typer
 from unity_bridge.core.bridge import CommandResult, DirectBridge
 
 # ---------------------------------------------------------------------------
-# Core async functions (CLI + MCP)
+# Core async functions
 # ---------------------------------------------------------------------------
 
 
@@ -55,7 +55,7 @@ async def refresh_assets(
     """
     params: dict[str, object] = {}
     if force:
-        params["forceRefresh"] = True
+        params["forceUpdate"] = True
 
     return await bridge.send_command_with_retry(
         command_type="refresh-assets",
@@ -80,7 +80,7 @@ async def focus_object(
     """
     params: dict[str, object] = {"gameObjectPath": object_path}
     if no_frame:
-        params["noFrame"] = True
+        params["frameSelection"] = False
 
     return await bridge.send_command_with_retry(
         command_type="focus-object",
@@ -105,7 +105,7 @@ async def execute_menu_item(
     """
     params: dict[str, object] = {"menuPath": menu_path}
     if validate_only:
-        params["validateOnly"] = True
+        params["validate"] = True
 
     return await bridge.send_command_with_retry(
         command_type="execute-menu-item",
@@ -136,7 +136,7 @@ async def capture_screenshot(
     """
     params: dict[str, object] = {"outputPath": output_path}
     if camera is not None:
-        params["camera"] = camera
+        params["cameraPath"] = camera
     if width is not None:
         params["width"] = width
     if height is not None:
@@ -199,9 +199,7 @@ def refresh_cli(
 @editor_app.command("focus")
 def focus_cli(
     ctx: typer.Context,
-    object_path: Annotated[
-        str, typer.Argument(help="Hierarchy path of the GameObject to focus.")
-    ],
+    object_path: Annotated[str, typer.Argument(help="Hierarchy path of the GameObject to focus.")],
     no_frame: Annotated[
         bool,
         typer.Option("--no-frame", help="Select without framing in scene view."),
@@ -218,9 +216,7 @@ def focus_cli(
 @editor_app.command("menu")
 def menu_cli(
     ctx: typer.Context,
-    menu_path: Annotated[
-        str, typer.Argument(help="Full menu path (e.g. File/Save).")
-    ],
+    menu_path: Annotated[str, typer.Argument(help="Full menu path (e.g. File/Save).")],
     validate_only: Annotated[
         bool,
         typer.Option("--validate-only", help="Check existence without executing."),
@@ -230,18 +226,14 @@ def menu_cli(
     from unity_bridge.core.output import print_result
 
     state = ctx.obj
-    result = asyncio.run(
-        execute_menu_item(state.bridge, menu_path, validate_only)
-    )
+    result = asyncio.run(execute_menu_item(state.bridge, menu_path, validate_only))
     print_result(result, state.formatter)
 
 
 @editor_app.command("screenshot")
 def screenshot_cli(
     ctx: typer.Context,
-    output_path: Annotated[
-        str, typer.Argument(help="File path to save the screenshot.")
-    ],
+    output_path: Annotated[str, typer.Argument(help="File path to save the screenshot.")],
     camera: Annotated[
         str | None,
         typer.Option("--camera", help="Camera name to capture from."),

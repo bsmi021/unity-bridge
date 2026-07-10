@@ -87,6 +87,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             SetupFileWatcher();
             if (!_recoveryScanned)
             {
+                ExecuteScriptJobTerminalStore.ReplayPending();
                 // Complete a compile that finished by triggering this reload,
                 // before generic recovery would mark it interrupted.
                 CompileCommandHandler.CompletePendingCompileAfterReload();
@@ -353,6 +354,15 @@ namespace BWS.Editor.ClaudeCodeBridge
                     return;
                 }
 
+                if (ExecuteScriptJobCoordinator.BlocksCommand(commandType))
+                {
+                    WriteResponse(BridgeResponse.Error(
+                        commandId,
+                        commandType,
+                        "A cooperative execute job is active; cancel it or wait for its terminal response before dispatching another Editor command."));
+                    return;
+                }
+
                 var response = handler.Execute(command);
                 WriteResponse(response);
                 HeartbeatGenerator.IncrementCommandCount();
@@ -539,21 +549,10 @@ namespace BWS.Editor.ClaudeCodeBridge
             WriteResponseStatic(response);
         }
 
-        public static void WriteResponseStatic(BridgeResponse response)
+        public static bool WriteResponseStatic(BridgeResponse response)
         {
             var filePath = Path.Combine(RESPONSES_PATH,
                 $"{response.commandId}-{response.commandType}.json");
-            try
-            {
-                var responseJson = JsonUtility.ToJson(response, true);
-                BridgeOperationLedger.WriteAtomic(filePath, responseJson);
-            }
-            catch (Exception ex)
-            {
-                BridgeLogger.LogError($"Error writing response file '{filePath}': {ex}");
-                return;
-            }
-
             try
             {
                 BridgeOperationLedger.MarkResponse(response);
@@ -564,7 +563,19 @@ namespace BWS.Editor.ClaudeCodeBridge
                     $"Operation ledger terminal-state update failed for command {response.commandId}: {ex}");
             }
 
+            try
+            {
+                var responseJson = JsonUtility.ToJson(response, true);
+                BridgeOperationLedger.WriteAtomic(filePath, responseJson);
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError($"Error writing response file '{filePath}': {ex}");
+                return false;
+            }
+
             BridgeLogger.LogDebug($"Wrote response: {Path.GetFileName(filePath)}");
+            return true;
         }
 
         #endregion

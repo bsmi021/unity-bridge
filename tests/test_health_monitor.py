@@ -25,7 +25,7 @@ class TestHealthStatus:
             unity_version="2022.3.10f1",
             is_compiling=False,
             is_playing=True,
-            commands_processed=42
+            commands_processed=42,
         )
 
         assert status.healthy is True
@@ -36,10 +36,7 @@ class TestHealthStatus:
 
     def test_health_status_creation_unhealthy(self):
         """HealthStatus should support unhealthy state with reason."""
-        status = HealthStatus(
-            healthy=False,
-            reason="Heartbeat file not found"
-        )
+        status = HealthStatus(healthy=False, reason="Heartbeat file not found")
 
         assert status.healthy is False
         assert status.reason == "Heartbeat file not found"
@@ -68,7 +65,7 @@ class TestHealthStatus:
             active_scene="MainScene",
             commands_processed=100,
             uptime_seconds=3600,
-            heartbeat_age_seconds=2.5
+            heartbeat_age_seconds=2.5,
         )
 
         result = status.to_dict()
@@ -85,10 +82,7 @@ class TestHealthStatus:
 
     def test_health_status_to_dict_with_reason(self):
         """HealthStatus.to_dict() should include reason when unhealthy."""
-        status = HealthStatus(
-            healthy=False,
-            reason="Unity not responding"
-        )
+        status = HealthStatus(healthy=False, reason="Unity not responding")
 
         result = status.to_dict()
         assert result["healthy"] is False
@@ -120,7 +114,7 @@ def heartbeat_path(tmp_project_root):
 def write_heartbeat(path: Path, data: Dict[str, Any]):
     """Helper to write heartbeat JSON file."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f)
 
 
@@ -164,7 +158,7 @@ class TestCheckHealthValidHeartbeat:
             "isPaused": False,
             "activeScene": "TestScene",
             "commandsProcessed": 50,
-            "uptimeSeconds": 1200
+            "uptimeSeconds": 1200,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -190,7 +184,7 @@ class TestCheckHealthValidHeartbeat:
             "isPaused": True,
             "activeScene": "EditorScene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 60
+            "uptimeSeconds": 60,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -217,7 +211,7 @@ class TestCheckHealthStaleHeartbeat:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 10,
-            "uptimeSeconds": 100
+            "uptimeSeconds": 100,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -230,7 +224,9 @@ class TestCheckHealthStaleHeartbeat:
     def test_heartbeat_at_boundary(self, health_monitor, heartbeat_path):
         """Heartbeat at exact boundary should be tested."""
         # Exactly at MAX_HEARTBEAT_AGE_SECONDS boundary
-        boundary_time = datetime.utcnow() - timedelta(seconds=HealthMonitor.MAX_HEARTBEAT_AGE_SECONDS)
+        boundary_time = datetime.utcnow() - timedelta(
+            seconds=HealthMonitor.MAX_HEARTBEAT_AGE_SECONDS
+        )
         heartbeat_data = {
             "timestamp": boundary_time.isoformat() + "Z",
             "unityVersion": "2022.3.10f1",
@@ -239,7 +235,7 @@ class TestCheckHealthStaleHeartbeat:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -260,7 +256,7 @@ class TestCheckHealthStaleHeartbeat:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -276,7 +272,7 @@ class TestCheckHealthInvalidHeartbeat:
     def test_invalid_json(self, health_monitor, heartbeat_path):
         """Malformed JSON should return unhealthy status."""
         heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(heartbeat_path, 'w') as f:
+        with open(heartbeat_path, "w") as f:
             f.write("{ invalid json content")
 
         status = health_monitor.check_health()
@@ -294,7 +290,7 @@ class TestCheckHealthInvalidHeartbeat:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -305,10 +301,7 @@ class TestCheckHealthInvalidHeartbeat:
 
     def test_missing_timestamp_field(self, health_monitor, heartbeat_path):
         """Missing timestamp field should return unhealthy status."""
-        heartbeat_data = {
-            "unityVersion": "2022.3.10f1",
-            "isCompiling": False
-        }
+        heartbeat_data = {"unityVersion": "2022.3.10f1", "isCompiling": False}
         write_heartbeat(heartbeat_path, heartbeat_data)
 
         status = health_monitor.check_health()
@@ -330,10 +323,10 @@ class TestCheckHealthIOErrors:
 
     def test_permission_error(self, health_monitor, heartbeat_path, monkeypatch):
         """Permission errors should be handled gracefully."""
-        write_heartbeat(heartbeat_path, {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "unityVersion": "2022.3.10f1"
-        })
+        write_heartbeat(
+            heartbeat_path,
+            {"timestamp": datetime.utcnow().isoformat() + "Z", "unityVersion": "2022.3.10f1"},
+        )
 
         # Mock open to raise PermissionError
         original_open = open
@@ -350,6 +343,72 @@ class TestCheckHealthIOErrors:
         assert status.healthy is False
         assert "failed to read" in status.reason.lower() or "access" in status.reason.lower()
 
+    def test_transient_permission_error_is_retried(
+        self, health_monitor, heartbeat_path, monkeypatch
+    ):
+        """A Windows atomic-replace race should not reject a healthy Editor."""
+        # Arrange
+        write_heartbeat(
+            heartbeat_path,
+            {
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "unityVersion": "6000.5.1f1",
+            },
+        )
+        original_open = open
+        calls = 0
+
+        def transient_open(*args, **kwargs):
+            nonlocal calls
+            if str(heartbeat_path) in str(args[0]):
+                calls += 1
+                if calls == 1:
+                    raise PermissionError("atomic replace in progress")
+            return original_open(*args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", transient_open)
+        monkeypatch.setattr(health_monitor, "TRANSIENT_READ_DELAY_SECONDS", 0)
+
+        # Act
+        status = health_monitor.check_health()
+
+        # Assert
+        assert status.healthy is True
+        assert calls == 2
+
+    def test_repeated_atomic_replace_errors_are_retried(
+        self, health_monitor, heartbeat_path, monkeypatch
+    ):
+        """A longer Windows replace window should remain a retryable read race."""
+        # Arrange
+        write_heartbeat(
+            heartbeat_path,
+            {
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "unityVersion": "6000.5.1f1",
+            },
+        )
+        original_open = open
+        calls = 0
+
+        def transient_open(*args, **kwargs):
+            nonlocal calls
+            if str(heartbeat_path) in str(args[0]):
+                calls += 1
+                if calls <= 5:
+                    raise PermissionError("atomic replace in progress")
+            return original_open(*args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", transient_open)
+        monkeypatch.setattr(health_monitor, "TRANSIENT_READ_DELAY_SECONDS", 0)
+
+        # Act
+        status = health_monitor.check_health()
+
+        # Assert
+        assert status.healthy is True
+        assert calls == 6
+
 
 class TestWaitForHealthy:
     """Test wait_for_healthy method."""
@@ -364,7 +423,7 @@ class TestWaitForHealthy:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -387,7 +446,7 @@ class TestWaitForHealthy:
                 "isPaused": False,
                 "activeScene": "Scene",
                 "commandsProcessed": 0,
-                "uptimeSeconds": 0
+                "uptimeSeconds": 0,
             }
             write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -422,7 +481,7 @@ class TestWaitForHealthy:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -447,7 +506,7 @@ class TestTimestampParsing:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -466,7 +525,7 @@ class TestTimestampParsing:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -480,9 +539,7 @@ class TestEdgeCases:
 
     def test_heartbeat_missing_optional_fields(self, health_monitor, heartbeat_path):
         """Should handle missing optional fields gracefully."""
-        heartbeat_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z"
-        }
+        heartbeat_data = {"timestamp": datetime.utcnow().isoformat() + "Z"}
         write_heartbeat(heartbeat_path, heartbeat_data)
 
         status = health_monitor.check_health()
@@ -504,7 +561,7 @@ class TestEdgeCases:
             "commandsProcessed": 0,
             "uptimeSeconds": 0,
             "extraField": "should be ignored",
-            "anotherExtra": 12345
+            "anotherExtra": 12345,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -522,7 +579,7 @@ class TestEdgeCases:
             "isPaused": False,
             "activeScene": "",
             "commandsProcessed": 0,
-            "uptimeSeconds": 0
+            "uptimeSeconds": 0,
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 
@@ -541,7 +598,7 @@ class TestEdgeCases:
             "isPaused": False,
             "activeScene": "Scene",
             "commandsProcessed": 999999,
-            "uptimeSeconds": 86400 * 7  # 1 week
+            "uptimeSeconds": 86400 * 7,  # 1 week
         }
         write_heartbeat(heartbeat_path, heartbeat_data)
 

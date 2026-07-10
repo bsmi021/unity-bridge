@@ -1,0 +1,6 @@
+# Minimal model used only by live Unity Bridge integration fixtures.
+o UnityBridgeFixtureTriangle
+v 0.0 0.0 0.0
+v 1.0 0.0 0.0
+v 0.0 1.0 0.0
+f 1 2 3

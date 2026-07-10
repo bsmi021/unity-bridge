@@ -46,11 +46,19 @@ namespace BWS.Editor.ClaudeCodeBridge
                     case "get-target":
                         return GetBuildTarget(command);
 
+                    case "switch-platform":
+                        return SwitchPlatform(command, parameters);
+
+                    case "list-platforms":
+                        return ListPlatforms(command);
+
                     default:
                         return BridgeResponse.Error(
                             command.commandId,
                             command.commandType,
-                            $"Unknown operation: {parameters.operation}. Valid operations: build, get-settings, validate, get-target"
+                            $"Unknown operation: {parameters.operation}. Valid operations: "
+                            + "build, get-settings, validate, get-target, switch-platform, "
+                            + "list-platforms"
                         );
                 }
             }

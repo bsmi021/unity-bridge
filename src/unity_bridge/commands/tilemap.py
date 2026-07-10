@@ -10,7 +10,7 @@ import typer
 from unity_bridge.core.bridge import CommandResult, DirectBridge
 
 # ---------------------------------------------------------------------------
-# Core async functions (CLI + MCP)
+# Core async functions
 # ---------------------------------------------------------------------------
 
 
@@ -212,6 +212,34 @@ def tilemap_get_tile_cli(
     print_result(result, state.formatter)
 
 
+@tilemap_app.command("fill-box")
+def tilemap_fill_box_cli(
+    ctx: typer.Context,
+    tilemap_path: Annotated[str, typer.Argument(help="Hierarchy path to Tilemap.")],
+    tile_path: Annotated[str, typer.Argument(help="Asset path to tile.")],
+    start_x: Annotated[int, typer.Option("--start-x", help="Start X coordinate.")],
+    start_y: Annotated[int, typer.Option("--start-y", help="Start Y coordinate.")],
+    end_x: Annotated[int, typer.Option("--end-x", help="End X coordinate.")],
+    end_y: Annotated[int, typer.Option("--end-y", help="End Y coordinate.")],
+) -> None:
+    """Fill an inclusive rectangular area with a tile."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(
+        tilemap_fill_box(
+            state.bridge,
+            tilemap_path,
+            tile_path,
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+        )
+    )
+    print_result(result, state.formatter)
+
+
 @tilemap_app.command("clear")
 def tilemap_clear_cli(
     ctx: typer.Context,
@@ -235,4 +263,17 @@ def tilemap_bounds_cli(
 
     state = ctx.obj
     result = asyncio.run(tilemap_get_bounds(state.bridge, tilemap_path))
+    print_result(result, state.formatter)
+
+
+@tilemap_app.command("compress-bounds")
+def tilemap_compress_bounds_cli(
+    ctx: typer.Context,
+    tilemap_path: Annotated[str, typer.Argument(help="Hierarchy path to Tilemap.")],
+) -> None:
+    """Compress tilemap bounds to its occupied cells."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(tilemap_compress_bounds(state.bridge, tilemap_path))
     print_result(result, state.formatter)

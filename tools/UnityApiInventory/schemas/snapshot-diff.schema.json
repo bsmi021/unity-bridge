@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unity-bridge.local/schemas/snapshot-diff.schema.json",
+  "title": "Unity API snapshot diff",
+  "type": "object",
+  "required": ["schema_version", "counts", "added", "removed", "changed", "obsolete", "availability_changed"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "counts": {
+      "type": "object",
+      "required": ["added", "removed", "changed", "obsolete", "availability_changed"],
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "added": { "$ref": "#/$defs/records" },
+    "removed": { "$ref": "#/$defs/records" },
+    "changed": { "$ref": "#/$defs/records" },
+    "obsolete": { "$ref": "#/$defs/records" },
+    "availability_changed": { "$ref": "#/$defs/records" }
+  },
+  "$defs": {
+    "records": { "type": "array", "items": { "type": "object" } }
+  }
+}
