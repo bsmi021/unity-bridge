@@ -36,6 +36,26 @@ def test_submit_persists_queued_operation_without_command_file(fake_project: Pat
     assert not Path(record.command_path).exists()
 
 
+def test_submit_fails_if_initial_operation_record_cannot_persist(
+    fake_project: Path,
+) -> None:
+    # Arrange
+    queue = CommandQueue(fake_project, auto_start=False)
+
+    # Act
+    with patch.object(
+        OperationStore,
+        "create_queued",
+        side_effect=OSError("operation ledger locked"),
+    ):
+        result = queue.submit("query-hierarchy", {"maxDepth": 1}, timeout=5.0)
+
+    # Assert
+    assert result.success is False
+    assert "Could not persist detached operation" in result.error
+    assert not list(queue.queue_path.glob("*.json"))
+
+
 async def test_dispatch_uses_queued_command_id(fake_project: Path) -> None:
     bridge = DirectBridge(fake_project)
     bridge.dispatch_prepared_command = AsyncMock(  # type: ignore[attr-defined]

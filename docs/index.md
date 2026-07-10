@@ -1,11 +1,15 @@
 # Unity Bridge Documentation Index
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 ## Current Work
 
 - [Unity 6.5 full Editor coverage audit](unity-6.5-full-editor-coverage-audit.html)
 - [Unity 6.5 full Editor coverage implementation plan](implementation-plans/unity-6-5-full-editor-coverage/unity-6-5-full-editor-coverage-plan.md)
+- [Unity 6.5 API coverage evidence](implementation-plans/unity-6-5-full-editor-coverage/coverage-evidence.md)
+- [Unity 6.5 Addressables fixture evidence](implementation-plans/unity-6-5-full-editor-coverage/addressables-fixture-evidence.md)
+- [Unity Bridge 3.0.0 package evidence](implementation-plans/unity-6-5-full-editor-coverage/package-evidence.md)
+- [Unity 6.5 command-surface parity gate](implementation-plans/unity-6-5-full-editor-coverage/command-surface-parity.md)
 - [Unity 6.5 capability gap audit (historical July 2 snapshot)](unity-6.5-capability-gap-audit.md)
 - [Unity 6.5 update implementation plan (historical July 2 execution plan)](implementation-plans/unity-6-5-update/unity-6-5-update-implementation-plan.md)
 - [Profiler frame drill-down design](profiler-frame-drilldown-design.md)

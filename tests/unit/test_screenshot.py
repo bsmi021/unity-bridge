@@ -29,10 +29,9 @@ class TestScreenshotPayload:
         assert params["multiAngle"] is True
 
     def test_csharp_screenshot_supports_inline_and_multi_angle(self) -> None:
-        handler_source = (
-            ROOT.joinpath("ClaudeCodeBridge", "CaptureScreenshotCommandHandler.cs")
-            .read_text(encoding="utf-8")
-        )
+        handler_source = ROOT.joinpath(
+            "ClaudeCodeBridge", "CaptureScreenshotCommandHandler.cs"
+        ).read_text(encoding="utf-8")
         model_source = ROOT.joinpath("ClaudeCodeBridge", "BridgeModels.cs").read_text(
             encoding="utf-8"
         )
@@ -42,6 +41,28 @@ class TestScreenshotPayload:
         assert "multiAngle" in model_source
         assert "CaptureMultiAngle" in handler_source
         assert "Convert.ToBase64String" in handler_source
+
+    def test_multi_angle_capture_restores_scene_view_state_in_finally(self) -> None:
+        # Arrange
+        handler_source = ROOT.joinpath(
+            "ClaudeCodeBridge", "CaptureScreenshotCommandHandler.cs"
+        ).read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert "CaptureSceneViewState" in handler_source
+        assert "RestoreSceneViewState" in handler_source
+        assert "finally" in handler_source
+        assert "sceneView.pivot" in handler_source
+        assert "sceneView.rotation" in handler_source
+        assert "sceneView.size" in handler_source
+        assert "sceneView.orthographic" in handler_source
+        assert (
+            "sceneView.LookAt(sceneView.pivot, rotation, sceneView.size, "
+            "sceneView.orthographic, true);"
+        ) in handler_source
+        assert (
+            "sceneView.LookAt(state.pivot, state.rotation, state.size, state.orthographic, true);"
+        ) in handler_source
 
 
 def _extract_parameters(call_args: Any) -> dict:

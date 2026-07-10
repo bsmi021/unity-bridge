@@ -1,6 +1,6 @@
 # Unity 6.5 Full Editor Coverage Plan
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 ## Objective
 
@@ -8,9 +8,53 @@ Give Codex the broadest practical control of Unity 6.5 while preserving a
 defensible public-API boundary, safe mutations, durable asynchronous behavior,
 and live proof.
 
-The program is complete only when every symbol and workflow in a pinned Editor
-plus project/package snapshot is classified and every claimed reachable path is
-proven at the appropriate layer.
+The program classifies every symbol and workflow in a pinned Editor plus
+project/package snapshot and proves every claimed reachable path at the
+appropriate layer. One explicitly accepted packaging exception is recorded
+below; it is not represented as coverage.
+
+## Implementation status
+
+As of 2026-07-10, the safety/contract gate, runtime-module API inventory,
+assembly-scoped generic proof gate, typed command parity gate, Phase 2 generic
+host, missing typed wrappers, and environment-selected live fixture harness are
+implemented. The generated command gate is clean at 406 C# operations: 305
+typed CLI routes and 101 reviewed raw-only routes.
+
+The corrected exact core-plus-Builder snapshot contains 129,615 public records
+from 323 assemblies. A clean live run exact-loaded, hash-matched, and
+compiler-referenced all 199 assemblies that contribute public records. The
+registry classifies 126,095 current records `generic` and 3,520 `obsolete`,
+with zero `public_unwrapped`, unclassified, removed, or invalid records.
+
+The hardened host supports deterministic exact assembly selection, structured
+results, compiler diagnostics, log capture, reflection gating, declared
+object/file transactions, verified rollback, and cooperative jobs with
+deadline, cancellation, and truthful terminal/reload behavior. It remains a
+full-trust C# host: read-only intent is advisory, arbitrary code cannot be
+preempted inside a step, and mutation rollback journals do not survive reload.
+
+The installed 359-file bridge bundle compiles under Unity `6000.5.1f1`. The
+expanded guarded headless run now passes 47 of 50 Editor-dependent scenarios.
+The two headless Scene View skips pass separately in a normal hidden Editor;
+the only remaining unproven scenario is a real successful Addressables content
+build. The glTF fallback rollback, profiler frame budget, self-authored
+marker/allocation capture, cross-command profiler stop, and truthful
+Addressables failure scenarios now pass live. A clean project-local package
+fixture still fails before package registration because this Editor's UPM
+reports an undefined `path`; see `addressables-fixture-evidence.md`. Skips are
+not counted as coverage.
+
+## Packaging disposition
+
+On 2026-07-10, the project owner explicitly authorized packaging after review
+of the remaining Addressables success-fixture gap. The implementation plan is
+therefore closed for packaging with one accepted exception: a real successful
+Addressables `3.1.0` content build was not proven on this machine because Unity
+`6000.5.1f1` UPM fails before package registration. This decision does not
+change the coverage registry or classify the skipped scenario as covered.
+The resulting wheel/source-distribution contents, hashes, and clean-install
+proof are recorded in `package-evidence.md`.
 
 ## User Stories
 
@@ -53,12 +97,12 @@ Non-goals:
   `https://github.com/Unity-Technologies/UnityCsReference/tree/6000.5.1f1`.
 - Official API channel:
   `https://docs.unity3d.com/6000.5/Documentation/ScriptReference/index.html`.
-- Live bridge baseline: 99 root entries, 79 group nodes, 375 non-group leaves,
-  377 invokable paths, 99 Unity 6.5 handlers.
-- Local core metadata: 5,354 public types and 54,979 logical public member
-  endpoints.
-- Builder package/project snapshot: 177 loaded assemblies, 8,318 public types,
-  and 60,863 endpoints before provenance filtering.
+- Live command surface: 101 handlers, 406 C# operations, 100 Python command
+  types, 333 Python operation payloads, and 394 exact CLI leaves.
+- Local runtime-module metadata: 146 inspected assemblies, 5,354 public types,
+  and 60,345 total public records.
+- Core-plus-Builder snapshot: 323 inspected assemblies, 199 public-surface
+  assemblies, and 129,615 records.
 
 ## Design Options
 
@@ -335,3 +379,8 @@ uv run unity-bridge install --project "C:/Path/To/Fixture" --check
 8. Documentation and skill text match the generated live command surface.
 9. Unsupported/UI-only capabilities remain visible and are never called
    covered.
+
+Packaging acceptance: items 1-4 and 6-9 pass. Item 5 passes for every required
+live positive/negative fixture except the explicitly accepted Addressables
+success build. The exception and its reproduction evidence remain visible in
+`addressables-fixture-evidence.md` and `coverage-evidence.md`.

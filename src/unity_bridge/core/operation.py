@@ -35,6 +35,16 @@ SCHEMA_VERSION = 1
 # the command itself (which would, for run-tests, spawn a duplicate run).
 _LEDGER_WRITE_ATTEMPTS = 5
 _LEDGER_WRITE_BASE_DELAY = 0.02
+_LEDGER_READ_ATTEMPTS = 8
+_LEDGER_READ_BASE_DELAY = 0.01
+
+
+def _optional_timestamp(value: object) -> str | None:
+    """Normalize C# JsonUtility's empty-string representation of null dates."""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
 
 
 def _best_effort_write(do_write: Callable[[], None], path: Path) -> bool:
@@ -178,11 +188,11 @@ class OperationRecord:
             idempotency_key=data.get("idempotencyKey"),
             command_path=data.get("commandPath"),
             response_path=data.get("responsePath"),
-            created_at=data.get("createdAt"),
-            accepted_at=data.get("acceptedAt"),
-            started_at=data.get("startedAt"),
-            last_progress_at=data.get("lastProgressAt"),
-            terminal_at=data.get("terminalAt"),
+            created_at=_optional_timestamp(data.get("createdAt")),
+            accepted_at=_optional_timestamp(data.get("acceptedAt")),
+            started_at=_optional_timestamp(data.get("startedAt")),
+            last_progress_at=_optional_timestamp(data.get("lastProgressAt")),
+            terminal_at=_optional_timestamp(data.get("terminalAt")),
             last_busy_reason=data.get("lastBusyReason"),
             last_error=data.get("lastError"),
         )
@@ -251,7 +261,8 @@ class OperationStore:
             created_at=timestamp,
             last_progress_at=timestamp,
         )
-        self.write(record)
+        if not self.write(record):
+            raise OSError(f"Could not persist initial operation record: {command_id}")
         self.append_event(record, None, STATE_QUEUED, "created", None)
         return record
 
@@ -261,11 +272,9 @@ class OperationStore:
         if not path.exists():
             return None
         last_exc: Exception | None = None
-        for attempt in range(_LEDGER_WRITE_ATTEMPTS):
+        for attempt in range(_LEDGER_READ_ATTEMPTS):
             try:
                 return OperationRecord.from_dict(json.loads(path.read_text(encoding="utf-8-sig")))
-            except FileNotFoundError:
-                return None
             except (
                 PermissionError,
                 OSError,
@@ -275,12 +284,12 @@ class OperationStore:
                 ValueError,
             ) as exc:
                 last_exc = exc
-                if attempt < _LEDGER_WRITE_ATTEMPTS - 1:
-                    time.sleep(_LEDGER_WRITE_BASE_DELAY * (2**attempt))
+                if attempt < _LEDGER_READ_ATTEMPTS - 1:
+                    time.sleep(_LEDGER_READ_BASE_DELAY * (2**attempt))
         logger.warning(
             "Ledger read failed for %s after %d attempts: %s",
             path,
-            _LEDGER_WRITE_ATTEMPTS,
+            _LEDGER_READ_ATTEMPTS,
             last_exc,
         )
         return None
@@ -334,7 +343,7 @@ class OperationStore:
                         skipped.append(str(path))
         return deleted, skipped
 
-    def write(self, record: OperationRecord) -> None:
+    def write(self, record: OperationRecord) -> bool:
         """Atomically write a current-state record (best-effort, never raises)."""
         path = self.record_path(record.command_id)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -350,7 +359,7 @@ class OperationStore:
                 temp.unlink(missing_ok=True)
                 raise
 
-        _best_effort_write(_do, path)
+        return _best_effort_write(_do, path)
 
     def transition(
         self,
@@ -391,6 +400,37 @@ class OperationStore:
             return latest
         self.write(updated)
         self.append_event(updated, previous, to_state, "transition", reason)
+        return updated
+
+    def reconcile_terminal_failure(
+        self,
+        command_id: str,
+        *,
+        reason: str,
+    ) -> OperationRecord | None:
+        """Correct an outer-success ledger entry when its payload reports failure."""
+        current = self.load(command_id)
+        if current is None or current.state == STATE_FAILED:
+            return current
+        if current.state != STATE_COMPLETED:
+            return self.transition(command_id, STATE_FAILED, reason=reason)
+
+        timestamp = _utc_now()
+        updated = replace(
+            current,
+            state=STATE_FAILED,
+            last_progress_at=timestamp,
+            terminal_at=current.terminal_at or timestamp,
+            last_error=reason,
+        )
+        self.write(updated)
+        self.append_event(
+            updated,
+            STATE_COMPLETED,
+            STATE_FAILED,
+            "response_reconciliation",
+            reason,
+        )
         return updated
 
     def append_event(

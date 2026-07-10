@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "roles": [
+    {
+      "name": "core-clean",
+      "environment": "UNITY_BRIDGE_CORE_CLEAN_PROJECT"
+    },
+    {
+      "name": "package-rich",
+      "environment": "UNITY_BRIDGE_PACKAGE_RICH_PROJECT"
+    },
+    {
+      "name": "playback-build-target",
+      "environment": "UNITY_BRIDGE_PLAYBACK_BUILD_TARGET_PROJECT"
+    }
+  ]
+}

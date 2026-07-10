@@ -126,6 +126,69 @@ class TestLedgerWriteResilience:
         assert record.command_id == "locked"
         assert calls["n"] == 2
 
+    def test_load_survives_longer_atomic_replace_window(self, fake_project: Path) -> None:
+        store = OperationStore(fake_project)
+        store.create_queued(
+            command_id="long-lock",
+            command_type="run-tests",
+            parameters={},
+            command_path=fake_project / "command.json",
+            response_path=fake_project / "response.json",
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+        calls = {"n": 0}
+        real_read_text = Path.read_text
+
+        def flaky_read_text(self: Path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if self == store.record_path("long-lock") and calls["n"] < 6:
+                calls["n"] += 1
+                raise PermissionError("atomic replace in progress")
+            return real_read_text(self, *args, **kwargs)
+
+        with (
+            patch.object(Path, "read_text", flaky_read_text),
+            patch("unity_bridge.core.operation._LEDGER_READ_BASE_DELAY", 0),
+        ):
+            record = store.load("long-lock")
+
+        assert record is not None
+        assert record.command_id == "long-lock"
+        assert calls["n"] == 6
+
+    def test_load_retries_transient_missing_file_during_atomic_replace(
+        self,
+        fake_project: Path,
+    ) -> None:
+        store = OperationStore(fake_project)
+        store.create_queued(
+            command_id="missing-window",
+            command_type="run-tests",
+            parameters={},
+            command_path=fake_project / "command.json",
+            response_path=fake_project / "response.json",
+            domain_generation=None,
+            retry_policy="non_idempotent",
+        )
+        calls = {"n": 0}
+        real_read_text = Path.read_text
+
+        def flaky_read_text(self: Path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if self == store.record_path("missing-window") and calls["n"] < 2:
+                calls["n"] += 1
+                raise FileNotFoundError("atomic replace gap")
+            return real_read_text(self, *args, **kwargs)
+
+        with (
+            patch.object(Path, "read_text", flaky_read_text),
+            patch("unity_bridge.core.operation._LEDGER_READ_BASE_DELAY", 0),
+        ):
+            record = store.load("missing-window")
+
+        assert record is not None
+        assert record.command_id == "missing-window"
+        assert calls["n"] == 2
+
     def test_load_retries_transient_decode_error_then_succeeds(
         self,
         fake_project: Path,
@@ -393,6 +456,41 @@ async def test_operation_submit_accepts_command_without_contacting_unity(
     assert record.state == STATE_QUEUED
 
 
+def test_response_publication_marks_ledger_before_exposing_response_file() -> None:
+    # Arrange
+    root = Path(__file__).resolve().parents[2]
+    source = root.joinpath("ClaudeCodeBridge", "ClaudeUnityBridge.cs").read_text(encoding="utf-8")
+    method = source[source.index("public static bool WriteResponseStatic") :]
+
+    # Act
+    mark_index = method.index("BridgeOperationLedger.MarkResponse(response)")
+    publish_index = method.index("BridgeOperationLedger.WriteAtomic(filePath, responseJson)")
+
+    # Assert
+    assert mark_index < publish_index
+
+
+def test_empty_csharp_terminal_timestamp_is_repaired_on_terminal_touch() -> None:
+    # Arrange
+    record = OperationRecord.from_dict(
+        {
+            "commandId": "play-command",
+            "commandType": "playmode-control",
+            "state": STATE_COMPLETED,
+            "parametersHash": "hash",
+            "retryPolicy": RETRY_NON_IDEMPOTENT,
+            "terminalAt": "",
+        }
+    )
+
+    # Act
+    repaired = OperationStateMachine.transition(record, STATE_COMPLETED)
+
+    # Assert
+    assert record.terminal_at is None
+    assert repaired.terminal_at
+
+
 async def test_operation_wait_dispatches_and_returns_busy_timeout_as_queued(
     fake_project: Path,
 ) -> None:
@@ -444,7 +542,9 @@ async def test_operation_wait_returns_terminal_response_and_cleans_queue(
         encoding="utf-8",
     )
     OperationStore(fake_project).transition(queued.command_id, STATE_ACCEPTED, reason="accepted")
-    response = fake_project / ".claude" / "unity" / "responses" / f"{queued.command_id}-run-tests.json"
+    response = (
+        fake_project / ".claude" / "unity" / "responses" / f"{queued.command_id}-run-tests.json"
+    )
     response.write_text(
         json.dumps(
             {
@@ -472,7 +572,9 @@ async def test_operation_wait_enforces_detached_min_tests_policy(fake_project: P
         client_policy={"minTests": 2},
     )
     OperationStore(fake_project).transition(queued.command_id, STATE_ACCEPTED, reason="accepted")
-    response = fake_project / ".claude" / "unity" / "responses" / f"{queued.command_id}-run-tests.json"
+    response = (
+        fake_project / ".claude" / "unity" / "responses" / f"{queued.command_id}-run-tests.json"
+    )
     response.write_text(
         json.dumps({"status": "success", "dataJson": json.dumps({"total": 1})}),
         encoding="utf-8",

@@ -40,6 +40,15 @@ unity-bridge profile list
 unity-bridge profile active
 ```
 
+### `profile platforms`
+
+Lists the installed Unity 6.5 Build Profile platforms and their GUIDs. Run this
+before `profile create` instead of guessing a platform identifier.
+
+```bash
+unity-bridge profile platforms
+```
+
 ### `profile create`
 
 Creates a Unity 6.5 build profile from a platform GUID.
@@ -50,6 +59,7 @@ Creates a Unity 6.5 build profile from a platform GUID.
 | `--platform-id` | TEXT | yes | Unity build profile platform GUID |
 
 ```bash
+unity-bridge profile platforms
 unity-bridge profile create WindowsQA --platform-id <platform-guid>
 ```
 

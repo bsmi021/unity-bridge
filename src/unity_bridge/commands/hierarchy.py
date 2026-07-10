@@ -69,7 +69,7 @@ async def get_component(
         "componentType": component_type,
     }
     if fields is not None:
-        params["fields"] = fields
+        params["fieldNames"] = [name.strip() for name in fields.split(",") if name.strip()]
 
     return await bridge.send_command_with_retry(
         command_type="get-component-data",
@@ -95,12 +95,16 @@ async def set_component(
         timeout: Timeout in seconds.
     """
     properties = _parse_field_updates(updates)
+    field_updates = [
+        {"fieldName": name, "valueJson": json.dumps(value, separators=(",", ":"))}
+        for name, value in properties.items()
+    ]
     return await bridge.send_command_with_retry(
         command_type="set-component-data",
         parameters={
             "gameObjectPath": object_path,
             "componentType": component_type,
-            "properties": properties,
+            "fieldUpdates": field_updates,
         },
         timeout=timeout,
     )

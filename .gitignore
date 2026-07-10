@@ -8,6 +8,10 @@ dist/
 build/
 *.whl
 
+# Standalone .NET tools
+tools/**/bin/
+tools/**/obj/
+
 # Virtual environments
 .venv/
 venv/

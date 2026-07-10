@@ -330,6 +330,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         public bool includeMemory = true;
         public bool includeRendering = true;
         public bool includePhysics = false;
+        public bool includeCPU = false;
     }
 
     /// <summary>

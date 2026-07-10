@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
@@ -169,7 +170,24 @@ namespace BWS.Editor.ClaudeCodeBridge
                     normalizedLogTypes.Add(logType);
                 }
 
-                BridgeLogger.LogDebug($"Reading console: logTypes={string.Join(",", parameters.logTypes)}, maxEntries={parameters.maxEntries}, clearAfterRead={parameters.clearAfterRead}, includeStackTrace={parameters.includeStackTrace}, maxStackTraceLines={parameters.maxStackTraceLines}");
+                Regex filterRegex = null;
+                if (!string.IsNullOrEmpty(parameters.filterPattern))
+                {
+                    try
+                    {
+                        filterRegex = new Regex(
+                            parameters.filterPattern,
+                            RegexOptions.None,
+                            TimeSpan.FromSeconds(1));
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        return BridgeResponse.Error(command.commandId, command.commandType,
+                            $"Invalid filterPattern regex: {ex.Message}");
+                    }
+                }
+
+                BridgeLogger.LogDebug($"Reading console: logTypes={string.Join(",", parameters.logTypes)}, maxEntries={parameters.maxEntries}, clearAfterRead={parameters.clearAfterRead}, includeStackTrace={parameters.includeStackTrace}, maxStackTraceLines={parameters.maxStackTraceLines}, filterPattern={parameters.filterPattern}");
 
                 // Read console entries with stack trace control
                 var result = ReadConsoleEntries(
@@ -177,7 +195,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                     parameters.maxEntries,
                     parameters.includeStackTrace,
                     parameters.maxStackTraceLines,
-                    parameters.maxMessageLength
+                    parameters.maxMessageLength,
+                    filterRegex
                 );
 
                 // Clear console if requested
@@ -209,7 +228,8 @@ namespace BWS.Editor.ClaudeCodeBridge
             int maxEntries,
             bool includeStackTrace,
             int maxStackTraceLines,
-            int maxMessageLength)
+            int maxMessageLength,
+            Regex filterRegex)
         {
             var result = new ReadConsoleResult();
 
@@ -265,6 +285,9 @@ namespace BWS.Editor.ClaudeCodeBridge
                         maxStackTraceLines,
                         maxMessageLength
                     );
+
+                    if (filterRegex != null && !filterRegex.IsMatch(processedMessage))
+                        continue;
 
                     // Create console entry
                     var entry = new ConsoleEntry

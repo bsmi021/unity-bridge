@@ -55,9 +55,7 @@ class AppState:
         if self._bridge is None:
             from unity_bridge.core.bridge import DirectBridge
 
-            global_timeout = (
-                self.config.default_timeout if self.config.timeout_explicit else None
-            )
+            global_timeout = self.config.default_timeout if self.config.timeout_explicit else None
             self._bridge = DirectBridge(self.project_root, default_timeout=global_timeout)
         return self._bridge
 
@@ -200,6 +198,15 @@ def _register_optional_commands() -> None:
     _try_register_command("unity_bridge.commands.lifecycle", "version_cli", "version")
     _try_register_command("unity_bridge.commands.workflow", "tdd_cli", "tdd")
     _try_register_command("unity_bridge.commands.scripting", "script_cli", "script")
+    _try_register_command("unity_bridge.commands.scripting_job_cli", "script_job_cli", "script-job")
+    _try_register_command(
+        "unity_bridge.commands.scripting_job_cli", "script_cancel_cli", "script-cancel"
+    )
+    _try_register_command(
+        "unity_bridge.commands.scripting_assembly_probe",
+        "script_probe_assemblies_cli",
+        "script-probe-assemblies",
+    )
     _try_register_command("unity_bridge.commands.batch", "batch_cli", "batch")
     _try_register_command("unity_bridge.commands.editor", "selection_cli", "selection")
     _try_register_command("unity_bridge.commands.editor", "refresh_cli", "refresh")
@@ -208,7 +215,7 @@ def _register_optional_commands() -> None:
     _try_register_command("unity_bridge.commands.editor", "screenshot_cli", "screenshot")
     _try_register_command("unity_bridge.commands.asset", "asset_cli", "asset")
     _try_register_group("unity_bridge.commands.material", "material_app", "material")
-    _try_register_command("unity_bridge.commands.build", "build_cli", "build")
+    _try_register_group("unity_bridge.commands.build", "build_app", "build")
     _try_register_command("unity_bridge.commands.animator", "animator_cli", "animator")
     _try_register_group("unity_bridge.commands.settings", "settings_app", "settings")
     _try_register_group("unity_bridge.commands.build_profile", "build_profile_app", "profile")
@@ -244,7 +251,9 @@ def _register_optional_commands() -> None:
     _try_register_group("unity_bridge.commands.editor_config", "editor_config_app", "editor-config")
 
     # Phase 7a: Query & Report
-    _try_register_command("unity_bridge.commands.sync_solution", "sync_solution_cli", "sync-solution")
+    _try_register_command(
+        "unity_bridge.commands.sync_solution", "sync_solution_cli", "sync-solution"
+    )
     _try_register_group("unity_bridge.commands.cloud_services", "cloud_app", "cloud")
     _try_register_group("unity_bridge.commands.physics2d", "physics2d_app", "physics2d")
     _try_register_group("unity_bridge.commands.search", "search_app", "search")
@@ -353,7 +362,9 @@ def _register_pipeline_commands() -> None:
         "execution_order_app",
         "script-execution-order",
     )
-    _try_register_command("unity_bridge.commands.assembly_lock", "assembly_lock_cli", "assembly-lock")
+    _try_register_command(
+        "unity_bridge.commands.assembly_lock", "assembly_lock_cli", "assembly-lock"
+    )
     _try_register_command(
         "unity_bridge.commands.assembly_lock",
         "assembly_unlock_cli",
@@ -392,7 +403,10 @@ def _try_register_command(module_path: str, attr_name: str, command_name: str) -
     except (ImportError, AttributeError) as exc:
         logger.warning(
             "Command '%s' not registered (%s.%s): %s",
-            command_name, module_path, attr_name, exc,
+            command_name,
+            module_path,
+            attr_name,
+            exc,
         )
 
 
@@ -407,7 +421,10 @@ def _try_register_group(module_path: str, attr_name: str, group_name: str) -> No
     except (ImportError, AttributeError) as exc:
         logger.warning(
             "Command group '%s' not registered (%s.%s): %s",
-            group_name, module_path, attr_name, exc,
+            group_name,
+            module_path,
+            attr_name,
+            exc,
         )
 
 

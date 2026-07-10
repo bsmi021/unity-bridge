@@ -1,0 +1,5 @@
+{
+  "$schema": "../../../tools/UnityApiInventory/schemas/coverage-registry.schema.json",
+  "schema_version": "1.0",
+  "records": []
+}

@@ -258,23 +258,63 @@ namespace BWS.Editor.ClaudeCodeBridge
                 message = "Captured multi-angle scene view screenshots"
             };
 
-            foreach (var angle in new[] { "isometric", "front", "top", "right" })
+            var sceneView = SceneView.lastActiveSceneView;
+            SceneViewState? originalState = sceneView == null
+                ? (SceneViewState?)null
+                : CaptureSceneViewState(sceneView);
+            try
             {
-                var captureParams = CloneForAngle(parameters, angle);
-                ApplySceneViewAngle(angle);
-                var capture = CaptureFromSceneView(captureParams);
-                capture.angle = angle;
-                result.captures.Add(capture);
-                result.fileSizeBytes += capture.fileSizeBytes;
-                if (!capture.success)
+                foreach (var angle in new[] { "isometric", "front", "top", "right" })
                 {
-                    result.success = false;
-                    result.message = capture.message;
-                    break;
+                    var captureParams = CloneForAngle(parameters, angle);
+                    ApplySceneViewAngle(angle);
+                    var capture = CaptureFromSceneView(captureParams);
+                    capture.angle = angle;
+                    result.captures.Add(capture);
+                    result.fileSizeBytes += capture.fileSizeBytes;
+                    if (!capture.success)
+                    {
+                        result.success = false;
+                        result.message = capture.message;
+                        break;
+                    }
                 }
+            }
+            finally
+            {
+                if (sceneView != null && originalState.HasValue)
+                    RestoreSceneViewState(sceneView, originalState.Value);
             }
 
             return result;
+        }
+
+        private struct SceneViewState
+        {
+            public Vector3 pivot;
+            public Quaternion rotation;
+            public float size;
+            public bool orthographic;
+            public bool in2DMode;
+        }
+
+        private static SceneViewState CaptureSceneViewState(SceneView sceneView)
+        {
+            return new SceneViewState
+            {
+                pivot = sceneView.pivot,
+                rotation = sceneView.rotation,
+                size = sceneView.size,
+                orthographic = sceneView.orthographic,
+                in2DMode = sceneView.in2DMode,
+            };
+        }
+
+        private static void RestoreSceneViewState(SceneView sceneView, SceneViewState state)
+        {
+            sceneView.in2DMode = state.in2DMode;
+            sceneView.LookAt(state.pivot, state.rotation, state.size, state.orthographic, true);
+            sceneView.Repaint();
         }
 
         private CaptureScreenshotParams CloneForAngle(CaptureScreenshotParams parameters, string angle)
@@ -313,7 +353,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                 case "right": rotation = Quaternion.Euler(0f, -90f, 0f); break;
                 default: rotation = Quaternion.Euler(35f, 45f, 0f); break;
             }
-            sceneView.LookAt(sceneView.pivot, rotation);
+            sceneView.LookAt(sceneView.pivot, rotation, sceneView.size, sceneView.orthographic, true);
             sceneView.Repaint();
         }
 

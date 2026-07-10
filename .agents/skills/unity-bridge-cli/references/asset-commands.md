@@ -120,6 +120,25 @@ fails cleanly instead of treating the file as an imported model.
 unity-bridge asset-ext import-model C:/Models/Tree.fbx Assets/Models/Tree.fbx
 ```
 
+The destination must be a canonical path below `Assets/`. Existing files are
+refused unless `--overwrite` is passed explicitly; failed imports restore the
+prior asset and `.meta` state.
+
+### `asset-ext reserialize`
+
+Force-reserialize selected assets, or the entire project when `--paths` is
+omitted.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `--paths` | TEXT (repeatable) | no | Asset path to reserialize |
+| `--mode` | TEXT | no | `assets`, `metadata`, or `both` |
+
+```bash
+unity-bridge asset-ext reserialize --mode both
+unity-bridge asset-ext reserialize --paths Assets/Prefabs/Player.prefab --mode metadata
+```
+
 ---
 
 ## package

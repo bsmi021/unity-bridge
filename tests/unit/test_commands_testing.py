@@ -20,14 +20,15 @@ from unity_bridge.core.output import OutputFormatter
 
 
 class TestRunTests:
-
     async def test_passes_correct_command_type(self, mock_bridge: MagicMock) -> None:
         await run_tests(mock_bridge)
         mock_bridge.send_command_with_retry.assert_awaited_once()
         call_kwargs = mock_bridge.send_command_with_retry.call_args
-        assert call_kwargs.kwargs.get("command_type") == "run-tests" or \
-            call_kwargs[1].get("command_type") == "run-tests" or \
-            (call_kwargs[0] and call_kwargs[0][0] == "run-tests")
+        assert (
+            call_kwargs.kwargs.get("command_type") == "run-tests"
+            or call_kwargs[1].get("command_type") == "run-tests"
+            or (call_kwargs[0] and call_kwargs[0][0] == "run-tests")
+        )
 
     async def test_default_platform_is_editmode(self, mock_bridge: MagicMock) -> None:
         await run_tests(mock_bridge)
@@ -41,16 +42,12 @@ class TestRunTests:
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert params["testPlatform"] == "PlayMode"
 
-    async def test_filter_pattern_included_when_provided(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_filter_pattern_included_when_provided(self, mock_bridge: MagicMock) -> None:
         await run_tests(mock_bridge, filter_pattern="CombatTests")
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert params["testFilter"] == "CombatTests"
 
-    async def test_filter_pattern_omitted_when_none(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_filter_pattern_omitted_when_none(self, mock_bridge: MagicMock) -> None:
         await run_tests(mock_bridge, filter_pattern=None)
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert "testFilter" not in params
@@ -110,9 +107,7 @@ class TestRunTests:
         assert result.success is True
         assert result.data["passed"] == 5
 
-    async def test_min_tests_fails_zero_test_success(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_min_tests_fails_zero_test_success(self, mock_bridge: MagicMock) -> None:
         mock_bridge.send_command_with_retry.return_value = CommandResult(
             success=True,
             data={"total": 0, "passed": 0, "failed": 0},
@@ -128,9 +123,7 @@ class TestRunTests:
         assert result.data["total"] == 0
         assert "Expected at least 1 test" in result.error
 
-    async def test_min_tests_passes_when_threshold_met(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_min_tests_passes_when_threshold_met(self, mock_bridge: MagicMock) -> None:
         expected = CommandResult(success=True, data={"total": 2, "passed": 2})
         mock_bridge.send_command_with_retry.return_value = expected
 
@@ -138,9 +131,7 @@ class TestRunTests:
 
         assert result is expected
 
-    async def test_min_tests_does_not_rewrite_bridge_failure(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_min_tests_does_not_rewrite_bridge_failure(self, mock_bridge: MagicMock) -> None:
         expected = CommandResult(success=False, error="Unity failed", exit_code=4)
         mock_bridge.send_command_with_retry.return_value = expected
 
@@ -223,9 +214,7 @@ class TestRunTestsCli:
 
 
 class TestCancelTests:
-    async def test_cancel_tests_dispatches_target_command(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_cancel_tests_dispatches_target_command(self, mock_bridge: MagicMock) -> None:
         result = await cancel_tests(mock_bridge, command_id="run-cmd", timeout=7)
 
         assert result.success is True
@@ -234,9 +223,7 @@ class TestCancelTests:
         assert _extract_parameters(call_args) == {"targetCommandId": "run-cmd"}
         assert _extract_kwarg(call_args, "timeout") == 7.0
 
-    async def test_cancel_tests_allows_current_run_target(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_cancel_tests_allows_current_run_target(self, mock_bridge: MagicMock) -> None:
         await cancel_tests(mock_bridge)
 
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
@@ -264,9 +251,7 @@ class TestCancelTestsCli:
 
 
 class TestPreflightTests:
-    async def test_preflight_reports_selected_tests(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_preflight_reports_selected_tests(self, mock_bridge: MagicMock) -> None:
         mod = _import_testing()
         mock_bridge.send_command_with_retry.return_value = CommandResult(
             success=True,
@@ -335,9 +320,7 @@ class TestPreflightTests:
         assert result.exit_code == 3
         mock_bridge.send_command_with_retry.assert_not_called()
 
-    async def test_preflight_propagates_discovery_failure(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_preflight_propagates_discovery_failure(self, mock_bridge: MagicMock) -> None:
         mod = _import_testing()
         mock_bridge.send_command_with_retry.return_value = CommandResult(
             success=False,
@@ -415,9 +398,12 @@ class TestListAndCompileCli:
         assert result.exit_code == 0
         params = _extract_parameters(mock_bridge.send_command_with_retry.call_args)
         assert params["waitForCompletion"] is False
+        assert params["timeout"] == 240
         assert _extract_kwarg(mock_bridge.send_command_with_retry.call_args, "timeout") == 240.0
 
-    def test_compile_cli_detach_queues_compile_payload(self, mock_bridge: MagicMock, tmp_path) -> None:
+    def test_compile_cli_detach_queues_compile_payload(
+        self, mock_bridge: MagicMock, tmp_path
+    ) -> None:
         result = _run_test_cli(
             ["compile", "--detach", "--no-wait", "--timeout", "240"],
             mock_bridge,
@@ -429,7 +415,7 @@ class TestListAndCompileCli:
         command_id = payload["command_id"]
         queued = CommandQueue(tmp_path, auto_start=False)._load_queue_file(command_id)
         assert queued.command_type == "compile"
-        assert queued.parameters == {"waitForCompletion": False}
+        assert queued.parameters == {"waitForCompletion": False, "timeout": 240}
         assert queued.timeout == 240.0
         mock_bridge.send_command_with_retry.assert_not_awaited()
 
@@ -641,9 +627,7 @@ class TestTestProgressEvents:
         assert result.exit_code == 2
         assert "No test progress event log found" in result.error
 
-    def test_latest_event_log_without_command_id_returns_structured_failure(
-        self, tmp_path
-    ) -> None:
+    def test_latest_event_log_without_command_id_returns_structured_failure(self, tmp_path) -> None:
         mod = _import_testing()
         path = tmp_path / ".claude" / "unity" / "test-progress" / "latest.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -743,9 +727,7 @@ class TestTestResultArtifactCli:
         assert result.exit_code == 0
         assert '"command_id": "cmd-cli"' in result.stdout
 
-    def test_failures_cli_reads_specific_command(
-        self, tmp_path, mock_bridge: MagicMock
-    ) -> None:
+    def test_failures_cli_reads_specific_command(self, tmp_path, mock_bridge: MagicMock) -> None:
         _write_artifact(tmp_path, "cmd-fail.json", command_id="cmd-fail", failed=1)
 
         result = _run_test_cli(
@@ -776,9 +758,7 @@ class TestTestResultArtifactCli:
         assert '"command_id": "cmd-progress"' in result.stdout
         assert '"finished": 2' in result.stdout
 
-    def test_events_cli_reads_specific_event_log(
-        self, tmp_path, mock_bridge: MagicMock
-    ) -> None:
+    def test_events_cli_reads_specific_event_log(self, tmp_path, mock_bridge: MagicMock) -> None:
         _write_progress_events(tmp_path, "cmd-progress", [{"state": "started"}])
 
         result = _run_test_cli(
@@ -832,9 +812,7 @@ class TestRunTestsBridgeSource:
 
     def test_csharp_models_include_rich_selector_fields(self) -> None:
         source = (
-            _repo_root()
-            .joinpath("ClaudeCodeBridge", "BridgeModels.cs")
-            .read_text(encoding="utf-8")
+            _repo_root().joinpath("ClaudeCodeBridge", "BridgeModels.cs").read_text(encoding="utf-8")
         )
 
         assert "public string[] testNames;" in source
@@ -861,9 +839,9 @@ class TestRunTestsBridgeSource:
             .read_text(encoding="utf-8")
         )
 
-        assert "WriteTestProgress(commandId, \"started\"" in source
-        assert "WriteTestProgress(commandId, \"running\"" in source
-        assert "WriteTestProgress(commandId, \"finished\"" in source
+        assert 'WriteTestProgress(commandId, "started"' in source
+        assert 'WriteTestProgress(commandId, "running"' in source
+        assert 'WriteTestProgress(commandId, "finished"' in source
         assert "test-progress" in source
         assert "TestProgressArtifact" in source
         assert "TestProgressEvent" in source
@@ -944,7 +922,6 @@ class TestRunTestsBridgeSource:
 
 
 class TestCompileScripts:
-
     async def test_passes_compile_command(self, mock_bridge: MagicMock) -> None:
         await compile_scripts(mock_bridge)
         call_args = mock_bridge.send_command_with_retry.call_args
@@ -965,7 +942,9 @@ class TestCompileScripts:
         await compile_scripts(mock_bridge, timeout=240)
         call_args = mock_bridge.send_command_with_retry.call_args
         timeout = _extract_kwarg(call_args, "timeout")
+        params = _extract_parameters(call_args)
         assert timeout == 240.0
+        assert params["timeout"] == 240
 
 
 # ---------------------------------------------------------------------------

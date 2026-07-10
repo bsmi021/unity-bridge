@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unity-bridge.local/schemas/coverage-report.schema.json",
+  "title": "Unity API coverage gate report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "snapshot_symbol_count",
+    "registry_record_count",
+    "classified_count",
+    "unclassified_symbol_ids",
+    "removed_registry_symbol_ids",
+    "invalid_registry_records",
+    "is_complete"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "snapshot_symbol_count": { "type": "integer", "minimum": 0 },
+    "registry_record_count": { "type": "integer", "minimum": 0 },
+    "classified_count": { "type": "integer", "minimum": 0 },
+    "unclassified_symbol_ids": { "$ref": "#/$defs/ids" },
+    "removed_registry_symbol_ids": { "$ref": "#/$defs/ids" },
+    "invalid_registry_records": { "type": "array", "items": { "type": "string" } },
+    "is_complete": { "type": "boolean" }
+  },
+  "$defs": {
+    "ids": { "type": "array", "items": { "type": "string" } }
+  }
+}

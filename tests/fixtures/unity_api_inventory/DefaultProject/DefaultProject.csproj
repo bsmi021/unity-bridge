@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Assembly-CSharp</AssemblyName>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

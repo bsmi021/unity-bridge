@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unity-bridge.local/schemas/api-inventory-summary.schema.json",
+  "title": "Unity API inventory summary",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "extractor_version",
+    "capture_time",
+    "host_os",
+    "unity",
+    "build_target",
+    "defines",
+    "api_compatibility",
+    "assembly_count",
+    "symbol_count",
+    "record_counts",
+    "snapshot_sha256",
+    "assemblies",
+    "skipped_assemblies",
+    "documentation_join",
+    "project_metadata",
+    "playback_modules"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "extractor_version": { "type": "string" },
+    "capture_time": { "type": "string", "format": "date-time" },
+    "host_os": { "enum": ["windows", "macos", "linux", "unknown"] },
+    "unity": {
+      "type": "object",
+      "required": ["version", "revision"],
+      "properties": {
+        "version": { "type": "string" },
+        "revision": { "type": "string" }
+      }
+    },
+    "build_target": { "type": "string" },
+    "defines": { "type": "array", "items": { "type": "string" } },
+    "api_compatibility": { "type": "string" },
+    "assembly_count": { "type": "integer", "minimum": 0 },
+    "symbol_count": { "type": "integer", "minimum": 0 },
+    "record_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "snapshot_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "assemblies": { "type": "array", "items": { "type": "object" } },
+    "skipped_assemblies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "reason": { "const": "not_managed_assembly" }
+        }
+      }
+    },
+    "documentation_join": {
+      "type": "object",
+      "required": ["status", "source_path", "source_sha256", "base_url", "toc_entry_count", "indexed_entry_count", "ignored_entry_count", "ambiguous_identity_count", "matched_type_count", "unmatched_type_count"],
+      "properties": {
+        "status": { "enum": ["joined", "not_requested"] },
+        "source_path": { "type": ["string", "null"] },
+        "source_sha256": { "type": ["string", "null"] },
+        "base_url": { "type": "string" },
+        "toc_entry_count": { "type": "integer", "minimum": 0 },
+        "indexed_entry_count": { "type": "integer", "minimum": 0 },
+        "ignored_entry_count": { "type": "integer", "minimum": 0 },
+        "ambiguous_identity_count": { "type": "integer", "minimum": 0 },
+        "matched_type_count": { "type": "integer", "minimum": 0 },
+        "unmatched_type_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "project_metadata": {
+      "type": "object",
+      "required": ["status", "project_root", "manifest_path", "manifest_sha256", "packages_lock_path", "packages_lock_sha256", "asmdef_count", "matched_assembly_count", "unresolved_assembly_names", "source_maps"],
+      "properties": {
+        "status": { "enum": ["joined", "joined_with_gaps", "not_requested"] },
+        "project_root": { "type": ["string", "null"] },
+        "manifest_path": { "type": ["string", "null"] },
+        "manifest_sha256": { "type": ["string", "null"] },
+        "packages_lock_path": { "type": ["string", "null"] },
+        "packages_lock_sha256": { "type": ["string", "null"] },
+        "asmdef_count": { "type": "integer", "minimum": 0 },
+        "matched_assembly_count": { "type": "integer", "minimum": 0 },
+        "unresolved_assembly_names": { "type": "array", "items": { "type": "string" } },
+        "source_maps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["assembly_name", "asmdef", "source_files"],
+            "properties": {
+              "assembly_name": { "type": "string" },
+              "asmdef": { "type": "string" },
+              "source_files": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "playback_modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "generic_managed_assembly_count", "variations"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "generic_managed_assembly_count": { "type": "integer", "minimum": 0 },
+          "variations": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

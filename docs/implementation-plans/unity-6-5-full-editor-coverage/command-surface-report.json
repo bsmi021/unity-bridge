@@ -1,0 +1,31 @@
+{
+  "added_cli_leaves": [],
+  "added_handlers": [],
+  "added_python_command_types": [],
+  "added_python_operations": [],
+  "counts": {
+    "classified": 406,
+    "cli_leaves": 394,
+    "csharp_operations": 406,
+    "gaps": 0,
+    "handlers": 101,
+    "internal": 0,
+    "python_command_types": 100,
+    "python_operations": 333,
+    "raw_only": 101,
+    "typed_cli": 305,
+    "unreachable": 0
+  },
+  "field_name_mismatches": [],
+  "invalid_registry_records": [],
+  "is_complete": true,
+  "python_operations_without_csharp_dispatch": [],
+  "registered_without_python_sender": [],
+  "removed_cli_leaves": [],
+  "removed_csharp_operations": [],
+  "removed_handlers": [],
+  "removed_python_command_types": [],
+  "removed_python_operations": [],
+  "schema_version": "1.0",
+  "unclassified_csharp_operations": []
+}

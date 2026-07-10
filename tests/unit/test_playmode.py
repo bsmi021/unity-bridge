@@ -15,15 +15,15 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _call_args(mock: MagicMock) -> dict[str, Any]:
     call = mock.send_command_with_retry.call_args
-    return call.kwargs if call.kwargs else dict(
-        zip(["command_type", "parameters", "timeout"], call.args, strict=False)
+    return (
+        call.kwargs
+        if call.kwargs
+        else dict(zip(["command_type", "parameters", "timeout"], call.args, strict=False))
     )
 
 
 class TestPlaymodeControl:
-    async def test_stop_sends_operation_payload_and_timeout(
-        self, mock_bridge: MagicMock
-    ) -> None:
+    async def test_stop_sends_operation_payload_and_timeout(self, mock_bridge: MagicMock) -> None:
         # Arrange
         action = " stop "
 
@@ -48,12 +48,10 @@ class TestPlaymodeControl:
 class TestPlaymodeCSharpCompatibility:
     def test_legacy_action_alias_is_normalized_before_validation(self) -> None:
         # Arrange
-        models = (ROOT / "ClaudeCodeBridge" / "BridgeModels.cs").read_text(
+        models = (ROOT / "ClaudeCodeBridge" / "BridgeModels.cs").read_text(encoding="utf-8")
+        handler = (ROOT / "ClaudeCodeBridge" / "PlayModeControlCommandHandler.cs").read_text(
             encoding="utf-8"
         )
-        handler = (
-            ROOT / "ClaudeCodeBridge" / "PlayModeControlCommandHandler.cs"
-        ).read_text(encoding="utf-8")
 
         # Act
         normalize_index = handler.index("ResolveOperation(parameters)")
@@ -64,3 +62,25 @@ class TestPlaymodeCSharpCompatibility:
         assert normalize_index < validation_index
         assert "parameters.operation = operation;" in handler
         assert "ToLowerInvariant()" in handler
+
+    def test_playmode_transition_persists_across_domain_reload(self) -> None:
+        # Arrange
+        handler = (ROOT / "ClaudeCodeBridge" / "PlayModeControlCommandHandler.cs").read_text(
+            encoding="utf-8"
+        )
+        store_path = ROOT / "ClaudeCodeBridge" / "PlayModeTransitionStore.cs"
+        assert store_path.is_file()
+        store = store_path.read_text(encoding="utf-8")
+        ledger = (ROOT / "ClaudeCodeBridge" / "BridgeOperationLedger.cs").read_text(
+            encoding="utf-8"
+        )
+
+        # Act / Assert
+        assert "SessionState.SetString(PendingCommandIdKey" in store
+        assert "PlayModeTransitionStore.Restore" in handler
+        assert "CompletePendingAfterReload" in handler
+        assert handler.index("PlayModeTransitionStore.Persist(") < handler.index(
+            "EditorApplication.isPlaying = true"
+        )
+        assert "PlayModeTransitionStore.PendingCommandIdKey" in ledger
+        assert "if (EditorApplication.isPlayingOrWillChangePlaymode)" not in store

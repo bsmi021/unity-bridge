@@ -112,6 +112,7 @@ def print_result(
 # Human formatters for specific command types
 # ---------------------------------------------------------------------------
 
+
 def format_test_results(data: Any, color: bool = True) -> str:
     """Format test run results for human-readable output."""
     if not isinstance(data, dict):
@@ -253,12 +254,16 @@ def format_diagnostics(data: Any, color: bool = True) -> str:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-_CAMEL_TO_SNAKE_RE = re.compile(r"(?<=[a-z0-9])([A-Z])")
+_DIMENSION_BOUNDARY_RE = re.compile(r"(?<=[a-z])(?=\d[A-Z])")
+_CAMEL_WORD_BOUNDARY_RE = re.compile(r"(.)([A-Z][a-z]+)")
+_CAMEL_CAPITAL_BOUNDARY_RE = re.compile(r"([a-z])([A-Z])")
 
 
 def _to_snake_case(name: str) -> str:
     """Convert a camelCase string to snake_case."""
-    return _CAMEL_TO_SNAKE_RE.sub(r"_\1", name).lower()
+    dimensional = _DIMENSION_BOUNDARY_RE.sub("_", name)
+    words = _CAMEL_WORD_BOUNDARY_RE.sub(r"\1_\2", dimensional)
+    return _CAMEL_CAPITAL_BOUNDARY_RE.sub(r"\1_\2", words).lower()
 
 
 def _to_snake_case_keys(data: Any) -> Any:

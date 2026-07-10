@@ -484,12 +484,29 @@ class DirectBridge:
             return None
 
         response_file.unlink(missing_ok=True)
-        terminal_state = terminal_state_for_response_status(status)
-        if terminal_state is not None:
+        data = self._parse_data_json(response)
+        inner_error = self._inner_failure_message(data) if status == "success" else None
+        terminal_state = (
+            STATE_FAILED if inner_error is not None else terminal_state_for_response_status(status)
+        )
+        if inner_error is not None:
+            self._operation_store.reconcile_terminal_failure(
+                command_id,
+                reason=inner_error,
+            )
+        elif terminal_state is not None:
             self._operation_store.transition(command_id, terminal_state, reason=status)
 
         if status == "success":
-            data = self._parse_data_json(response)
+            if inner_error is not None:
+                return CommandResult(
+                    success=False,
+                    data=data,
+                    error=inner_error,
+                    command_id=command_id,
+                    execution_time_ms=int(elapsed * 1000),
+                    exit_code=1,
+                )
             return CommandResult(
                 success=True,
                 data=data,
@@ -499,6 +516,7 @@ class DirectBridge:
 
         return CommandResult(
             success=False,
+            data=data,
             error=response.get("errorMessage", "Unknown error"),
             command_id=command_id,
             execution_time_ms=int(elapsed * 1000),
@@ -655,6 +673,17 @@ class DirectBridge:
             return json.loads(raw.removeprefix("\ufeff"))
         except json.JSONDecodeError:
             return raw
+
+    @staticmethod
+    def _inner_failure_message(data: Any) -> str | None:
+        """Return an error when a successful envelope contains a failed payload."""
+        if not isinstance(data, dict) or data.get("success") is not False:
+            return None
+        for key in ("message", "error", "errorMessage"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        return "Unity command reported failure."
 
     async def _wait_for_editor_ready(self, timeout: float | None = None) -> Any:
         """Wait for editor readiness using the configured readiness timeout."""

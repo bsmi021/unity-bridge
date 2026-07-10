@@ -115,6 +115,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         public bool includeStackTrace = true;
         public int maxStackTraceLines = 5;
         public int maxMessageLength = 500;
+        public string filterPattern;
     }
 
     [Serializable]
@@ -144,6 +145,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         public string prefabPath;
         public string gameObjectPath;
         public bool applyToAll = false;
+        public SerializableVector3 position;
     }
 
     [Serializable]

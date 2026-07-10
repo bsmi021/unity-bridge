@@ -10,7 +10,9 @@ def test_heartbeat_generator_emits_editor_readiness_fields() -> None:
     source = Path("ClaudeCodeBridge/HeartbeatGenerator.cs").read_text(encoding="utf-8")
 
     assert "EditorApplication.isUpdating" in source
-    assert "EditorApplication.isPlayingOrWillChangePlaymode" in source
+    assert "_isPlayModeTransition" in source
+    assert "isPlayingOrWillChangePlaymode = _isPlayModeTransition" in source
+    assert "EditorApplication.isPlayingOrWillChangePlaymode" not in source
     assert "CompilationPipeline.compilationStarted" in source
     assert "CompilationPipeline.compilationFinished" in source
     assert "AssemblyReloadEvents.beforeAssemblyReload" in source
@@ -75,6 +77,16 @@ def test_bridge_operation_ledger_writes_utf8_without_bom() -> None:
 
     assert "new UTF8Encoding(false, true)" in source
     assert "new StreamWriter(stream, Encoding.UTF8)" not in source
+
+
+def test_reload_recovery_ignores_nonterminal_running_response_files() -> None:
+    # Arrange
+    source = Path("ClaudeCodeBridge/BridgeOperationLedger.cs").read_text(encoding="utf-8")
+
+    # Act / Assert
+    assert "TerminalResponseExists" in source
+    assert 'response.status == "success" || response.status == "error"' in source
+    assert "if (ResponseExists(record)) return false" not in source
 
 
 def test_claude_unity_bridge_wires_operation_ledger() -> None:

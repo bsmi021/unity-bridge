@@ -156,7 +156,8 @@ class TestScriptEditBridgeSource:
         assert "ComputeSha256" in handler_source
         assert "ifMatch" in model_source
         assert "Hash precondition failed" in handler_source
-        assert 'StartsWith("Assets/"' in handler_source
+        assert "ProjectAssetPath.TryResolve" in handler_source
+        assert 'StartsWith("Assets/"' not in handler_source
         assert 'EndsWith(".cs"' in handler_source
         assert "AssetDatabase.ImportAsset" in handler_source
         assert "compileFeedback" in model_source

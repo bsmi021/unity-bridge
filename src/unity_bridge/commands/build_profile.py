@@ -1,4 +1,4 @@
-"""Build profile commands: list, get-active, set-active, get-info (Unity 6)."""
+"""Build profile discovery, configuration, and build commands (Unity 6)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from unity_bridge.core.bridge import CommandResult, DirectBridge
 VALID_ACTIONS = frozenset(
     {
         "list",
+        "list-platforms",
         "create",
         "get-active",
         "set-active",
@@ -107,6 +108,16 @@ def profile_list(ctx: typer.Context) -> None:
 
     state = ctx.obj
     result = asyncio.run(build_profile_operation(state.bridge, "list"))
+    print_result(result, state.formatter)
+
+
+@build_profile_app.command("platforms")
+def profile_platforms(ctx: typer.Context) -> None:
+    """List installed build profile platforms and their GUIDs."""
+    from unity_bridge.core.output import print_result
+
+    state = ctx.obj
+    result = asyncio.run(build_profile_operation(state.bridge, "list-platforms"))
     print_result(result, state.formatter)
 
 

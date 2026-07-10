@@ -52,6 +52,7 @@ class TestValidActions:
     def test_all_spec_operations_present(self) -> None:
         expected = {
             "list",
+            "list-platforms",
             "create",
             "get-active",
             "set-active",

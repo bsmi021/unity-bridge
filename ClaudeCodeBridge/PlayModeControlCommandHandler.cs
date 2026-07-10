@@ -43,6 +43,8 @@ namespace BWS.Editor.ClaudeCodeBridge
         static PlayModeControlCommandHandler()
         {
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+            RestorePendingStateChange();
+            EditorApplication.delayCall += CompletePendingAfterReload;
         }
 
         public BridgeResponse Execute(BridgeCommand command)
@@ -157,6 +159,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                 Operation = parameters.operation,
                 TargetState = PlayModeStateChange.EnteredPlayMode
             };
+            PlayModeTransitionStore.Persist(
+                command.commandId, parameters.operation, PlayModeStateChange.EnteredPlayMode);
 
             // Enter play mode (this is async)
             EditorApplication.isPlaying = true;
@@ -220,6 +224,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                 Operation = parameters.operation,
                 TargetState = PlayModeStateChange.EnteredEditMode
             };
+            PlayModeTransitionStore.Persist(
+                command.commandId, parameters.operation, PlayModeStateChange.EnteredEditMode);
 
             // Exit play mode (this is async)
             EditorApplication.isPlaying = false;
@@ -301,27 +307,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                 // Check if this state change matches what we're waiting for
                 if (pending.TargetState == state)
                 {
-                    try
-                    {
-                        var result = CreateResult(
-                            pending.Operation,
-                            GetStateMessage(state)
-                        );
-
-                        ClaudeUnityBridge.WriteResponseStatic(
-                            BridgeResponse.Success(pending.CommandId, "playmode-control", JsonUtility.ToJson(result))
-                        );
-
-                        completedChanges.Add(kvp.Key);
-                    }
-                    catch (Exception ex)
-                    {
-                        BridgeLogger.LogError($"Error writing final response: {ex}");
-                        ClaudeUnityBridge.WriteResponseStatic(
-                            BridgeResponse.Error(pending.CommandId, "playmode-control", ex.ToString())
-                        );
-                        completedChanges.Add(kvp.Key);
-                    }
+                    WriteCompletion(pending, state);
+                    completedChanges.Add(kvp.Key);
                 }
             }
 
@@ -329,6 +316,55 @@ namespace BWS.Editor.ClaudeCodeBridge
             foreach (var commandId in completedChanges)
             {
                 _pendingStateChanges.Remove(commandId);
+            }
+        }
+
+        private static void RestorePendingStateChange()
+        {
+            var persisted = PlayModeTransitionStore.Restore();
+            if (persisted == null) return;
+            _pendingStateChanges[persisted.CommandId] = new PendingStateChange
+            {
+                CommandId = persisted.CommandId,
+                Operation = persisted.Operation,
+                TargetState = persisted.TargetState,
+            };
+        }
+
+        internal static void CompletePendingAfterReload()
+        {
+            RestorePendingStateChange();
+            var completed = new List<string>();
+            foreach (var pair in _pendingStateChanges)
+            {
+                if (!PlayModeTransitionStore.IsSatisfied(pair.Value.TargetState))
+                    continue;
+                WriteCompletion(pair.Value, pair.Value.TargetState);
+                completed.Add(pair.Key);
+            }
+            foreach (var commandId in completed)
+                _pendingStateChanges.Remove(commandId);
+        }
+
+        private static void WriteCompletion(
+            PendingStateChange pending,
+            PlayModeStateChange state)
+        {
+            try
+            {
+                var result = CreateResult(pending.Operation, GetStateMessage(state));
+                ClaudeUnityBridge.WriteResponseStatic(BridgeResponse.Success(
+                    pending.CommandId, "playmode-control", JsonUtility.ToJson(result)));
+            }
+            catch (Exception ex)
+            {
+                BridgeLogger.LogError($"Error writing final response: {ex}");
+                ClaudeUnityBridge.WriteResponseStatic(BridgeResponse.Error(
+                    pending.CommandId, "playmode-control", ex.ToString()));
+            }
+            finally
+            {
+                PlayModeTransitionStore.Clear(pending.CommandId);
             }
         }
 

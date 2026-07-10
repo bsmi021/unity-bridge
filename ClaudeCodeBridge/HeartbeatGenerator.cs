@@ -56,6 +56,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         private static int _commandsProcessed = 0;
         private static string _lastReloadTimestamp;
         private static bool _isReloadingAssemblies = false;
+        private static bool _isPlayModeTransition = false;
         private static string _lastBusyReason;
         private static string _lastBusyTimestamp;
 
@@ -144,6 +145,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             CompilationPipeline.compilationFinished += _ => MarkBusy("compiling");
             AssemblyReloadEvents.beforeAssemblyReload += MarkAssemblyReloadStarting;
             AssemblyReloadEvents.afterAssemblyReload += MarkAssemblyReloadFinished;
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
 
 #if UNITY_6000_5_OR_NEWER
@@ -162,25 +164,25 @@ namespace BWS.Editor.ClaudeCodeBridge
         [OnEnteringEditMode]
         private static void OnUnity65EnteringEditMode()
         {
-            MarkPlayModeTransition();
+            SetPlayModeTransition(false);
         }
 
         [OnExitingEditMode]
         private static void OnUnity65ExitingEditMode()
         {
-            MarkPlayModeTransition();
+            SetPlayModeTransition(true);
         }
 
         [OnEnteringPlayMode]
         private static void OnUnity65EnteringPlayMode()
         {
-            MarkPlayModeTransition();
+            SetPlayModeTransition(false);
         }
 
         [OnExitingPlayMode]
         private static void OnUnity65ExitingPlayMode()
         {
-            MarkPlayModeTransition();
+            SetPlayModeTransition(true);
         }
 #endif
 
@@ -198,9 +200,18 @@ namespace BWS.Editor.ClaudeCodeBridge
             WriteHeartbeat();
         }
 
-        private static void MarkPlayModeTransition()
+        private static void OnPlayModeStateChanged(PlayModeStateChange state)
         {
-            MarkBusy("playmode_transition");
+            SetPlayModeTransition(
+                state == PlayModeStateChange.ExitingEditMode
+                || state == PlayModeStateChange.ExitingPlayMode);
+        }
+
+        private static void SetPlayModeTransition(bool active)
+        {
+            _isPlayModeTransition = active;
+            if (active)
+                MarkBusy("playmode_transition");
             WriteHeartbeat();
         }
 
@@ -209,7 +220,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             return EditorApplication.isCompiling
                 || EditorApplication.isUpdating
                 || _isReloadingAssemblies
-                || EditorApplication.isPlayingOrWillChangePlaymode;
+                || _isPlayModeTransition;
         }
 
         private static string GetCurrentBusyReason()
@@ -217,7 +228,7 @@ namespace BWS.Editor.ClaudeCodeBridge
             if (EditorApplication.isCompiling) return "compiling";
             if (EditorApplication.isUpdating) return "updating";
             if (_isReloadingAssemblies) return "reloading_assemblies";
-            if (EditorApplication.isPlayingOrWillChangePlaymode) return "playmode_transition";
+            if (_isPlayModeTransition) return "playmode_transition";
             return null;
         }
 
@@ -249,7 +260,7 @@ namespace BWS.Editor.ClaudeCodeBridge
                     isCompiling = EditorApplication.isCompiling,
                     isUpdating = EditorApplication.isUpdating,
                     isReloadingAssemblies = _isReloadingAssemblies,
-                    isPlayingOrWillChangePlaymode = EditorApplication.isPlayingOrWillChangePlaymode,
+                    isPlayingOrWillChangePlaymode = _isPlayModeTransition,
                     busyReason = busyReason,
                     lastBusyReason = _lastBusyReason,
                     lastBusyTimestamp = _lastBusyTimestamp,

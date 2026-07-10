@@ -38,6 +38,9 @@ namespace BWS.Editor.ClaudeCodeBridge
                     case "instantiate":
                         result = InstantiatePrefab(parameters);
                         break;
+                    case "destroy":
+                        result = DestroyPrefabInstance(parameters);
+                        break;
                     case "apply":
                         result = ApplyPrefabModifications(parameters);
                         break;
@@ -49,7 +52,8 @@ namespace BWS.Editor.ClaudeCodeBridge
                         break;
                     default:
                         return BridgeResponse.Error(command.commandId, command.commandType,
-                            $"Unknown operation: {parameters.operation}. Supported: create, instantiate, apply, revert, get-info");
+                            $"Unknown operation: {parameters.operation}. Supported: "
+                            + "create, instantiate, destroy, apply, revert, get-info");
                 }
 
                 var resultJson = JsonUtility.ToJson(result);
@@ -187,6 +191,14 @@ namespace BWS.Editor.ClaudeCodeBridge
                 result.success = false;
                 result.message = $"Failed to instantiate prefab: {parameters.prefabPath}";
                 return result;
+            }
+
+            if (parameters.position != null && parameters.position.isSet)
+            {
+                instance.transform.position = new Vector3(
+                    parameters.position.x,
+                    parameters.position.y,
+                    parameters.position.z);
             }
 
             // Get full path of instantiated object

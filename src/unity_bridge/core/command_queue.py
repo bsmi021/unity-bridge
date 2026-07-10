@@ -103,7 +103,16 @@ class CommandQueue:
         """Queue a Unity command and optionally start background dispatch."""
         queued = self._create_queued_command(command_type, parameters or {}, timeout, client_policy)
         self._write_queue_file(queued)
-        self._create_operation_record(queued)
+        try:
+            self._create_operation_record(queued)
+        except OSError as exc:
+            self.remove_metadata(queued.command_id)
+            return CommandResult(
+                success=False,
+                error=f"Could not persist detached operation: {exc}",
+                command_id=queued.command_id,
+                exit_code=1,
+            )
         dispatch_started = self._start_dispatch(queued.command_id) if self.auto_start else False
         return CommandResult(
             success=True,
@@ -323,8 +332,10 @@ class CommandQueue:
             command_id=queued.command_id,
             command_type=queued.command_type,
             parameters=queued.parameters,
-            command_path=self.bridge.commands_path / f"{queued.command_id}-{queued.command_type}.json",
-            response_path=self.bridge.responses_path / f"{queued.command_id}-{queued.command_type}.json",
+            command_path=self.bridge.commands_path
+            / f"{queued.command_id}-{queued.command_type}.json",
+            response_path=self.bridge.responses_path
+            / f"{queued.command_id}-{queued.command_type}.json",
             domain_generation=None,
             retry_policy=retry_policy_for_command(queued.command_type),
             idempotency_key=queued.parameters.get("idempotencyKey"),

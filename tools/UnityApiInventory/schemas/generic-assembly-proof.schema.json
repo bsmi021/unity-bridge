@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unity-bridge.local/schemas/generic-assembly-proof.schema.json",
+  "title": "Unity API exact assembly generic-host proof",
+  "type": "object",
+  "required": ["schema_version", "snapshot", "assemblies"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "snapshot": {
+      "type": "object",
+      "required": ["sha256", "unity_version"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "unity_version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "assemblies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "mvid", "sha256", "proof"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "mvid": { "type": "string", "format": "uuid" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "proof": { "type": "array", "items": { "type": "string" }, "minItems": 2 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -18,7 +18,7 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "get-selection": 5,
     "refresh-assets": 15,
     "focus-object": 5,
-    "health-check": 5,
+    "bridge-status": 5,
     "profiler-sample": 10,
     # Medium operations
     "set-component-data": 30,
@@ -31,6 +31,8 @@ TIMEOUT_DEFAULTS: dict[str, int] = {
     "animator-operation": 30,
     "execute-menu-item": 30,
     "execute-script": 30,
+    "execute-job": 30,
+    "cancel-execute-job": 10,
     # Long operations
     "run-tests": 300,
     "cancel-tests": 10,
@@ -149,7 +151,7 @@ PARALLEL_SAFE_COMMANDS: set[str] = {
     "get-selection",
     "read-console",
     "validate-prefab",
-    "health-check",
+    "bridge-status",
     "list-tests",
     "shader-inspection",
     "transform-operation",  # get operation is read-only
@@ -187,14 +189,10 @@ OPERATION_GATED_PARALLEL_SAFE: dict[str, frozenset[str]] = {
     "clipboard": frozenset({"read"}),
     "deep-serialize": frozenset({"get"}),
     "window-management": frozenset({"list"}),
-    "input-system": frozenset(
-        {"list-actions", "get-action-map", "export", "list-control-schemes"}
-    ),
+    "input-system": frozenset({"list-actions", "get-action-map", "export", "list-control-schemes"}),
     "code-coverage": frozenset({"availability", "find-reports", "summarize"}),
     "timeline-operation": frozenset({"get-clips", "get-info"}),
-    "cinemachine-operation": frozenset(
-        {"list-cameras", "get-camera-info", "get-active-camera"}
-    ),
+    "cinemachine-operation": frozenset({"list-cameras", "get-camera-info", "get-active-camera"}),
     "localization": frozenset(
         {"list-locales", "get-selected-locale", "get-string-table-collection"}
     ),

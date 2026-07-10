@@ -25,7 +25,6 @@ from unity_bridge.core.output import (
 
 
 class TestOutputFormatterInit:
-
     def test_default_json_format(self) -> None:
         fmt = OutputFormatter()
         assert fmt.format == "json"
@@ -47,7 +46,6 @@ class TestOutputFormatterInit:
 
 
 class TestJsonOutput:
-
     def test_compact_json_output(self) -> None:
         fmt = OutputFormatter(format="json")
         result = CommandResult(success=True, data={"some_key": "value"})
@@ -87,6 +85,24 @@ class TestJsonOutput:
         assert "is_playing" in parsed["data"]
         assert parsed["data"]["nested_items"][0]["child_name"] == "Bar"
 
+    def test_dimension_suffixes_are_complete_snake_case_words(self) -> None:
+        # Arrange
+        fmt = OutputFormatter(format="json")
+        result = CommandResult(
+            success=True,
+            data={"is2D": True, "physics2DEnabled": False, "sha256": "digest"},
+        )
+
+        # Act
+        parsed = json.loads(fmt.format_result(result))
+
+        # Assert
+        assert parsed["data"] == {
+            "is_2d": True,
+            "physics_2d_enabled": False,
+            "sha256": "digest",
+        }
+
     def test_result_metadata_is_emitted_when_present(self) -> None:
         fmt = OutputFormatter(format="json")
         result = CommandResult(
@@ -113,7 +129,6 @@ class TestJsonOutput:
 
 
 class TestFormatterMethods:
-
     def test_success_json(self) -> None:
         fmt = OutputFormatter(format="json")
         output = fmt.success({"count": 5})
@@ -173,7 +188,6 @@ class TestFormatterMethods:
 
 
 class TestPrintResult:
-
     def test_success_prints_to_stdout(self, capsys: pytest.CaptureFixture) -> None:
         result = CommandResult(success=True, data={"key": "val"})
         fmt = OutputFormatter(format="json")
@@ -229,7 +243,6 @@ class TestPrintResult:
 
 
 class TestHumanFormatters:
-
     def test_format_test_results_handles_statuses_and_summary(self) -> None:
         data = {
             "results": [
@@ -287,7 +300,9 @@ class TestHumanFormatters:
         assert format_hierarchy(["raw"], color=False) == "['raw']"
 
     def test_format_hierarchy_accepts_scene_and_objects_aliases(self) -> None:
-        output = format_hierarchy({"scene": "AliasScene", "objects": [{"name": "Root"}]}, color=False)
+        output = format_hierarchy(
+            {"scene": "AliasScene", "objects": [{"name": "Root"}]}, color=False
+        )
 
         assert "Scene: AliasScene" in output
         assert "|__ Root" in output

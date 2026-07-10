@@ -76,7 +76,7 @@ namespace BWS.Editor.ClaudeCodeBridge
         private AssetExtendedOperationResult ExecuteImportModel(AssetExtendedOperationParams parameters)
         {
             var result = new AssetExtendedOperationResult { operation = "import-model", success = false };
-            var validationError = ValidateModelImport(parameters);
+            var validationError = ValidateModelImport(parameters, out var fullDestinationPath);
             if (!string.IsNullOrEmpty(validationError))
             {
                 result.message = validationError;
@@ -84,49 +84,124 @@ namespace BWS.Editor.ClaudeCodeBridge
             }
 
             var fullSourcePath = Path.GetFullPath(parameters.sourcePath);
-            var fullDestinationPath = ToProjectFilePath(parameters.destinationPath);
             var destinationDir = Path.GetDirectoryName(fullDestinationPath);
             if (!string.IsNullOrEmpty(destinationDir))
                 Directory.CreateDirectory(destinationDir);
 
-            File.Copy(fullSourcePath, fullDestinationPath, overwrite: true);
-            AssetDatabase.ImportAsset(
-                parameters.destinationPath,
-                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            if (!AssetFileMutationScope.TryBegin(
+                fullDestinationPath,
+                parameters.overwrite,
+                out var mutation,
+                out var mutationError))
+            {
+                result.message = mutationError;
+                return result;
+            }
 
+            using (mutation)
+                return ExecuteModelImportTransaction(
+                    parameters, result, fullSourcePath, mutation);
+        }
+
+        private static AssetExtendedOperationResult ExecuteModelImportTransaction(
+            AssetExtendedOperationParams parameters,
+            AssetExtendedOperationResult result,
+            string fullSourcePath,
+            AssetFileMutationScope mutation)
+        {
+            try
+            {
+                mutation.CopyFrom(fullSourcePath);
+                ImportModelAsset(parameters.destinationPath);
+                PopulateModelImportResult(parameters, result, fullSourcePath);
+                if (IsGltfExtension(parameters.destinationPath)
+                    && IsDefaultImporter(AssetDatabase.GetImporterType(parameters.destinationPath)))
+                {
+                    var rollbackError = RollbackModelImport(parameters.destinationPath, mutation);
+                    result.asset = null;
+                    result.guid = "";
+                    result.message = "glTF/glb import requires a ScriptedImporter package."
+                        + rollbackError;
+                    return result;
+                }
+
+                mutation.Commit();
+                result.success = true;
+                result.message = $"Imported model: {parameters.destinationPath}";
+                return result;
+            }
+            catch (Exception ex)
+            {
+                var rollbackError = RollbackModelImport(parameters.destinationPath, mutation);
+                result.asset = null;
+                result.guid = "";
+                result.message = $"Model import failed: {ex.Message}{rollbackError}";
+                return result;
+            }
+        }
+
+        private static string ValidateModelImport(
+            AssetExtendedOperationParams parameters, out string fullDestinationPath)
+        {
+            fullDestinationPath = "";
+            if (string.IsNullOrEmpty(parameters.sourcePath))
+                return "sourcePath is required for import-model operation";
+            if (string.IsNullOrEmpty(parameters.destinationPath))
+                return "destinationPath is required for import-model operation";
+            if (!ProjectAssetPath.TryResolve(
+                Application.dataPath,
+                parameters.destinationPath,
+                out fullDestinationPath,
+                out var pathError))
+            {
+                return pathError;
+            }
+            if (!File.Exists(parameters.sourcePath))
+                return $"Source model file does not exist: {parameters.sourcePath}";
+            if (!IsSupportedModelExtension(parameters.destinationPath))
+                return $"Unsupported model extension: {Path.GetExtension(parameters.destinationPath)}";
+            return null;
+        }
+
+        private static void ImportModelAsset(string assetPath)
+        {
+            AssetDatabase.ImportAsset(
+                assetPath,
+                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+        }
+
+        private static void PopulateModelImportResult(
+            AssetExtendedOperationParams parameters,
+            AssetExtendedOperationResult result,
+            string fullSourcePath)
+        {
             var importerType = AssetDatabase.GetImporterType(parameters.destinationPath);
             result.sourcePath = fullSourcePath;
             result.destinationPath = parameters.destinationPath;
             result.assetPath = parameters.destinationPath;
             result.importerType = importerType?.Name ?? "";
-
-            if (IsGltfExtension(parameters.destinationPath) && IsDefaultImporter(importerType))
-            {
-                AssetDatabase.DeleteAsset(parameters.destinationPath);
-                result.message = "glTF/glb import requires a ScriptedImporter package.";
-                return result;
-            }
-
             result.guid = AssetDatabase.AssetPathToGUID(parameters.destinationPath);
             result.asset = CreateAssetInfo(parameters.destinationPath, result.guid);
-            result.success = true;
-            result.message = $"Imported model: {parameters.destinationPath}";
-            return result;
         }
 
-        private static string ValidateModelImport(AssetExtendedOperationParams parameters)
+        private static string RollbackModelImport(
+            string assetPath, AssetFileMutationScope mutation)
         {
-            if (string.IsNullOrEmpty(parameters.sourcePath))
-                return "sourcePath is required for import-model operation";
-            if (string.IsNullOrEmpty(parameters.destinationPath))
-                return "destinationPath is required for import-model operation";
-            if (!File.Exists(parameters.sourcePath))
-                return $"Source model file does not exist: {parameters.sourcePath}";
-            if (!parameters.destinationPath.StartsWith("Assets/"))
-                return $"Invalid destination path: '{parameters.destinationPath}'. Must start with 'Assets/'.";
-            if (!IsSupportedModelExtension(parameters.destinationPath))
-                return $"Unsupported model extension: {Path.GetExtension(parameters.destinationPath)}";
-            return null;
+            try
+            {
+                if (!mutation.DestinationExisted)
+                    AssetDatabase.DeleteAsset(assetPath);
+                mutation.Rollback();
+                if (mutation.DestinationExisted)
+                    ImportModelAsset(assetPath);
+                else
+                    AssetDatabase.Refresh();
+                return "";
+            }
+            catch (Exception ex)
+            {
+                return $" Rollback failed: {ex.Message}";
+            }
         }
 
         private static bool IsSupportedModelExtension(string path)
@@ -145,7 +220,9 @@ namespace BWS.Editor.ClaudeCodeBridge
 
         private static bool IsDefaultImporter(Type importerType)
         {
-            return importerType == null || importerType.Name == "DefaultImporter";
+            return importerType == null
+                || importerType == typeof(AssetImporter)
+                || importerType.Name == "DefaultImporter";
         }
 
         private AssetExtendedOperationResult ExecuteHash(AssetExtendedOperationParams parameters)
@@ -158,13 +235,16 @@ namespace BWS.Editor.ClaudeCodeBridge
                 return result;
             }
 
-            if (!parameters.assetPath.StartsWith("Assets/"))
+            if (!ProjectAssetPath.TryResolve(
+                Application.dataPath,
+                parameters.assetPath,
+                out var fullPath,
+                out var pathError))
             {
-                result.message = $"Invalid asset path: '{parameters.assetPath}'. Must start with 'Assets/'.";
+                result.message = pathError;
                 return result;
             }
 
-            var fullPath = ToProjectFilePath(parameters.assetPath);
             if (!File.Exists(fullPath))
             {
                 result.message = $"Asset does not exist: {parameters.assetPath}";
@@ -177,14 +257,6 @@ namespace BWS.Editor.ClaudeCodeBridge
             result.success = true;
             result.message = $"SHA256 computed for {parameters.assetPath}";
             return result;
-        }
-
-        private static string ToProjectFilePath(string assetPath)
-        {
-            var projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            return Path.GetFullPath(Path.Combine(
-                projectRoot,
-                assetPath.Replace('/', Path.DirectorySeparatorChar)));
         }
 
         private static string ComputeSha256(string fullPath)

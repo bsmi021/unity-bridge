@@ -103,59 +103,78 @@ namespace BWS.Editor.ClaudeCodeBridge
         {
             try
             {
-                // Parse parameters
                 var parameters = JsonUtility.FromJson<CompileParams>(command.parametersJson ?? "{}");
                 if (parameters == null)
                     parameters = new CompileParams();
 
-                BridgeLogger.LogDebug($"Triggering compilation (waitForCompletion={parameters.waitForCompletion}, timeout={parameters.timeout}s)");
-
+                BridgeLogger.LogDebug(
+                    $"Triggering compilation (waitForCompletion={parameters.waitForCompletion}, " +
+                    $"timeout={parameters.timeout}s)");
                 var startTime = DateTime.UtcNow;
-
-                // Trigger compilation
-                AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
-
-                // If not waiting for completion, return immediately
                 if (!parameters.waitForCompletion)
-                {
-                    BridgeLogger.LogInfo("Compilation triggered, returning immediately");
-                    var quickResult = new CompilationResult
-                    {
-                        success = true,
-                        triggered = true,
-                        message = "Compilation triggered"
-                    };
-                    return BridgeResponse.Success(command.commandId, command.commandType, JsonUtility.ToJson(quickResult));
-                }
-
-                // Defer completion to a non-blocking per-frame poll and return
-                // "running" now. The terminal response is written later via
-                // ClaudeUnityBridge.WriteResponseStatic. If compilation triggers
-                // a domain reload, the operation ledger's reload recovery writes
-                // the terminal response instead — so the caller never hangs.
-                _pendingCompiles[command.commandId] = new CompileWaitContext
-                {
-                    CommandId = command.commandId,
-                    CommandType = command.commandType,
-                    StartTime = startTime,
-                    TimeoutSeconds = parameters.timeout,
-                    CompilationStarted = false,
-                };
-                // Persist across a potential domain reload triggered by the compile.
-                SessionState.SetString(PendingCommandIdKey, command.commandId);
-                SessionState.SetString(PendingStartTicksKey, startTime.Ticks.ToString());
-                EnsurePollRegistered();
-
-                return BridgeResponse.Running(
-                    command.commandId,
-                    command.commandType,
-                    $"{{\"message\":\"Compilation requested at {startTime:O}\"}}"
-                );
+                    return TriggerWithoutWait(command);
+                return TriggerAndWait(command, parameters.timeout, startTime);
             }
             catch (Exception ex)
             {
                 BridgeLogger.LogError($"Error: {ex}");
                 return BridgeResponse.Error(command.commandId, command.commandType, ex.ToString());
+            }
+        }
+
+        private static BridgeResponse TriggerWithoutWait(BridgeCommand command)
+        {
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            BridgeLogger.LogInfo("Compilation triggered, returning immediately");
+            var result = new CompilationResult
+            {
+                success = true,
+                triggered = true,
+                message = "Compilation triggered"
+            };
+            return BridgeResponse.Success(
+                command.commandId, command.commandType, JsonUtility.ToJson(result));
+        }
+
+        private static BridgeResponse TriggerAndWait(
+            BridgeCommand command, int timeoutSeconds, DateTime startTime)
+        {
+            _pendingCompiles[command.commandId] = new CompileWaitContext
+            {
+                CommandId = command.commandId,
+                CommandType = command.commandType,
+                StartTime = startTime,
+                TimeoutSeconds = timeoutSeconds,
+                CompilationStarted = false,
+            };
+            SessionState.SetString(PendingCommandIdKey, command.commandId);
+            SessionState.SetString(PendingStartTicksKey, startTime.Ticks.ToString());
+            EnsurePollRegistered();
+
+            try
+            {
+                AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            }
+            catch
+            {
+                RemovePendingWait(command.commandId);
+                throw;
+            }
+
+            return BridgeResponse.Running(
+                command.commandId,
+                command.commandType,
+                $"{{\"message\":\"Compilation requested at {startTime:O}\"}}");
+        }
+
+        private static void RemovePendingWait(string commandId)
+        {
+            _pendingCompiles.Remove(commandId);
+            ClearPendingMarker(commandId);
+            if (_pendingCompiles.Count == 0 && _pollRegistered)
+            {
+                EditorApplication.update -= PollPendingCompiles;
+                _pollRegistered = false;
             }
         }
 
@@ -451,55 +470,4 @@ namespace BWS.Editor.ClaudeCodeBridge
         }
     }
 
-    /// <summary>
-    /// Tracks one in-flight, non-blocking compile wait.
-    /// </summary>
-    internal class CompileWaitContext
-    {
-        public string CommandId;
-        public string CommandType;
-        public DateTime StartTime;
-        public int TimeoutSeconds;
-        public bool CompilationStarted;
-    }
-
-    /// <summary>
-    /// Parameters for the compile command.
-    /// </summary>
-    [Serializable]
-    public class CompileParams
-    {
-        public bool waitForCompletion = true;
-        public int timeout = 120;
-    }
-
-    /// <summary>
-    /// Result data for the compile command.
-    /// </summary>
-    [Serializable]
-    public class CompilationResult
-    {
-        public bool success;
-        public bool triggered; // Used when returning immediately
-        public bool hasErrors;
-        public bool hasWarnings;
-        public int errorCount;
-        public int warningCount;
-        public double durationSeconds;
-        public List<CompilationMessage> messages = new List<CompilationMessage>();
-        public string message; // General message for triggered=true case
-    }
-
-    /// <summary>
-    /// Represents a single compilation message (error or warning).
-    /// </summary>
-    [Serializable]
-    public class CompilationMessage
-    {
-        public string type; // "error" or "warning"
-        public string message;
-        public string file;
-        public int line;
-        public int column;
-    }
 }

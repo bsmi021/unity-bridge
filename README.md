@@ -7,7 +7,7 @@ CLI-first Unity Editor automation via a file-based bridge protocol. Control Unit
 **Unity compatibility:** current bridge development targets Unity 6.5 while preserving
 fallbacks for earlier Unity 6.x editor APIs where practical.
 
-**Last updated:** 2026-07-02.
+**Last updated:** 2026-07-10.
 
 **Requirements:** Python 3.10+, Unity Editor running with the C# bridge installed.
 
@@ -62,6 +62,43 @@ The upgrade includes Unity 6.5-safe test framework callbacks and test discovery,
 Addressables build-result handling, lifecycle heartbeat hooks, Build Profile creation,
 profiler frame drilldown, script hash/edit operations, external model import, base64 and
 multi-angle screenshots, and batched import-setting edits.
+
+### Known Unity 6.5 package limitation
+
+The packaged bridge truthfully reports Addressables build results, including a
+live-verified missing-settings failure. A successful Addressables `3.1.0`
+content build could not be fixture-verified on the release machine because its
+Unity `6000.5.1f1` Package Manager fails before package registration with
+`The "path" argument must be of type string. Received undefined`. This is an
+accepted packaging limitation, not a covered scenario; projects with a healthy
+UPM installation remain the required environment for `addressables build`.
+
+### Coverage and proof gates
+
+`tools/UnityApiInventory/` inventories exact Unity, playback, package, plugin,
+and project assemblies with Mono.Cecil. It emits deterministic JSONL snapshots,
+API diffs, provenance, and a coverage registry gate. The command-surface parity
+gate independently joins registered C# operations to Python payloads and exact
+CLI leaves:
+
+```powershell
+dotnet run --project tools/UnityApiInventory/UnityApiInventory.csproj -- inventory ...
+uv run unity-bridge --project "C:/Path/To/Fixture" `
+  script-probe-assemblies SNAPSHOT.jsonl --output GENERIC-PROOF.json
+dotnet run --project tools/UnityApiInventory/UnityApiInventory.csproj -- `
+  registry-build --snapshot SNAPSHOT.jsonl --summary SUMMARY.json `
+  --generic-proof GENERIC-PROOF.json --output REGISTRY.json
+uv run python tools/command_surface_parity.py check --root . `
+  --registry docs/implementation-plans/unity-6-5-full-editor-coverage/command-surface-registry.json `
+  --output docs/implementation-plans/unity-6-5-full-editor-coverage/command-surface-report.json
+```
+
+See [the inventory tool](tools/UnityApiInventory/README.md) and
+[the current proof boundary](docs/implementation-plans/unity-6-5-full-editor-coverage/coverage-evidence.md).
+An API classified as `public_unwrapped` is inventoried, not claimed reachable.
+The pinned Unity 6.5 core-plus-Builder snapshot currently has zero
+`public_unwrapped` records: 126,095 current records are exact-assembly-proven
+through the generic host and 3,520 are metadata-obsolete.
 
 ## Global CLI Flags
 
@@ -285,7 +322,8 @@ unity-bridge asset-ext folder-create PATH          # Create a folder
 unity-bridge asset-ext folder-list PATH            # List subfolders
 unity-bridge asset-ext export --output FILE PATHS...  # Export as .unitypackage
 unity-bridge asset-ext import-package FILE [--interactive]  # Import a .unitypackage
-unity-bridge asset-ext import-model SOURCE DEST    # Copy an external model into Assets/ and import it
+unity-bridge asset-ext import-model SOURCE DEST [--overwrite]  # Refuses existing destinations by default
+unity-bridge asset-ext reserialize [--paths PATH]... [--mode assets|metadata|both]
 ```
 
 ```bash
@@ -300,6 +338,29 @@ unity-bridge asset-ext export --output "backup.unitypackage" "Assets/Scripts" "A
 
 # Example: import an external FBX into the project
 unity-bridge asset-ext import-model "C:/Models/Tree.fbx" "Assets/Models/Tree.fbx"
+
+# Example: reserialize selected assets and metadata
+unity-bridge asset-ext reserialize --paths "Assets/Prefabs/Player.prefab" --mode both
+```
+
+### Animation, Terrain, and Tilemap Authoring
+
+```
+unity-bridge animation set-curve CLIP_PATH PROPERTY_NAME --keyframes JSON [--relative-path PATH] [--component-type TYPE]
+unity-bridge animation add-event CLIP_PATH --time SECONDS [--function NAME]
+unity-bridge animation set-properties CLIP_PATH [--loop/--no-loop] [--wrap-mode MODE] [--frame-rate FPS]
+unity-bridge terrain set-heights --heights JSON [--x N] [--y N] [--terrain-name NAME]
+unity-bridge terrain set-settings [--size X,Y,Z] [--heightmap-resolution N] [--terrain-name NAME]
+unity-bridge tilemap fill-box TILEMAP_PATH TILE_PATH --start-x N --start-y N --end-x N --end-y N
+unity-bridge tilemap compress-bounds TILEMAP_PATH
+```
+
+```bash
+# Example: animate local Y from 0 to 2 over one second
+unity-bridge animation set-curve Assets/Animations/Jump.anim m_LocalPosition.y --keyframes '[{"time":0,"value":0},{"time":1,"value":2}]'
+
+# Example: set a 2x2 terrain height region
+unity-bridge terrain set-heights --heights '[[0.1,0.2],[0.3,0.4]]' --x 4 --y 6
 ```
 
 ### Import Settings
@@ -378,6 +439,8 @@ unity-bridge shader find-by-property "_MainTex"
 
 ```
 unity-bridge build --target TARGET [--validate-only] [--output PATH] [--dev] [--timeout N]
+unity-bridge build list-platforms [--timeout N]
+unity-bridge build switch-platform TARGET [--timeout N]
 ```
 
 ```bash
@@ -389,6 +452,10 @@ unity-bridge build --target Android --validate-only
 
 # Example: development build
 unity-bridge build --target StandaloneWindows64 --dev
+
+# Example: inspect installed build support and switch the active platform
+unity-bridge build list-platforms
+unity-bridge build switch-platform Android
 ```
 
 ### Build Profiles (Unity 6)
@@ -396,6 +463,7 @@ unity-bridge build --target StandaloneWindows64 --dev
 ```
 unity-bridge profile list                      # List all build profiles
 unity-bridge profile active                    # Get the active profile
+unity-bridge profile platforms                 # Discover installed platform GUIDs
 unity-bridge profile create NAME --platform-id PLATFORM_GUID
 unity-bridge profile set PATH                  # Set the active profile
 unity-bridge profile info PATH                 # Get profile details
@@ -411,7 +479,8 @@ unity-bridge profile build PATH --output Builds/Windows/Game.exe
 unity-bridge profile set "Assets/Settings/BuildProfiles/Android.asset"
 
 # Example: create a Unity 6.5 build profile
-unity-bridge profile create "Windows QA" --platform-id <platform-guid>
+unity-bridge profile platforms
+unity-bridge profile create "Windows QA" --platform-id <platform-guid-from-output>
 ```
 
 ### Compilation Pipeline
@@ -568,12 +637,39 @@ Batch file format:
 ### Script Execution
 
 ```
-unity-bridge script EXPRESSION [--file PATH] [--timeout N]
+unity-bridge script EXPRESSION [--file PATH] [--intent read-only|mutating]
+  [--assembly UNIQUE_SIMPLE_NAME]... [--assembly-identity FULL_NAME|MVID|LOADED_PATH]...
+  [--object-id GLOBAL_OBJECT_ID]... [--asset-path ASSETS_PATH]...
+  [--undo-label LABEL] [--return-schema SCHEMA]
+  [--allow-internal-reflection] [--timeout N]
+unity-bridge script-job EXPRESSION [--file PATH] [manifest options] [--detach]
+unity-bridge script-cancel COMMAND_ID
+unity-bridge script-probe-assemblies SNAPSHOT.jsonl [--output PROOF.json]
 unity-bridge script-edit range PATH --start-line N --end-line N --replacement TEXT [--if-match SHA256]
 unity-bridge script-edit anchor PATH --anchor TEXT --replacement TEXT [--occurrence N] [--if-match SHA256]
 ```
 
-Execute a C# expression or script file in the Unity Editor context.
+Execute a C# expression or script file in the Unity Editor context. This is a
+privileged, full-trust escape hatch. `script` is synchronous; its timeout bounds
+caller patience and cannot preempt arbitrary Unity main-thread C#.
+`script-job` evaluates an `IExecuteScriptJob` factory, advances one bounded step
+per Editor update, and enforces cancellation/deadlines between steps. Use
+`--detach`, `operation wait`, and `script-cancel` for responsive orchestration.
+
+The intent, reflection, and transaction fields do not form a sandbox. Mutating
+execution requires an Undo label plus at least one declared `GlobalObjectId` or
+canonical `Assets/` file path. Declared objects are pre-recorded with Undo,
+declared files and their `.meta` files are backed up, and completion rejects
+undeclared observable project changes. A failure reports
+`mutation.reverted=true` only after object and project-file state matches the
+pre-execution snapshot. Changes outside `Assets/`, later callbacks, and
+mutation work that survives a domain reload are outside the transaction.
+Prefer typed commands for common or high-risk workflows.
+
+`script-probe-assemblies` consumes an inventory JSONL snapshot, enumerates the
+live AppDomain, hash-matches exact assembly identities, compiler-probes each
+match, and emits the compact proof accepted by `registry-build
+--generic-proof`.
 
 ```bash
 # Example: execute an inline expression
@@ -803,6 +899,18 @@ Unit tests mock `DirectBridge` and never require a running Unity instance. Integ
 ruff check src/ tests/       # Lint
 ruff format src/ tests/      # Format
 ```
+
+### Building distributions
+
+Build the wheel and source distribution, then validate their package metadata:
+
+```powershell
+uv build --out-dir dist
+uvx twine check dist/unity_bridge-*.whl dist/unity_bridge-*.tar.gz
+```
+
+The wheel bundles the managed C# bridge and canonical `unity-bridge-cli` skill,
+so a normal wheel installation can deploy both with `unity-bridge install`.
 
 ### Project Structure
 

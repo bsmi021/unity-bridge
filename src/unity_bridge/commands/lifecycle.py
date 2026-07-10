@@ -119,7 +119,17 @@ def _target_bridge_files(target_dir: Path) -> list[Path]:
 def _obsolete_bridge_files(source_dir: Path, target_dir: Path) -> list[Path]:
     """Return installed bridge files that no longer exist in the source bundle."""
     source_names = set(_source_bridge_files(source_dir))
-    return [path for path in _target_bridge_files(target_dir) if path.name not in source_names]
+    return [
+        path
+        for path in _target_bridge_files(target_dir)
+        if path.name not in source_names
+        and not _is_generated_meta_for_source(path.name, source_names)
+    ]
+
+
+def _is_generated_meta_for_source(name: str, source_names: set[str]) -> bool:
+    """Return True for a Unity-created sidecar beside a current source asset."""
+    return name.endswith(".meta") and name.removesuffix(".meta") in source_names
 
 
 def _prune_obsolete_bridge_files(source_dir: Path, target_dir: Path) -> list[str]:
@@ -236,8 +246,11 @@ def _is_bridge_up_to_date(source_dir: Path, target_dir: Path) -> bool:
         return False
 
     source_files = _source_bridge_files(source_dir)
+    source_names = set(source_files)
     for target_file in _target_bridge_files(target_dir):
-        if target_file.name not in source_files:
+        if target_file.name not in source_files and not _is_generated_meta_for_source(
+            target_file.name, source_names
+        ):
             return False
     for name, source_file in source_files.items():
         target_file = target_dir / name

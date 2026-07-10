@@ -266,7 +266,10 @@ unity-bridge compile assemblies | defines ASM | which SCRIPT | optimization [--s
 # Editor Utilities
 unity-bridge refresh [--force] | focus PATH | menu "Menu/Path"
 unity-bridge screenshot PATH [--width W --height H --camera CAM] [--inline-base64] [--multi-angle]
-unity-bridge script "expression" | --file PATH
+unity-bridge script "expression" | --file PATH [--intent read-only|mutating] [--assembly UNIQUE_SIMPLE_NAME] [--assembly-identity FULL_NAME|MVID|LOADED_PATH] [--object-id GLOBAL_OBJECT_ID] [--asset-path ASSETS_PATH] [--undo-label LABEL] [--return-schema SCHEMA]
+unity-bridge script-job "job factory" [same manifest options] [--detach]
+unity-bridge script-cancel COMMAND_ID
+unity-bridge script-probe-assemblies SNAPSHOT.jsonl [--output PROOF.json]
 unity-bridge script-edit range PATH --start-line N --end-line N -r TEXT [--if-match SHA]
 unity-bridge script-edit anchor PATH -a ANCHOR -r TEXT [-n OCCURRENCE] [--if-match SHA]
 unity-bridge sync-solution
@@ -274,7 +277,7 @@ unity-bridge search query "t:Material" | providers
 
 # Assets & Import
 unity-bridge asset find|query|import|refresh [--type T] [--path P] [--pattern P]
-unity-bridge asset-ext create|delete|copy|move|deps|guid|hash|export|import-package|import-model
+unity-bridge asset-ext create|delete|copy|move|deps|guid|hash|export|import-package|import-model|reserialize
 unity-bridge import-settings get|set|reimport|bulk-set|template-save|template-apply
 unity-bridge material ACTION PATH [--properties JSON]
 unity-bridge shader list|info|errors|properties|find-by-property|keywords NAME
@@ -311,6 +314,9 @@ unity-bridge lightmap bake|cancel|clear|status|settings|set-settings
 unity-bridge batch FILE [--parallel] [--no-stop-on-error]
 
 # Authoring Systems
+unity-bridge animation set-curve|add-event|set-properties
+unity-bridge terrain set-heights|set-settings
+unity-bridge tilemap fill-box|compress-bounds
 unity-bridge ui-toolkit list-documents|inspect-uxml|inspect-uss|create-uxml
 unity-bridge ui-toolkit create-panel-settings|add-document
 unity-bridge input-system list|get|export|import|create
@@ -349,6 +355,22 @@ unity-bridge localization export-xliff|import-xliff NAME FILE_PATH
 unity-bridge memory-profiler take-snapshot [--path PATH] [--capture-flags F1,F2]
 unity-bridge vfx get-info [--asset-path PATH | --guid GUID]
 ```
+
+`script` is a privileged synchronous escape hatch, not a sandbox. Its timeout
+bounds caller patience but cannot preempt arbitrary Unity main-thread code.
+Use `script-job` when work can be expressed as an `IExecuteScriptJob`; Unity
+advances one bounded step per Editor update, and cancellation/deadlines apply
+between steps. `--detach`, `operation wait`, and `script-cancel` keep the caller
+responsive. A factory or step that blocks cannot be preempted.
+
+Mutating generic use requires an Undo label and at least one declared
+`GlobalObjectId` or canonical `Assets/` file target. Declared objects are
+pre-recorded and declared files plus `.meta` files are backed up;
+`mutation.reverted=true` is reported only after post-rollback verification.
+Changes outside `Assets/`, later callbacks, and mutation work spanning a domain
+reload remain outside that transaction. `script-probe-assemblies` is the
+repeatable exact-MVID/hash/compiler proof path for inventory snapshots. Prefer
+typed commands for common or high-risk workflows.
 
 ## Common Multi-Step Patterns
 
